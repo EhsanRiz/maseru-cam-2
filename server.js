@@ -222,92 +222,103 @@ async function analyzeTraffic(userQuestion = null) {
       framesByAngle[frame.angleType].push(frame);
     });
     
-    // Find the angle type with the most frames
-    let bestAngle = null;
-    let maxCount = 0;
-    for (const [angle, frames] of Object.entries(framesByAngle)) {
-      if (frames.length > maxCount) {
-        maxCount = frames.length;
-        bestAngle = angle;
+    // Get the MOST RECENT frame from EACH useful angle type
+    const framesToUse = [];
+    const anglesUsed = [];
+    
+    // Priority: Bridge first (shows both directions), then others
+    const anglePriority = [ANGLE_TYPES.BRIDGE, ANGLE_TYPES.PROCESSING, ANGLE_TYPES.WIDE];
+    
+    for (const angleType of anglePriority) {
+      if (framesByAngle[angleType] && framesByAngle[angleType].length > 0) {
+        // Get the most recent frame from this angle
+        const frames = framesByAngle[angleType];
+        framesToUse.push(frames[frames.length - 1]);
+        anglesUsed.push(angleType);
       }
     }
     
-    // Get frames from the best angle (up to 3)
-    const sameAngleFrames = framesByAngle[bestAngle];
-    const framesToUse = [];
-    
-    if (sameAngleFrames.length >= 3) {
-      // Get first, middle, and last frames from same angle
-      framesToUse.push(sameAngleFrames[0]);
-      framesToUse.push(sameAngleFrames[Math.floor(sameAngleFrames.length / 2)]);
-      framesToUse.push(sameAngleFrames[sameAngleFrames.length - 1]);
-    } else {
-      // Use all available frames from same angle
-      framesToUse.push(...sameAngleFrames);
+    // If we have less than 3 frames, add more from the most common angle
+    if (framesToUse.length < 3) {
+      // Find angle with most frames
+      let bestAngle = null;
+      let maxCount = 0;
+      for (const [angle, frames] of Object.entries(framesByAngle)) {
+        if (frames.length > maxCount) {
+          maxCount = frames.length;
+          bestAngle = angle;
+        }
+      }
+      
+      // Add older frames from best angle if needed
+      if (bestAngle && framesByAngle[bestAngle].length > 1) {
+        const additionalFrames = framesByAngle[bestAngle].slice(0, -1); // exclude the one we already added
+        for (const frame of additionalFrames.reverse()) {
+          if (framesToUse.length >= 3) break;
+          if (!framesToUse.includes(frame)) {
+            framesToUse.push(frame);
+          }
+        }
+      }
     }
 
-    console.log(`🔍 Analyzing ${framesToUse.length} frames from angle: ${bestAngle}`);
+    console.log(`🔍 Analyzing ${framesToUse.length} frames from angles: ${anglesUsed.join(', ')}`);
 
-    // Create angle-specific prompt
-    const angleGuide = {
-      [ANGLE_TYPES.BRIDGE]: `You are viewing the BRIDGE. 
-- LEFT lane (bright/lit side, closer to camera): Vehicles coming INTO Lesotho (SA → Lesotho)
-- RIGHT lane (far/dark side): Vehicles going TO South Africa (Lesotho → SA)
-Compare the frames to see if vehicles are moving or stationary.`,
-      
-      [ANGLE_TYPES.WIDE]: `You are viewing the WIDE ANGLE showing:
-- RIGHT side: ENGEN petrol station, road curving toward bridge (Lesotho → SA traffic)
-- Road area heading to bridge (Lesotho → SA traffic)
-- You can see if vehicles are queued heading toward SA.`,
-      
-      [ANGLE_TYPES.PROCESSING]: `You are viewing the PROCESSING AREA showing:
-- LEFT side: Curved roof canopy where vehicles wait (SA → Lesotho traffic)
-- Vehicles entering Lesotho from the bridge
-- Road heading to bridge on the right (Lesotho → SA traffic)
-Compare frames to see if vehicles are moving or stationary.`
-    };
-
+    // Create combined prompt for multiple angles
     const systemPrompt = `You are a traffic observation assistant for the Maseru Bridge border crossing between Lesotho and South Africa.
 
-You are viewing MULTIPLE FRAMES from the SAME camera angle taken over several minutes. Compare them to detect movement.
+You may be viewing frames from MULTIPLE camera angles. Synthesize information from ALL frames to give a complete assessment.
 
-${angleGuide[bestAngle] || ''}
+CAMERA VIEWS YOU MAY SEE:
 
-ANALYSIS METHOD:
-1. Compare vehicle positions across frames
-2. If vehicles are in SAME position = HEAVY (stagnant)
-3. If vehicles have MOVED/CHANGED = traffic is flowing (LIGHT or MODERATE)
-4. Count approximate vehicles: 0-2 = LIGHT, 3-6 = MODERATE, 7+ queued = HEAVY
+**BRIDGE VIEW:**
+- LEFT lane (bright/lit side, closer to camera): Vehicles coming INTO Lesotho (SA → Lesotho)
+- RIGHT lane (far/dark side): Vehicles going TO South Africa (Lesotho → SA)
+- This is the MOST IMPORTANT view - always use it to assess BOTH directions
 
-TRAFFIC ASSESSMENT:
+**PROCESSING AREA VIEW:**
+- Shows curved roof canopy (LEFT side) where SA → Lesotho vehicles wait
+- Also shows road heading to bridge (RIGHT side) for Lesotho → SA traffic
+- Confirms SA → Lesotho congestion level
+
+**WIDE VIEW:**
+- Shows ENGEN petrol station (right side)
+- Shows road curving toward bridge for Lesotho → SA traffic
+- Confirms Lesotho → SA congestion level
+
+HOW TO ASSESS:
 
 **LESOTHO → SOUTH AFRICA:**
-- LIGHT: Road mostly empty, few vehicles, moving freely
-- MODERATE: Some vehicles present, moving steadily
-- HEAVY: Long queue, vehicles stagnant across multiple frames
+- On BRIDGE: Look at RIGHT lane (far/dark side) - is it empty or queued?
+- On PROCESSING view: Look at road heading to bridge (right side)
+- On WIDE view: Look at road near ENGEN - is it clear or backed up?
 
 **SOUTH AFRICA → LESOTHO:**
-- LIGHT: Few vehicles, processing area mostly empty
-- MODERATE: Several vehicles, some activity at processing
-- HEAVY: Vehicles packed at processing area, not moving between frames
+- On BRIDGE: Look at LEFT lane (bright side) - is it empty or queued?
+- On PROCESSING view: Look at canopy area (left side) - packed or empty?
+
+TRAFFIC LEVELS:
+- LIGHT: Empty or very few vehicles, moving freely
+- MODERATE: Some vehicles, moving steadily
+- HEAVY: Long queue, vehicles stationary/packed
 
 RESPONSE FORMAT:
 
-**Traffic:** [Brief summary of overall conditions]
+**Traffic:** [Brief overall summary]
 
 **Conditions:**
-• Lesotho → SA: [Light/Moderate/Heavy based on what you see, or "Not visible" if this direction not in view]
-• SA → Lesotho: [Light/Moderate/Heavy based on what you see, or "Not visible" if this direction not in view]
+• Lesotho → SA: [Light/Moderate/Heavy based on what you see]
+• SA → Lesotho: [Light/Moderate/Heavy based on what you see]
 
 **Advice:** [One practical sentence]
 
 ⚠️ AI estimate from camera snapshots. Conditions change quickly.
 
 RULES:
-- Be ACCURATE - only report what you can see in these frames
-- If a direction is not visible in this angle, say "Not visible in current view"
-- Compare frames to detect if traffic is moving or stuck
-- Keep response short and factual`;
+- Use ALL available views to form your assessment
+- Bridge view is primary - always check both lanes on the bridge
+- Cross-reference with other views when available
+- Be accurate - describe what you actually see`;
 
     // Build content array with multiple images
     const content = [];
