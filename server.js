@@ -251,8 +251,8 @@ async function analyzeTraffic(userQuestion = null) {
     // Create angle-specific prompt
     const angleGuide = {
       [ANGLE_TYPES.BRIDGE]: `You are viewing the BRIDGE. 
-- LEFT lane: Vehicles going TO South Africa (Lesotho → SA)
-- RIGHT lane: Vehicles coming INTO Lesotho (SA → Lesotho)
+- LEFT lane (bright/lit side, closer to camera): Vehicles coming INTO Lesotho (SA → Lesotho)
+- RIGHT lane (far/dark side): Vehicles going TO South Africa (Lesotho → SA)
 Compare the frames to see if vehicles are moving or stationary.`,
       
       [ANGLE_TYPES.WIDE]: `You are viewing the WIDE ANGLE showing:
