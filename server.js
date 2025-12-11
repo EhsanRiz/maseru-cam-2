@@ -43,47 +43,90 @@ async function initBrowser() {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
+        '--disable-web-security',
         '--autoplay-policy=no-user-gesture-required',
-        '--window-size=1280,720',
+        '--window-size=1920,1080',
+        '--start-maximized',
       ],
     });
 
     page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 720 });
+    await page.setViewport({ width: 1920, height: 1080 });
     
-    // Set user agent to appear as regular browser
+    // Set user agent
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     console.log('📷 Navigating to camera feed...');
     
     await page.goto(config.cameraUrl, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'domcontentloaded',
       timeout: 60000,
     });
     
-    // Wait for page to fully load
+    // Wait for page to render
     await new Promise(resolve => setTimeout(resolve, 5000));
     
-    console.log('🎬 Clicking play button on Border Post, Maseru (top-left video)...');
+    // Log page title and URL
+    const title = await page.title();
+    const url = page.url();
+    console.log(`📄 Page loaded: ${title} - ${url}`);
     
-    // The Border Post, Maseru video is in the top-left quadrant
-    // Click on the play button area (center of top-left video)
-    await page.mouse.click(280, 250);
-    console.log('🎬 Clicked first position');
+    // Log what elements exist
+    const pageInfo = await page.evaluate(() => {
+      return {
+        videos: document.querySelectorAll('video').length,
+        iframes: document.querySelectorAll('iframe').length,
+        images: document.querySelectorAll('img').length,
+        buttons: document.querySelectorAll('button').length,
+        divs: document.querySelectorAll('div').length,
+        bodyText: document.body.innerText.substring(0, 200),
+      };
+    });
+    console.log('📊 Page elements:', JSON.stringify(pageInfo));
     
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Click on the first video tile (Border Post, Maseru)
+    console.log('🎬 Attempting to click on Border Post, Maseru video...');
     
-    // Try clicking again in case first click dismissed something
-    await page.mouse.click(280, 250);
-    console.log('🎬 Clicked second time');
+    // Try to find and click on the video container
+    try {
+      // Wait for any clickable element in the video area
+      await page.waitForSelector('div', { timeout: 5000 });
+      
+      // Click at different positions to find the play button
+      const clickPositions = [
+        { x: 270, y: 230 },  // Center of first video tile
+        { x: 270, y: 200 },  // Slightly higher
+        { x: 300, y: 250 },  // Slightly right
+        { x: 250, y: 220 },  // Slightly left
+      ];
+      
+      for (const pos of clickPositions) {
+        console.log(`🖱️ Clicking at (${pos.x}, ${pos.y})`);
+        await page.mouse.click(pos.x, pos.y);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+      
+    } catch (e) {
+      console.log('⚠️ Click attempt error:', e.message);
+    }
     
-    // Wait for video to start playing
-    await new Promise(resolve => setTimeout(resolve, 8000));
+    // Wait for video to potentially start
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
-    console.log('✅ Camera feed should now be playing');
+    // Check if video is now playing
+    const afterClick = await page.evaluate(() => {
+      const videos = document.querySelectorAll('video');
+      return {
+        videoCount: videos.length,
+        playing: Array.from(videos).map(v => !v.paused),
+      };
+    });
+    console.log('📊 After click:', JSON.stringify(afterClick));
+    
+    console.log('✅ Browser initialized');
     return true;
   } catch (error) {
-    console.error('❌ Failed to load camera feed:', error.message);
+    console.error('❌ Failed to initialize:', error.message);
     return false;
   }
 }
@@ -97,31 +140,36 @@ async function captureScreenshot() {
   
   try {
     // Reload page
-    await page.reload({ waitUntil: 'networkidle0', timeout: 30000 });
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
     
-    // Wait for page to load
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Wait for page to render
+    await new Promise(resolve => setTimeout(resolve, 4000));
     
-    // Click on the Border Post, Maseru play button (top-left video)
-    console.log('🎬 Clicking play button...');
-    await page.mouse.click(280, 250);
+    // Log current page state
+    const beforeClick = await page.evaluate(() => {
+      return document.body.innerHTML.length;
+    });
+    console.log(`📄 Page HTML length: ${beforeClick}`);
     
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Click on first video tile multiple times
+    console.log('🎬 Clicking to start video...');
+    await page.mouse.click(270, 230);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await page.mouse.click(270, 230);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await page.mouse.click(270, 230);
     
-    // Click again to ensure playback starts
-    await page.mouse.click(280, 250);
-    
-    // Wait for video to render
+    // Wait for video
     await new Promise(resolve => setTimeout(resolve, 6000));
     
-    // Take screenshot of just the top-left video area (Border Post, Maseru)
+    // Take FULL page screenshot to see what's actually there
     const screenshot = await page.screenshot({
       type: 'png',
-      clip: { x: 0, y: 80, width: 560, height: 320 },
+      fullPage: false,  // Just viewport, not full scroll
     });
     
     latestScreenshot = screenshot;
-    console.log(`📸 Screenshot captured at ${new Date().toISOString()}`);
+    console.log(`📸 Screenshot captured at ${new Date().toISOString()}, size: ${screenshot.length} bytes`);
     
     return screenshot;
   } catch (error) {
@@ -255,6 +303,32 @@ app.get('/api/screenshot', async (req, res) => {
     res.send(screenshot);
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to get screenshot' });
+  }
+});
+
+// Debug endpoint to see what Puppeteer sees
+app.get('/api/debug', async (req, res) => {
+  try {
+    if (!page) {
+      return res.json({ error: 'No page available' });
+    }
+    
+    const debugInfo = await page.evaluate(() => {
+      return {
+        url: window.location.href,
+        title: document.title,
+        bodyLength: document.body.innerHTML.length,
+        videos: document.querySelectorAll('video').length,
+        iframes: document.querySelectorAll('iframe').length,
+        canvas: document.querySelectorAll('canvas').length,
+        visibleText: document.body.innerText.substring(0, 500),
+        firstDivClasses: Array.from(document.querySelectorAll('div')).slice(0, 10).map(d => d.className),
+      };
+    });
+    
+    res.json(debugInfo);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
