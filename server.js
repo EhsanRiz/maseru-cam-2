@@ -13,21 +13,80 @@ const config = {
   port: process.env.PORT || 3000,
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridge.stream_all/playlist.m3u8',
-  captureInterval: 60000,      // Capture every 60 seconds
-  cacheTimeout: 180000,        // Cache analysis for 3 minutes
-  maxBufferSize: 6,            // Keep last 6 frames (6 minutes of history)
-  analysisFrames: 3,           // Use 3 frames for analysis
+  captureInterval: 30000,       // Capture every 30 seconds
+  cacheTimeout: 180000,         // Cache analysis for 3 minutes
+  maxBufferSize: 12,            // Keep last 12 frames (6 minutes of history)
+  analysisFrames: 3,            // Use 3 frames for analysis
 };
 
 const anthropic = new Anthropic({
   apiKey: config.anthropicApiKey,
 });
 
-// Buffer to store multiple screenshots with timestamps
+// Buffer to store multiple screenshots with timestamps and angle classification
 let screenshotBuffer = [];
 let latestAnalysis = null;
 let lastAnalysisTime = 0;
 let isCapturing = false;
+let isClassifying = false;
+
+// Angle types
+const ANGLE_TYPES = {
+  BRIDGE: 'bridge',           // View of the bridge showing both lanes
+  WIDE: 'wide',               // Wide view showing ENGEN, road to bridge
+  PROCESSING: 'processing',   // Processing area with curved roof
+  USELESS: 'useless'          // Trees, darkness, no useful info
+};
+
+// Classify frame angle using AI
+async function classifyFrameAngle(imageBuffer) {
+  if (isClassifying) return ANGLE_TYPES.USELESS;
+  
+  isClassifying = true;
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 50,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: imageBuffer.toString('base64'),
+            },
+          },
+          {
+            type: 'text',
+            text: `Classify this Maseru Border camera image. Reply with ONLY one word:
+- BRIDGE (if you see the bridge with lanes/vehicles on it)
+- WIDE (if you see ENGEN station, Chiefs Fast Foods, road curving toward bridge)
+- PROCESSING (if you see curved roof canopy, vehicles at border processing area)
+- USELESS (if you only see trees, darkness, lights, or nothing useful)
+
+Reply with ONE word only.`
+          }
+        ],
+      }],
+    });
+    
+    const result = response.content[0].text.trim().toUpperCase();
+    console.log(`📷 Frame classified as: ${result}`);
+    
+    if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
+    if (result.includes('WIDE')) return ANGLE_TYPES.WIDE;
+    if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
+    return ANGLE_TYPES.USELESS;
+    
+  } catch (error) {
+    console.error('❌ Classification failed:', error.message);
+    return ANGLE_TYPES.USELESS;
+  } finally {
+    isClassifying = false;
+  }
+}
 
 const app = express();
 app.use(cors());
@@ -64,7 +123,7 @@ async function captureFrame() {
       stderr += data.toString();
     });
 
-    ffmpeg.on('close', (code) => {
+    ffmpeg.on('close', async (code) => {
       isCapturing = false;
       
       if (code === 0 && fs.existsSync(outputPath)) {
@@ -72,10 +131,14 @@ async function captureFrame() {
           const imageBuffer = fs.readFileSync(outputPath);
           const timestamp = Date.now();
           
-          // Add to buffer
+          // Classify the frame angle
+          const angleType = await classifyFrameAngle(imageBuffer);
+          
+          // Add to buffer with angle type
           screenshotBuffer.push({
             screenshot: imageBuffer,
-            timestamp: timestamp
+            timestamp: timestamp,
+            angleType: angleType
           });
           
           // Keep only recent frames
@@ -83,7 +146,13 @@ async function captureFrame() {
             screenshotBuffer = screenshotBuffer.slice(-config.maxBufferSize);
           }
           
-          console.log(`✅ Frame captured, buffer size: ${screenshotBuffer.length}`);
+          // Count frames by type
+          const counts = screenshotBuffer.reduce((acc, f) => {
+            acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+            return acc;
+          }, {});
+          
+          console.log(`✅ Frame captured (${angleType}), buffer: ${JSON.stringify(counts)}`);
           resolve(imageBuffer);
         } catch (err) {
           console.error('❌ Failed to read captured frame:', err.message);
@@ -134,79 +203,111 @@ async function analyzeTraffic(userQuestion = null) {
   }
 
   try {
-    // Get frames for analysis (up to 3 frames spread across the buffer)
-    const framesToUse = [];
-    const bufferLen = screenshotBuffer.length;
+    // Filter out useless frames and group by angle type
+    const usefulFrames = screenshotBuffer.filter(f => f.angleType !== ANGLE_TYPES.USELESS);
     
-    if (bufferLen >= 3) {
-      // Get first, middle, and last frames
-      framesToUse.push(screenshotBuffer[0]);
-      framesToUse.push(screenshotBuffer[Math.floor(bufferLen / 2)]);
-      framesToUse.push(screenshotBuffer[bufferLen - 1]);
+    if (usefulFrames.length === 0) {
+      return {
+        success: false,
+        message: "Camera view is currently limited. Please try again in a moment for a better view.",
+      };
+    }
+    
+    // Group frames by angle type
+    const framesByAngle = {};
+    usefulFrames.forEach(frame => {
+      if (!framesByAngle[frame.angleType]) {
+        framesByAngle[frame.angleType] = [];
+      }
+      framesByAngle[frame.angleType].push(frame);
+    });
+    
+    // Find the angle type with the most frames
+    let bestAngle = null;
+    let maxCount = 0;
+    for (const [angle, frames] of Object.entries(framesByAngle)) {
+      if (frames.length > maxCount) {
+        maxCount = frames.length;
+        bestAngle = angle;
+      }
+    }
+    
+    // Get frames from the best angle (up to 3)
+    const sameAngleFrames = framesByAngle[bestAngle];
+    const framesToUse = [];
+    
+    if (sameAngleFrames.length >= 3) {
+      // Get first, middle, and last frames from same angle
+      framesToUse.push(sameAngleFrames[0]);
+      framesToUse.push(sameAngleFrames[Math.floor(sameAngleFrames.length / 2)]);
+      framesToUse.push(sameAngleFrames[sameAngleFrames.length - 1]);
     } else {
-      // Use all available frames
-      framesToUse.push(...screenshotBuffer);
+      // Use all available frames from same angle
+      framesToUse.push(...sameAngleFrames);
     }
 
-    console.log(`🔍 Analyzing ${framesToUse.length} frames...`);
+    console.log(`🔍 Analyzing ${framesToUse.length} frames from angle: ${bestAngle}`);
+
+    // Create angle-specific prompt
+    const angleGuide = {
+      [ANGLE_TYPES.BRIDGE]: `You are viewing the BRIDGE. 
+- LEFT lane: Vehicles going TO South Africa (Lesotho → SA)
+- RIGHT lane: Vehicles coming INTO Lesotho (SA → Lesotho)
+Compare the frames to see if vehicles are moving or stationary.`,
+      
+      [ANGLE_TYPES.WIDE]: `You are viewing the WIDE ANGLE showing:
+- RIGHT side: ENGEN petrol station, road curving toward bridge (Lesotho → SA traffic)
+- Road area heading to bridge (Lesotho → SA traffic)
+- You can see if vehicles are queued heading toward SA.`,
+      
+      [ANGLE_TYPES.PROCESSING]: `You are viewing the PROCESSING AREA showing:
+- LEFT side: Curved roof canopy where vehicles wait (SA → Lesotho traffic)
+- Vehicles entering Lesotho from the bridge
+- Road heading to bridge on the right (Lesotho → SA traffic)
+Compare frames to see if vehicles are moving or stationary.`
+    };
 
     const systemPrompt = `You are a traffic observation assistant for the Maseru Bridge border crossing between Lesotho and South Africa.
 
-CRITICAL RULES:
-1. NEVER mention image numbers or camera angles
-2. COMPLETELY IGNORE frames showing only trees, vegetation, lights, or darkness - make NO assessment from these
-3. ONLY describe what you can ACTUALLY SEE in useful frames
-4. Assess EACH direction separately - they can be different (e.g., light one way, heavy the other)
+You are viewing MULTIPLE FRAMES from the SAME camera angle taken over several minutes. Compare them to detect movement.
 
-TRAFFIC ZONES TO ANALYZE:
+${angleGuide[bestAngle] || ''}
 
-**LESOTHO → SOUTH AFRICA (leaving Lesotho):**
-Where to look:
-- The road heading toward the bridge (often empty open road area)
-- LEFT lane on the bridge (vehicles with headlights facing away/toward SA)
-- Curved road near ENGEN petrol station (right side in wide view)
+ANALYSIS METHOD:
+1. Compare vehicle positions across frames
+2. If vehicles are in SAME position = HEAVY (stagnant)
+3. If vehicles have MOVED/CHANGED = traffic is flowing (LIGHT or MODERATE)
+4. Count approximate vehicles: 0-2 = LIGHT, 3-6 = MODERATE, 7+ queued = HEAVY
 
-Traffic levels:
-- LIGHT: Road mostly empty, hardly any cars, vehicles moving freely
-- MODERATE: Some cars present, moving steadily in front of ENGEN
-- HEAVY: Queue extends BEYOND ENGEN station, many vehicles lined up, stagnant
+TRAFFIC ASSESSMENT:
 
-**SOUTH AFRICA → LESOTHO (entering Lesotho):**
-Where to look:
-- RIGHT lane on the bridge (vehicles coming toward camera/Lesotho)
-- Processing area with curved roof canopy (LEFT side) - where vehicles wait after crossing
-- Vehicles queued entering Maseru from bridge
+**LESOTHO → SOUTH AFRICA:**
+- LIGHT: Road mostly empty, few vehicles, moving freely
+- MODERATE: Some vehicles present, moving steadily
+- HEAVY: Long queue, vehicles stagnant across multiple frames
 
-Traffic levels:
-- LIGHT: Few cars, moving quickly, processing area mostly empty
-- MODERATE: Several vehicles, moving steadily, some waiting at processing
-- HEAVY: Vehicles packed at processing area, long queue on bridge right lane, cars stationary
-
-**KEY LANDMARKS:**
-- ENGEN petrol station (right side) - queue beyond here = heavy for Lesotho→SA
-- Border post with curved roof/canopy (left side) - SA→Lesotho processing area
-- Chiefs Fast Foods sign - Maseru commercial area
-- Bridge: LEFT lane = to SA, RIGHT lane = to Lesotho
+**SOUTH AFRICA → LESOTHO:**
+- LIGHT: Few vehicles, processing area mostly empty
+- MODERATE: Several vehicles, some activity at processing
+- HEAVY: Vehicles packed at processing area, not moving between frames
 
 RESPONSE FORMAT:
 
-**Traffic:** [Overall summary - can mention both directions differ]
+**Traffic:** [Brief summary of overall conditions]
 
 **Conditions:**
-• Lesotho → SA: [what you actually see - light/moderate/heavy]
-• SA → Lesotho: [what you actually see - light/moderate/heavy]
-• [One observation about flow/movement]
+• Lesotho → SA: [Light/Moderate/Heavy based on what you see, or "Not visible" if this direction not in view]
+• SA → Lesotho: [Light/Moderate/Heavy based on what you see, or "Not visible" if this direction not in view]
 
-**Advice:** [Practical tip based on conditions]
+**Advice:** [One practical sentence]
 
 ⚠️ AI estimate from camera snapshots. Conditions change quickly.
 
-ACCURACY RULES:
-- Each direction can have DIFFERENT traffic levels - assess separately
-- Empty road/lane = LIGHT, packed/queued vehicles = HEAVY
-- If one direction is clear but other is congested, report BOTH accurately
-- Do NOT say "heavy" for both if only one direction shows congestion`;
-
+RULES:
+- Be ACCURATE - only report what you can see in these frames
+- If a direction is not visible in this angle, say "Not visible in current view"
+- Compare frames to detect if traffic is moving or stuck
+- Keep response short and factual`;
 
     // Build content array with multiple images
     const content = [];
@@ -323,14 +424,23 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/debug', (req, res) => {
+  // Count frames by angle type
+  const angleCounts = screenshotBuffer.reduce((acc, f) => {
+    acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+    return acc;
+  }, {});
+  
   res.json({
     streamUrl: config.streamUrl,
     bufferSize: screenshotBuffer.length,
+    angleCounts: angleCounts,
     frames: screenshotBuffer.map(f => ({
       timestamp: new Date(f.timestamp).toISOString(),
+      angleType: f.angleType,
       size: f.screenshot.length
     })),
     isCapturing,
+    isClassifying,
   });
 });
 
