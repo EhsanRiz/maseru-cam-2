@@ -155,32 +155,30 @@ async function analyzeTraffic(userQuestion = null) {
 You are analyzing multiple camera snapshots captured over the past few minutes. Use ALL images together to form ONE unified assessment - DO NOT describe each image separately.
 
 CRITICAL RULES:
-1. NEVER mention "Image 1", "Image 2", "Image 3" or any image numbers - users don't see multiple images
+1. NEVER mention "Image 1", "Image 2", "Image 3" or any image numbers
 2. NEVER describe what each image shows separately - give ONE unified analysis
 3. Synthesize information from all frames into a single coherent assessment
-4. Use phrases like "over the past few minutes" or "currently" instead of referencing specific images
 
-ANALYSIS GUIDELINES:
-1. BE CONSERVATIVE - Only describe what you can clearly see
-2. USE BROAD CATEGORIES: "appears light", "looks moderate", "seems busy", "appears heavy"
-3. AVOID SPECIFIC COUNTS - Say "several vehicles" not exact numbers
-4. AVOID SPECIFIC WAIT TIMES - Say "may experience some delays" not "30 minutes"
-5. MENTION TRENDS if visible: "traffic appears stable", "seems to be building up"
-6. IF UNSURE, SAY SO
+RESPONSE FORMAT - Use this exact structure with bullet points:
 
-Your response format should be:
-- Start with overall traffic assessment (one sentence)
-- Mention if conditions appear stable, building, or clearing
-- Note weather/visibility
-- Brief practical advice
-- End with the disclaimer
+**Traffic:** [One sentence - light/moderate/busy/heavy + brief description]
 
-Keep responses concise (3-4 short paragraphs max).
+**Conditions:**
+• [Queue status - e.g., "No significant queuing" or "Some vehicles waiting"]
+• [Flow - e.g., "Vehicles moving steadily" or "Slow movement visible"]
+• [Weather - e.g., "Clear visibility" or "Overcast conditions"]
 
-Always end with:
-"⚠️ This is an AI estimate from camera snapshots. Conditions change quickly - verify before critical travel decisions."`;
+**Advice:** [One practical sentence for travelers]
 
-    // Build content array with multiple images (but don't label them for the AI to repeat)
+⚠️ AI estimate from camera snapshots. Conditions change quickly.
+
+GUIDELINES:
+- Keep it SHORT - max 4-5 bullet points total
+- Use broad terms: "appears light", "looks moderate", "seems busy"
+- NO specific vehicle counts or wait time estimates
+- Be honest if visibility is limited or camera angle doesn't show queue clearly`;
+
+    // Build content array with multiple images
     const content = [];
     
     framesToUse.forEach((frame, i) => {
@@ -195,8 +193,8 @@ Always end with:
     });
 
     const userPrompt = userQuestion 
-      ? `Based on these camera snapshots from Maseru Bridge border crossing, please answer: ${userQuestion}`
-      : `Analyze these camera snapshots from Maseru Bridge border crossing. Give a unified assessment of current traffic conditions.`;
+      ? `Based on these camera snapshots from Maseru Bridge border crossing, please answer briefly: ${userQuestion}`
+      : `Analyze these camera snapshots from Maseru Bridge border crossing. Give a brief, structured assessment.`;
 
     content.push({
       type: 'text',
