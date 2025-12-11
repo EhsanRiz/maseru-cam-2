@@ -43,48 +43,44 @@ async function initBrowser() {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--window-size=1920,1080',
+        '--autoplay-policy=no-user-gesture-required',
+        '--window-size=1280,720',
       ],
     });
 
     page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setViewport({ width: 1280, height: 720 });
+    
+    // Set user agent to appear as regular browser
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     console.log('📷 Navigating to camera feed...');
     
     await page.goto(config.cameraUrl, {
-      waitUntil: 'networkidle2',
+      waitUntil: 'networkidle0',
       timeout: 60000,
     });
     
-    // Wait for video player to initialize
+    // Wait for page to fully load
     await new Promise(resolve => setTimeout(resolve, 5000));
     
-    // Try to click on video to start playback (many players need this)
-    try {
-      await page.click('video');
-      console.log('🎬 Clicked video element');
-    } catch (e) {
-      // Try clicking on common player elements
-      try {
-        await page.click('.video-js');
-      } catch (e2) {
-        try {
-          await page.click('#player');
-        } catch (e3) {
-          // Click center of page as fallback
-          await page.mouse.click(350, 250);
-          console.log('🎬 Clicked center of page');
-        }
-      }
-    }
+    console.log('🎬 Clicking play button on Border Post, Maseru (top-left video)...');
     
-    // Wait longer for video to actually start playing
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    // The Border Post, Maseru video is in the top-left quadrant
+    // Click on the play button area (center of top-left video)
+    await page.mouse.click(280, 250);
+    console.log('🎬 Clicked first position');
     
-    console.log('✅ Camera feed loaded successfully');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Try clicking again in case first click dismissed something
+    await page.mouse.click(280, 250);
+    console.log('🎬 Clicked second time');
+    
+    // Wait for video to start playing
+    await new Promise(resolve => setTimeout(resolve, 8000));
+    
+    console.log('✅ Camera feed should now be playing');
     return true;
   } catch (error) {
     console.error('❌ Failed to load camera feed:', error.message);
@@ -100,24 +96,28 @@ async function captureScreenshot() {
   isCapturing = true;
   
   try {
-    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+    // Reload page
+    await page.reload({ waitUntil: 'networkidle0', timeout: 30000 });
     
-    // Wait for video player to initialize
+    // Wait for page to load
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Try to click video to ensure playback
-    try {
-      await page.click('video');
-    } catch (e) {
-      await page.mouse.click(350, 250);
-    }
+    // Click on the Border Post, Maseru play button (top-left video)
+    console.log('🎬 Clicking play button...');
+    await page.mouse.click(280, 250);
     
-    // Wait for video to render frame
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
+    // Click again to ensure playback starts
+    await page.mouse.click(280, 250);
+    
+    // Wait for video to render
+    await new Promise(resolve => setTimeout(resolve, 6000));
+    
+    // Take screenshot of just the top-left video area (Border Post, Maseru)
     const screenshot = await page.screenshot({
       type: 'png',
-      clip: { x: 0, y: 0, width: 800, height: 600 },
+      clip: { x: 0, y: 80, width: 560, height: 320 },
     });
     
     latestScreenshot = screenshot;
