@@ -59,7 +59,30 @@ async function initBrowser() {
       timeout: 60000,
     });
     
+    // Wait for video player to initialize
     await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    // Try to click on video to start playback (many players need this)
+    try {
+      await page.click('video');
+      console.log('🎬 Clicked video element');
+    } catch (e) {
+      // Try clicking on common player elements
+      try {
+        await page.click('.video-js');
+      } catch (e2) {
+        try {
+          await page.click('#player');
+        } catch (e3) {
+          // Click center of page as fallback
+          await page.mouse.click(350, 250);
+          console.log('🎬 Clicked center of page');
+        }
+      }
+    }
+    
+    // Wait longer for video to actually start playing
+    await new Promise(resolve => setTimeout(resolve, 10000));
     
     console.log('✅ Camera feed loaded successfully');
     return true;
@@ -78,11 +101,23 @@ async function captureScreenshot() {
   
   try {
     await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Wait for video player to initialize
     await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Try to click video to ensure playback
+    try {
+      await page.click('video');
+    } catch (e) {
+      await page.mouse.click(350, 250);
+    }
+    
+    // Wait for video to render frame
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     const screenshot = await page.screenshot({
       type: 'png',
-      clip: { x: 0, y: 50, width: 700, height: 450 },
+      clip: { x: 0, y: 0, width: 800, height: 600 },
     });
     
     latestScreenshot = screenshot;
