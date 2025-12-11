@@ -1,9 +1,10 @@
 import express from 'express';
-import puppeteer from 'puppeteer';
 import Anthropic from '@anthropic-ai/sdk';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,7 +12,8 @@ const __dirname = path.dirname(__filename);
 const config = {
   port: process.env.PORT || 3000,
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-  cameraUrl: 'https://webcast.etl.co.ls/m/SEHq7e82/maseru-bridge?list=NOdbTdaJ',
+  // Direct HLS stream URL for Maseru Bridge camera
+  streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridge.stream_all/playlist.m3u8',
   captureInterval: 60000,
   cacheTimeout: 30000,
 };
@@ -20,11 +22,10 @@ const anthropic = new Anthropic({
   apiKey: config.anthropicApiKey,
 });
 
-let browser = null;
-let page = null;
 let latestScreenshot = null;
 let latestAnalysis = null;
 let lastAnalysisTime = 0;
+let lastCaptureTime = 0;
 let isCapturing = false;
 
 const app = express();
@@ -32,167 +33,81 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-async function initBrowser() {
-  console.log('🚀 Launching browser...');
-  
-  try {
-    browser = await puppeteer.launch({
-      headless: 'new',
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-web-security',
-        '--autoplay-policy=no-user-gesture-required',
-        '--window-size=1920,1080',
-        '--start-maximized',
-      ],
-    });
-
-    page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
-    
-    // Set user agent
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    
-    console.log('📷 Navigating to camera feed...');
-    
-    await page.goto(config.cameraUrl, {
-      waitUntil: 'domcontentloaded',
-      timeout: 60000,
-    });
-    
-    // Wait for page to render
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
-    // Log page title and URL
-    const title = await page.title();
-    const url = page.url();
-    console.log(`📄 Page loaded: ${title} - ${url}`);
-    
-    // Log what elements exist
-    const pageInfo = await page.evaluate(() => {
-      return {
-        videos: document.querySelectorAll('video').length,
-        iframes: document.querySelectorAll('iframe').length,
-        images: document.querySelectorAll('img').length,
-        buttons: document.querySelectorAll('button').length,
-        divs: document.querySelectorAll('div').length,
-        bodyText: document.body.innerText.substring(0, 200),
-      };
-    });
-    console.log('📊 Page elements:', JSON.stringify(pageInfo));
-    
-    // Click on the first video tile (Border Post, Maseru)
-    console.log('🎬 Attempting to click on Border Post, Maseru video...');
-    
-    // Try to find and click on the video container
-    try {
-      // Wait for any clickable element in the video area
-      await page.waitForSelector('div', { timeout: 5000 });
-      
-      // Click at different positions to find the play button
-      const clickPositions = [
-        { x: 270, y: 230 },  // Center of first video tile
-        { x: 270, y: 200 },  // Slightly higher
-        { x: 300, y: 250 },  // Slightly right
-        { x: 250, y: 220 },  // Slightly left
-      ];
-      
-      for (const pos of clickPositions) {
-        console.log(`🖱️ Clicking at (${pos.x}, ${pos.y})`);
-        await page.mouse.click(pos.x, pos.y);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-      
-    } catch (e) {
-      console.log('⚠️ Click attempt error:', e.message);
-    }
-    
-    // Wait for video to potentially start
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
-    // Check if video is now playing
-    const afterClick = await page.evaluate(() => {
-      const videos = document.querySelectorAll('video');
-      return {
-        videoCount: videos.length,
-        playing: Array.from(videos).map(v => !v.paused),
-      };
-    });
-    console.log('📊 After click:', JSON.stringify(afterClick));
-    
-    console.log('✅ Browser initialized');
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to initialize:', error.message);
-    return false;
-  }
-}
-
-async function captureScreenshot() {
-  if (!page || isCapturing) {
+// Capture a frame from the HLS stream using ffmpeg
+async function captureFrame() {
+  if (isCapturing) {
+    console.log('⏳ Capture already in progress, returning cached screenshot');
     return latestScreenshot;
   }
 
   isCapturing = true;
-  
-  try {
-    // Reload page
-    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+  const outputPath = '/tmp/frame.jpg';
+
+  return new Promise((resolve) => {
+    console.log('📸 Capturing frame from HLS stream...');
     
-    // Wait for page to render
-    await new Promise(resolve => setTimeout(resolve, 4000));
-    
-    // Log current page state
-    const beforeClick = await page.evaluate(() => {
-      return document.body.innerHTML.length;
+    // Use ffmpeg to capture a single frame from the HLS stream
+    const ffmpeg = spawn('ffmpeg', [
+      '-y',                          // Overwrite output file
+      '-i', config.streamUrl,        // Input HLS stream
+      '-vframes', '1',               // Capture only 1 frame
+      '-q:v', '2',                   // Quality (2 = high quality)
+      '-vf', 'scale=800:-1',         // Scale to 800px width
+      outputPath                      // Output file
+    ], {
+      timeout: 30000,
     });
-    console.log(`📄 Page HTML length: ${beforeClick}`);
+
+    let stderr = '';
     
-    // Click on first video tile multiple times
-    console.log('🎬 Clicking to start video...');
-    await page.mouse.click(270, 230);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await page.mouse.click(270, 230);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await page.mouse.click(270, 230);
-    
-    // Wait for video
-    await new Promise(resolve => setTimeout(resolve, 6000));
-    
-    // Take FULL page screenshot to see what's actually there
-    const screenshot = await page.screenshot({
-      type: 'png',
-      fullPage: false,  // Just viewport, not full scroll
+    ffmpeg.stderr.on('data', (data) => {
+      stderr += data.toString();
     });
-    
-    latestScreenshot = screenshot;
-    console.log(`📸 Screenshot captured at ${new Date().toISOString()}, size: ${screenshot.length} bytes`);
-    
-    return screenshot;
-  } catch (error) {
-    console.error('❌ Screenshot capture failed:', error.message);
-    
-    try {
-      await browser?.close();
-      await initBrowser();
-    } catch (reinitError) {
-      console.error('❌ Browser reinitialization failed:', reinitError.message);
-    }
-    
-    return latestScreenshot;
-  } finally {
-    isCapturing = false;
-  }
+
+    ffmpeg.on('close', (code) => {
+      isCapturing = false;
+      
+      if (code === 0 && fs.existsSync(outputPath)) {
+        try {
+          const imageBuffer = fs.readFileSync(outputPath);
+          latestScreenshot = imageBuffer;
+          lastCaptureTime = Date.now();
+          console.log(`✅ Frame captured successfully, size: ${imageBuffer.length} bytes`);
+          resolve(imageBuffer);
+        } catch (err) {
+          console.error('❌ Failed to read captured frame:', err.message);
+          resolve(latestScreenshot);
+        }
+      } else {
+        console.error(`❌ ffmpeg failed with code ${code}`);
+        console.error('stderr:', stderr.slice(-500));
+        resolve(latestScreenshot);
+      }
+    });
+
+    ffmpeg.on('error', (err) => {
+      isCapturing = false;
+      console.error('❌ ffmpeg error:', err.message);
+      resolve(latestScreenshot);
+    });
+
+    // Timeout after 25 seconds
+    setTimeout(() => {
+      if (isCapturing) {
+        ffmpeg.kill('SIGKILL');
+        isCapturing = false;
+        console.error('❌ ffmpeg timeout');
+        resolve(latestScreenshot);
+      }
+    }, 25000);
+  });
 }
 
 async function analyzeTraffic(screenshot, userQuestion = null) {
   if (!screenshot) {
     return {
       success: false,
-      message: "No camera feed available. Please try again in a moment.",
+      message: "No camera feed available. The stream might be temporarily offline. Please try again in a moment.",
     };
   }
 
@@ -234,11 +149,14 @@ Keep responses concise but informative. Use local context - people crossing here
               type: 'image',
               source: {
                 type: 'base64',
-                media_type: 'image/png',
+                media_type: 'image/jpeg',
                 data: base64Image,
               },
             },
-            { type: 'text', text: userPrompt },
+            {
+              type: 'text',
+              text: userPrompt,
+            },
           ],
         },
       ],
@@ -248,6 +166,7 @@ Keep responses concise but informative. Use local context - people crossing here
       success: true,
       message: response.content[0].text,
       timestamp: new Date().toISOString(),
+      cached: false,
     };
 
     if (!userQuestion) {
@@ -265,9 +184,10 @@ Keep responses concise but informative. Use local context - people crossing here
   }
 }
 
+// API Routes
 app.get('/api/status', async (req, res) => {
   try {
-    const screenshot = await captureScreenshot();
+    const screenshot = await captureFrame();
     const analysis = await analyzeTraffic(screenshot);
     res.json(analysis);
   } catch (error) {
@@ -283,7 +203,7 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide a message' });
     }
 
-    const screenshot = await captureScreenshot();
+    const screenshot = await captureFrame();
     const analysis = await analyzeTraffic(screenshot, message);
     res.json(analysis);
   } catch (error) {
@@ -293,51 +213,34 @@ app.post('/api/chat', async (req, res) => {
 
 app.get('/api/screenshot', async (req, res) => {
   try {
-    const screenshot = await captureScreenshot();
+    const screenshot = await captureFrame();
     
     if (!screenshot) {
       return res.status(503).json({ success: false, message: 'No screenshot available' });
     }
 
-    res.set('Content-Type', 'image/png');
+    res.set('Content-Type', 'image/jpeg');
     res.send(screenshot);
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to get screenshot' });
   }
 });
 
-// Debug endpoint to see what Puppeteer sees
-app.get('/api/debug', async (req, res) => {
-  try {
-    if (!page) {
-      return res.json({ error: 'No page available' });
-    }
-    
-    const debugInfo = await page.evaluate(() => {
-      return {
-        url: window.location.href,
-        title: document.title,
-        bodyLength: document.body.innerHTML.length,
-        videos: document.querySelectorAll('video').length,
-        iframes: document.querySelectorAll('iframe').length,
-        canvas: document.querySelectorAll('canvas').length,
-        visibleText: document.body.innerText.substring(0, 500),
-        firstDivClasses: Array.from(document.querySelectorAll('div')).slice(0, 10).map(d => d.className),
-      };
-    });
-    
-    res.json(debugInfo);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    browserConnected: !!browser?.isConnected(),
-    lastCapture: latestScreenshot ? 'available' : 'none',
+    lastCapture: lastCaptureTime ? new Date(lastCaptureTime).toISOString() : 'none',
+    hasScreenshot: !!latestScreenshot,
     uptime: process.uptime(),
+  });
+});
+
+app.get('/api/debug', (req, res) => {
+  res.json({
+    streamUrl: config.streamUrl,
+    lastCapture: lastCaptureTime ? new Date(lastCaptureTime).toISOString() : 'none',
+    screenshotSize: latestScreenshot ? latestScreenshot.length : 0,
+    isCapturing,
   });
 });
 
@@ -345,41 +248,31 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-async function start() {
-  console.log('🌉 Maseru Bridge Traffic Bot');
-  console.log('============================');
+// Background capture every 60 seconds
+async function startBackgroundCapture() {
+  console.log('🔄 Starting background capture...');
   
-  if (!config.anthropicApiKey) {
-    console.error('❌ ANTHROPIC_API_KEY environment variable is required');
-    process.exit(1);
-  }
-
-  const browserReady = await initBrowser();
+  // Initial capture
+  await captureFrame();
   
-  if (!browserReady) {
-    console.log('⚠️  Browser failed to load camera feed. Will retry on requests.');
-  }
-
+  // Periodic capture
   setInterval(async () => {
-    if (browser?.isConnected()) {
-      await captureScreenshot();
-    }
+    await captureFrame();
   }, config.captureInterval);
+}
 
-  app.listen(config.port, () => {
+// Start server
+async function start() {
+  console.log('🌉 Maseru Bridge Traffic Bot (FFmpeg Edition)');
+  console.log('============================================');
+  console.log(`📡 Stream URL: ${config.streamUrl}`);
+  
+  // Start background capture
+  startBackgroundCapture();
+  
+  app.listen(config.port, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${config.port}`);
   });
 }
 
-process.on('SIGINT', async () => {
-  console.log('\n👋 Shutting down...');
-  await browser?.close();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  await browser?.close();
-  process.exit(0);
-});
-
-start();
+start().catch(console.error);

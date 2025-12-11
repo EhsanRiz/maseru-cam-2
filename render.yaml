@@ -1,8 +1,6 @@
 services:
   - type: web
-    name: maseru-traffic-bot
+    name: maseru-border-cam
     runtime: docker
     plan: free
-    envVars:
-      - key: ANTHROPIC_API_KEY
-        sync: false
+    healthCheckPath: /api/health
