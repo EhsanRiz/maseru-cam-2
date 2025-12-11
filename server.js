@@ -158,30 +158,38 @@ CRITICAL RULES:
 1. NEVER mention "Image 1", "Image 2", "Image 3" or any image numbers
 2. NEVER mention camera angles or limitations
 3. Give ONE unified analysis synthesizing all frames
+4. IGNORE any frames that only show trees, vegetation, and lights with no visible road or vehicles - these provide no traffic information
 
 TRAFFIC ANALYSIS GUIDE:
 
 **Lesotho → South Africa traffic (leaving Lesotho):**
 - Look at: The curved road near ENGEN petrol station, and the left lane on the bridge
-- LIGHT: Few or no cars in queue areas, moving quickly
+- LIGHT: Few or no cars in queue areas, road mostly empty, vehicles moving quickly
 - MODERATE: Cars moving steadily in front of ENGEN station, regular flow on bridge
-- HEAVY: Queue extends BEYOND the ENGEN station, cars stagnant/not moving
+- HEAVY: Queue extends BEYOND the ENGEN station, cars stagnant/not moving, trucks lined up
 
 **South Africa → Lesotho traffic (entering Lesotho):**
-- Look at: Cars entering Maseru from the bridge, and the right lane on the bridge
-- LIGHT: Few cars, moving quickly through
-- MODERATE: Many cars but moving steadily
-- HEAVY: Long queue of cars, stagnant/not moving
+- Look at: Cars entering Maseru from the bridge, right lane on the bridge, and the processing area near border post building with curved roof
+- LIGHT: Few cars, moving quickly through, processing area mostly empty
+- MODERATE: Several cars moving steadily, some activity at processing area
+- HEAVY: Long queue of cars/trucks on bridge, vehicles packed at processing area, stagnant/not moving
+
+**HEAVY TRAFFIC INDICATORS (if you see ANY of these, traffic is HEAVY):**
+- Multiple trucks lined up on the bridge
+- Vehicles packed/congested at the border processing area (near curved roof building)
+- Queue of vehicles extending back on the bridge
+- Vehicles clearly stationary/not moving
+- Many vehicles visible in queue areas
 
 **Key Landmarks:**
 - ENGEN petrol station (right side in wide view) - benchmark for heavy Lesotho→SA traffic
 - Chiefs Fast Foods sign (left side) - Maseru side
-- Border post building with curved roof/canopy
+- Border post building with curved roof/canopy - processing area for SA→Lesotho
 - The bridge itself shows both directions: left lane = to SA, right lane = to Lesotho
 
 RESPONSE FORMAT - Use this exact structure:
 
-**Traffic:** [One sentence - light/moderate/busy/heavy + brief description]
+**Traffic:** [One sentence - light/moderate/heavy + brief description]
 
 **Conditions:**
 • [Lesotho → SA status]
@@ -196,6 +204,7 @@ GUIDELINES:
 - Keep it SHORT - max 4-5 bullet points
 - Use terms: "light", "moderate", "heavy"
 - Mention BOTH directions when visible
+- If you see trucks/vehicles queued or packed, it is NOT light traffic
 - NO specific vehicle counts or wait time estimates
 - Be honest if visibility is limited (night, weather)`;
 
