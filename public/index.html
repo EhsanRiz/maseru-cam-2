@@ -13,7 +13,6 @@
     gtag('js', new Date());
     gtag('config', 'G-54KT25TNZ8');
   </script>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -229,6 +228,14 @@
     .message.bot .message-content { background: var(--bg-secondary); border-bottom-left-radius: 4px; }
     .message.user .message-content { background: var(--accent); border-bottom-right-radius: 4px; }
 
+    .frame-timestamp {
+      font-size: 0.7rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
     .message-time { font-size: 0.6rem; color: var(--text-muted); margin-top: 0.2rem; }
     .message.user .message-time { text-align: right; }
 
@@ -348,6 +355,88 @@
 
     footer a { color: var(--accent); text-decoration: none; }
 
+    /* Advertisement Spaces */
+    .ad-container {
+      margin-top: 0.5rem;
+    }
+
+    .ad-placeholder {
+      background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+      position: relative;
+    }
+
+    .ad-label {
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      background: var(--bg-primary);
+      padding: 0 6px;
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .ad-content {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+    }
+
+    .ad-content p {
+      margin: 0 0 0.2rem 0;
+      color: var(--text-primary);
+    }
+
+    .ad-content p:first-child {
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+
+    .ad-content small {
+      color: var(--text-muted);
+      font-size: 0.65rem;
+    }
+
+    .ad-content small a {
+      color: var(--accent);
+      margin: 0 0.25rem;
+    }
+
+    .ad-content a {
+      color: var(--accent);
+    }
+
+    .ad-horizontal {
+      padding: 0.5rem 1rem;
+    }
+
+    .ad-horizontal .ad-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .ad-horizontal .ad-content p {
+      margin: 0;
+      font-size: 0.7rem;
+    }
+
+    .ad-footer {
+      margin: 0.5rem 1rem;
+    }
+
+    /* Hide ads on very small screens if needed */
+    @media (max-width: 360px) {
+      .ad-container {
+        display: none;
+      }
+    }
+
     @media (max-width: 640px) {
       .header { padding: 0.4rem 0.6rem; }
       .header-logo { height: 30px; }
@@ -411,6 +500,18 @@
         <div class="disclaimer-banner">
           ⚠️ AI estimates from camera snapshots. Conditions change quickly - verify before critical travel.
         </div>
+        
+        <!-- Ad Space 1: Below Camera -->
+        <div class="ad-container" id="ad-camera">
+          <div class="ad-placeholder">
+            <span class="ad-label">Advertisement</span>
+            <div class="ad-content">
+              <p>📢 Prime Ad Space Available</p>
+              <p>Be the first business travelers see</p>
+              <small><a href="mailto:ads@4dcs.co.za">ads@4dcs.co.za</a> • <a href="tel:+26622323442">+266 2232 3442</a></small>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="chat-section">
@@ -445,6 +546,15 @@
     </div>
 
     <footer>
+      <!-- Ad Space 2: Footer Banner -->
+      <div class="ad-container ad-footer" id="ad-footer">
+        <div class="ad-placeholder ad-horizontal">
+          <span class="ad-label">Advertisement</span>
+          <div class="ad-content">
+            <p>📢 Advertise to 1000s of border travelers | <a href="mailto:ads@4dcs.co.za">ads@4dcs.co.za</a></p>
+          </div>
+        </div>
+      </div>
       <p>© 2025 <a href="https://4dcs.co.za" target="_blank">4D Climate Solutions</a> | Camera by ETL Webcast</p>
     </footer>
   </div>
@@ -505,7 +615,11 @@
         const data = await response.json();
         removeTypingIndicator(typingId);
 
-        addMessage(data.success ? data.message : (data.message || 'Sorry, I encountered an error.'), 'bot');
+        if (data.success) {
+          addMessage(data.message, 'bot', data.frameTime);
+        } else {
+          addMessage(data.message || 'Sorry, I encountered an error.', 'bot');
+        }
       } catch (error) {
         removeTypingIndicator(typingId);
         addMessage('Connection error. Please try again.', 'bot');
@@ -516,14 +630,22 @@
       }
     }
 
-    function addMessage(text, type) {
+    function addMessage(text, type, frameTime = null) {
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${type}`;
+      
+      let messageContent = '';
+      if (type === 'bot' && frameTime) {
+        messageContent = `<div class="frame-timestamp">📸 Based on camera feed at ${frameTime}</div>${text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}`;
+      } else {
+        messageContent = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      }
+      
       messageDiv.innerHTML = `
         <div class="message-avatar">${type === 'bot' ? '🌉' : '👤'}</div>
         <div>
-          <div class="message-content">${text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
+          <div class="message-content">${messageContent}</div>
           <div class="message-time">${time}</div>
         </div>
       `;
