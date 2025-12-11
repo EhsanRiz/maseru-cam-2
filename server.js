@@ -152,38 +152,38 @@ async function analyzeTraffic(userQuestion = null) {
 
     const systemPrompt = `You are a traffic observation assistant for the Maseru Bridge border crossing between Lesotho and South Africa.
 
-You are being shown ${framesToUse.length} images captured over the last few minutes from the same camera. Analyze them together to understand traffic TRENDS and give more accurate observations.
+You are analyzing multiple camera snapshots captured over the past few minutes. Use ALL images together to form ONE unified assessment - DO NOT describe each image separately.
 
-IMPORTANT GUIDELINES:
-1. COMPARE THE IMAGES - Look for changes between frames to understand if traffic is building up, clearing, or stable
-2. BE CONSERVATIVE - Only describe what you can clearly see across the images
-3. USE BROAD CATEGORIES for traffic: "appears light", "looks moderate", "seems busy", "appears heavy"
-4. MENTION TRENDS if visible: "traffic appears to be building up", "queue seems stable", "conditions look similar across images"
-5. AVOID SPECIFIC COUNTS - Say "several vehicles" or "a queue of vehicles" not exact numbers
-6. AVOID SPECIFIC WAIT TIMES - Say "may experience some delays" not "30-45 minutes"
-7. IF UNSURE, SAY SO - Better to be honest about limitations
+CRITICAL RULES:
+1. NEVER mention "Image 1", "Image 2", "Image 3" or any image numbers - users don't see multiple images
+2. NEVER describe what each image shows separately - give ONE unified analysis
+3. Synthesize information from all frames into a single coherent assessment
+4. Use phrases like "over the past few minutes" or "currently" instead of referencing specific images
 
-What you CAN describe:
-- General traffic level based on all images
-- Whether traffic is increasing, decreasing, or stable
-- Weather/visibility conditions
-- General observations (trucks, pedestrians, etc.)
+ANALYSIS GUIDELINES:
+1. BE CONSERVATIVE - Only describe what you can clearly see
+2. USE BROAD CATEGORIES: "appears light", "looks moderate", "seems busy", "appears heavy"
+3. AVOID SPECIFIC COUNTS - Say "several vehicles" not exact numbers
+4. AVOID SPECIFIC WAIT TIMES - Say "may experience some delays" not "30 minutes"
+5. MENTION TRENDS if visible: "traffic appears stable", "seems to be building up"
+6. IF UNSURE, SAY SO
 
-What you should AVOID:
-- Specific vehicle counts
-- Specific wait time estimates in minutes
-- Definitive promises about conditions
+Your response format should be:
+- Start with overall traffic assessment (one sentence)
+- Mention if conditions appear stable, building, or clearing
+- Note weather/visibility
+- Brief practical advice
+- End with the disclaimer
 
-Keep responses concise. Always end with:
+Keep responses concise (3-4 short paragraphs max).
+
+Always end with:
 "⚠️ This is an AI estimate from camera snapshots. Conditions change quickly - verify before critical travel decisions."`;
 
-    // Build content array with multiple images
+    // Build content array with multiple images (but don't label them for the AI to repeat)
     const content = [];
     
     framesToUse.forEach((frame, i) => {
-      const ageSeconds = Math.round((now - frame.timestamp) / 1000);
-      const ageText = ageSeconds < 60 ? `${ageSeconds} seconds` : `${Math.round(ageSeconds / 60)} minutes`;
-      
       content.push({
         type: 'image',
         source: {
@@ -192,15 +192,11 @@ Keep responses concise. Always end with:
           data: frame.screenshot.toString('base64'),
         },
       });
-      content.push({
-        type: 'text',
-        text: `[Image ${i + 1} of ${framesToUse.length}: captured ${ageText} ago]`
-      });
     });
 
     const userPrompt = userQuestion 
-      ? `Based on these ${framesToUse.length} camera images from Maseru Bridge border crossing, please answer: ${userQuestion}`
-      : `Analyze these ${framesToUse.length} camera images from Maseru Bridge border crossing. Describe current conditions and any trends you observe.`;
+      ? `Based on these camera snapshots from Maseru Bridge border crossing, please answer: ${userQuestion}`
+      : `Analyze these camera snapshots from Maseru Bridge border crossing. Give a unified assessment of current traffic conditions.`;
 
     content.push({
       type: 'text',
