@@ -506,6 +506,7 @@
           <div class="ad-placeholder">
             <span class="ad-label">Advertisement</span>
             <div class="ad-content">
+              <!-- Replace this div with Google AdSense code or custom ad -->
               <p>📢 Prime Ad Space Available</p>
               <p>Be the first business travelers see</p>
               <small><a href="mailto:ads@4dcs.co.za">ads@4dcs.co.za</a> • <a href="tel:+26622323442">+266 2232 3442</a></small>
@@ -551,6 +552,7 @@
         <div class="ad-placeholder ad-horizontal">
           <span class="ad-label">Advertisement</span>
           <div class="ad-content">
+            <!-- Replace with Google AdSense or custom ad -->
             <p>📢 Advertise to 1000s of border travelers | <a href="mailto:ads@4dcs.co.za">ads@4dcs.co.za</a></p>
           </div>
         </div>
@@ -616,7 +618,16 @@
         removeTypingIndicator(typingId);
 
         if (data.success) {
-          addMessage(data.message, 'bot', data.frameTime);
+          // Format frame time in user's local timezone
+          let frameTime = null;
+          if (data.frameTimestamp) {
+            frameTime = new Date(data.frameTimestamp).toLocaleTimeString([], { 
+              hour: 'numeric', 
+              minute: '2-digit',
+              hour12: true 
+            });
+          }
+          addMessage(data.message, 'bot', frameTime);
         } else {
           addMessage(data.message || 'Sorry, I encountered an error.', 'bot');
         }
