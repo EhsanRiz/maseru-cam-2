@@ -215,17 +215,12 @@ GUIDELINES:
 
     // Get timestamp of most recent frame
     const latestFrame = framesToUse[framesToUse.length - 1];
-    const frameTime = new Date(latestFrame.timestamp).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
 
     const analysis = {
       success: true,
       message: response.content[0].text,
       timestamp: new Date().toISOString(),
-      frameTime: frameTime,
+      frameTimestamp: latestFrame.timestamp,
       framesAnalyzed: framesToUse.length,
       cached: false,
     };
