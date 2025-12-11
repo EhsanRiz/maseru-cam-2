@@ -18,6 +18,7 @@
       --text-muted: #64748b;
       --border: #2a3a4a;
       --success: #10b981;
+      --warning: #f59e0b;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -39,26 +40,20 @@
     .header {
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border);
-      padding: 0.75rem 1rem;
+      padding: 0.5rem 1rem;
       display: flex;
       align-items: center;
       gap: 0.75rem;
       flex-shrink: 0;
     }
 
-    .header-icon {
-      width: 40px;
-      height: 40px;
-      background: linear-gradient(135deg, var(--accent), #1d4ed8);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
+    .header-logo {
+      height: 36px;
+      width: auto;
     }
 
-    .header-info h1 { font-size: 1.1rem; font-weight: 600; }
-    .header-info p { font-size: 0.75rem; color: var(--text-secondary); }
+    .header-info h1 { font-size: 1rem; font-weight: 600; }
+    .header-info p { font-size: 0.7rem; color: var(--text-secondary); }
 
     .status-indicator {
       margin-left: auto;
@@ -110,7 +105,7 @@
     .camera-preview img {
       width: 100%;
       height: auto;
-      max-height: 280px;
+      max-height: 260px;
       object-fit: cover;
       display: block;
     }
@@ -121,7 +116,7 @@
       justify-content: center;
       padding: 3rem;
       color: var(--text-muted);
-      min-height: 200px;
+      min-height: 180px;
     }
 
     .camera-controls {
@@ -153,6 +148,17 @@
     }
 
     .refresh-btn:hover { background: var(--bg-card); color: var(--text-primary); }
+
+    .disclaimer-banner {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: var(--warning);
+      padding: 0.4rem 0.6rem;
+      font-size: 0.65rem;
+      text-align: center;
+      border-radius: 6px;
+      margin-top: 0.5rem;
+    }
 
     .chat-section {
       flex: 1;
@@ -204,31 +210,31 @@
     .message.user .message-avatar { background: var(--bg-secondary); border: 1px solid var(--border); }
 
     .message-content {
-      padding: 0.75rem 0.875rem;
+      padding: 0.625rem 0.75rem;
       border-radius: 12px;
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       line-height: 1.5;
     }
 
     .message.bot .message-content { background: var(--bg-secondary); border-bottom-left-radius: 4px; }
     .message.user .message-content { background: var(--accent); border-bottom-right-radius: 4px; }
 
-    .message-time { font-size: 0.625rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .message-time { font-size: 0.6rem; color: var(--text-muted); margin-top: 0.2rem; }
     .message.user .message-time { text-align: right; }
 
     .welcome-message {
       text-align: center;
-      padding: 1.5rem;
+      padding: 1rem;
       color: var(--text-secondary);
     }
 
-    .welcome-message h2 { font-size: 1rem; color: var(--text-primary); margin-bottom: 0.5rem; }
-    .welcome-message p { font-size: 0.8rem; }
+    .welcome-message h2 { font-size: 0.95rem; color: var(--text-primary); margin-bottom: 0.4rem; }
+    .welcome-message p { font-size: 0.75rem; }
 
     .typing-indicator {
       display: flex;
       gap: 4px;
-      padding: 0.75rem;
+      padding: 0.5rem;
     }
 
     .typing-indicator span {
@@ -249,32 +255,26 @@
 
     .quick-actions-bar {
       display: flex;
-      gap: 0.5rem;
-      padding: 0.5rem 0.75rem;
+      gap: 0.4rem;
+      padding: 0.4rem 0.6rem;
       background: var(--bg-secondary);
       border-top: 1px solid var(--border);
       overflow-x: auto;
       flex-shrink: 0;
     }
 
-    .quick-actions-bar::-webkit-scrollbar {
-      height: 4px;
-    }
-
-    .quick-actions-bar::-webkit-scrollbar-thumb {
-      background: var(--border);
-      border-radius: 2px;
-    }
+    .quick-actions-bar::-webkit-scrollbar { height: 3px; }
+    .quick-actions-bar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
     .quick-action {
       background: var(--bg-card);
       border: 1px solid var(--border);
       color: var(--text-primary);
-      padding: 0.5rem 0.875rem;
+      padding: 0.4rem 0.7rem;
       border-radius: 2rem;
       cursor: pointer;
       font-family: inherit;
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       white-space: nowrap;
       transition: all 0.2s;
       flex-shrink: 0;
@@ -286,7 +286,7 @@
     }
 
     .chat-input-container {
-      padding: 0.75rem;
+      padding: 0.6rem;
       background: var(--bg-secondary);
       border-top: 1px solid var(--border);
     }
@@ -298,20 +298,20 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 0.75rem;
+      padding: 0.6rem;
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       resize: none;
-      max-height: 100px;
+      max-height: 80px;
     }
 
     .chat-input::placeholder { color: var(--text-muted); }
     .chat-input:focus { outline: none; border-color: var(--accent); }
 
     .send-btn {
-      width: 42px;
-      height: 42px;
+      width: 38px;
+      height: 38px;
       background: var(--accent);
       border: none;
       border-radius: 10px;
@@ -329,9 +329,9 @@
 
     footer {
       text-align: center;
-      padding: 0.5rem;
+      padding: 0.4rem;
       color: var(--text-muted);
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       flex-shrink: 0;
       background: var(--bg-primary);
     }
@@ -339,29 +339,27 @@
     footer a { color: var(--accent); text-decoration: none; }
 
     @media (max-width: 640px) {
-      .header { padding: 0.5rem 0.75rem; }
-      .header-info h1 { font-size: 1rem; }
-      .camera-preview img { max-height: 200px; }
-      .message { max-width: 90%; }
-      .quick-action { padding: 0.375rem 0.75rem; font-size: 0.7rem; }
+      .header { padding: 0.4rem 0.6rem; }
+      .header-logo { height: 30px; }
+      .header-info h1 { font-size: 0.9rem; }
+      .camera-preview img { max-height: 180px; }
+      .message { max-width: 92%; }
     }
 
     @media (min-width: 768px) {
       .main-content {
         flex-direction: row;
-        padding: 1rem;
-        gap: 1rem;
+        padding: 0.75rem;
+        gap: 0.75rem;
       }
       
       .camera-section {
         width: 45%;
         padding: 0;
-        position: sticky;
-        top: 0;
       }
       
       .camera-preview img {
-        max-height: 400px;
+        max-height: 350px;
       }
       
       .chat-section {
@@ -374,10 +372,10 @@
 <body>
   <div class="app-container">
     <header class="header">
-      <div class="header-icon">🌉</div>
+      <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAAAAAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAAyAK8DASIAAhEBAxEB/8QAGwABAAIDAQEAAAAAAAAAAAAAAAUGAwQHAgj/xAA7EAABAwMDAQYEAwYFBQAAAAABAgMEAAURBhIhMQcTIkFRcRQyYYEVQqEWMzaRssEjZHJ0sTVSc4Lx/8QAGwEBAAIDAQEAAAAAAAAAAAAAAAIDAQQGBQf/xAAsEQABAwIFAwMDBQAAAAAAAAABAAIRAwQFEiExQVFhcROBsQYHoSQyM1Lh/9oADAMBAAIRAxEAPwD7KrytaEJKlqCQPU1p3aUuM22lrb3jqwhGemTVdtb1vvc5+O5empT7Dim3IyV7NpBwfD8x96m2m5wJA0CqfWYwhrjqdu6mZN9jpcLMRC5T3/a2M49/SsYkXwtF4Mxxzw0Vc4/1dM/esV2gTITbb9rnxIrbQIUw+0A057kcg1DP9oCYkF9ybbVNrY+d1K8se+7GftWC0gTwpB4LsvKsMa+s94GZrS4jp8nBgH2PQ1KtuIcTuQsKHqDVc0/3l8ZM9252+XEdRhLMUJcbH1J9a1718Fp8B78XbhZPhaUrdu9kdf5fyqMhWQdlbqVH2iW6+XWXykusnarb0qQosJSlKIlKUoiUpSiJSlKIlKUoiUpSiJSlKIobUv723H/No/5FfNGrXHGtZ3Zxpam1pnOlKknBHjPnX0vqb57ef823/UK+ZtZ/xfeP969/Wa6z6U/lqeB8r599wDFCjHU/C6Tpi/upttuk3Vtd03MjPfOkng9f/tdChansc63LbTHO0DC4ymhjn9CK5JaP4etv/h/vVg0v8z/sP718sx3Grq3xyvbtMsB0BG2nC6XAj+jpHkgSeVA9prUWwPRLzpdpyxyHpQbcER5SErBBPKRx5eQqtl56RMS8+6t1xSwVLWoqJ59TVk7ZP+jW7/fJ/pNVhj983/rH/NbthVfVohzzJkrqrfVkruVy1HA0w3drjOUCS+lthrcAXXCkYSCeB7ngCqjoe9Pr7YZn4zqGJJMm1pKUNSQWG3FLThpvnBIHHqTk1frfb4FxnXJufDjS20vhSUvNBYB29cGq5b+zdyLq/wDaJF0tW8hKBHTaUBtKQQQUjdwrj5uteq8OJELl8QoXb69N9PVoIMbdZJ1E9lDaR03aZ3ajq+1Sm5LkKEGDHa+LdAbKk5OCFZqU7OrpKtWtdV6Wlzn5VstaUyYzkhZWtlBAJQVHkgA+fpWzbtH3+2aiul6j6ugJm3TZ3263ZHh4TtG/ipOyaEiQLVe2H7i/MuV7QsTZy0gLO4EDakcADPSotaRsFqWtlXpuaWU8pDnknTUHNDdCeo7CFpDXtz/ZZepV6eQ3b3SgQAqX/iyCtwISCkJ8OQc9TWwjtGtTRkfHMvoCZMhlgR21PKcDAHeKIA4wSfUcda142jru7bLTa7hf4b8W0ymXG22omzcGknaFeI5OSk/atRns1eRbzHF7bLptkiGlzufzvOlbjvXzB24qE1VfmxIQWidOcu/Ox5nTwFYLZr2wXFqU5FM1Xw0ZEpSVRVpUttXCVJB+b7Vqo7SLC+uA3CYuMpyZIcYDaIqtzZbxvKh9Mj+dRV47Og+868i7xWsvRC208xvb7phspDSk7huBJKvtSxdnUu0yLY/DvkdIjsPtOYi/P3zhUpSPFhJxhPnwKznrbQperieYNyCOun9uBPRWSw61sN6u5tkB59TxStTa1MKS26EHasoUeFYNaj2s1ftrL0+zCY7qAhK5b7soIWElO7KG8ErAHpWLs70UdKqw+/bZBba7pl1qEGniM5JWvJKj06YrxctGSr1qNm5Xq7RHo8Uu/Dtx4gbcwsFIC3MnIAPTjJqbS8gT1/CuDr51FhcIdOoEbdJk+dJ6d1ll9othYfmxSpxEqNDcloQ4MJdShOSAfX6VltuvbS9bUPzG3o0gLjMvMhBXsdfSFIQD+bg8+lVVXY6wv8QWbzvckYS0e54aTkbx1/MMj71KI7PpYvJlG+MGH+KKuIZEbxb9hQgFW7ojjHHlSoagdpr4/wBVZqYln0YI9u+u/Gnt3W2jtFgSmW3IMGVtduSYLTkhCm0OcncpJwem1XH05xWdvtK0stiS+H5SWmGDJC1xlpDzQUEFTefmGSBxUNb+z2Um2223TdQsPRrYJAbDMfYrc62RvJ3HKhuKvvWJjszfehstzr8w/wByzGishuNsQIzTgWU43HxLIGT+lVh9boqxVxWP2iY5jePPWRztwrAe0XTmFpH4gXkyBGEf4NfeqWUbxhOM/LzVsZcDrKHQlaQtIUAoYIz5EeRrm900Q9c40+M1fbaW7rMemKW5D3uI6AFtW4bShIxn610aI18PFaY3qc7tCUblHJVgYyfrVtNzyTmW/Zvui5wriBx+e57LXu0VUllBbCS40sLTnpkVyXWHZ5DnTpExDz9rlvOKcX3gLrC1E5JyPEn9a7PXhxtDiSlaQoH1Fb9pe1rR+ei6CmIYZbYhT9O4bmHx4XFH7DOs1kt7cnu3QlopLjKt6OvrW5pf5n/ZP966TIsbYUpyC6qMtXUDlKvcHg1HMWR5h1a2rZCD6+C4MhB+uzpmuRxTBK17iDr0PEuMke0aKy2tGW1NtOns0QqLrjS101LaWEW4MpMV9Lyi8vYkjkYB6Z5rzYdBxUupXMfduDoIPdRfC0D9XD1+wrprNkDpC7i+uSR0R0Qn2SOKlWWWmU7Wm0pA9BXsWlm23phhMrebUc1sBRsW2qchzW5GWlTEkL7s8pyMcVrO6YjOKbcU8Q4hxC8oQEJO1O0DA6Dz96n6VuQogkKtxtJR21KLstx4rPjJQASNwOMjoMg/zrPA00xFkLeMyU4txgsrWVkLJPVQIPBPWp2lYgJmKgpumosqQ4+uQ8Frzg8EpyADg+wrCdJxd+USnW04O0JSAUHxY2nyAK848yBVjpSAmYqtnSbBkd8qa6rASEhSAcYSRn38Sjn1NZG9LRkSmZAlPqLLocSlR8IHBwMY88n/ANjVgpSAmYqvXfTqpkmMUSlhpAUHC4revBJPhJHHXHXoAPKvDukYa3VrTIdSFLQoJGcDanGOCOPP6GrJSkBMxUVbLHHgqKmnnuVhwgK2hSsKHiA6/N5+grSTpZsIS38c6WglSS3sGCDvwPXA3nz9OasVKQEkqtq0o2dmJ7o2rQ4o92nK1JSlOSfZP6mjuko6mlIbmPNlRBWoJBKsEkZ9s/pVkpSAmYqsnR8UtLQZbo3H8qQkfMDyB16c+oqxR2gzHbZSchtASPsMVkpQCEJJSlKVlYSlKURKUpREpSlESlKURKUpREpSlESlKURKUpREpSlESlKURf/Z" alt="4D Climate Solutions" class="header-logo">
       <div class="header-info">
         <h1>Maseru Bridge Traffic</h1>
-        <p>Powered by 4D Climate Solutions</p>
+        <p>Live border crossing monitor</p>
       </div>
       <div class="status-indicator">
         <span class="status-dot" id="statusDot"></span>
@@ -400,6 +398,9 @@
             </button>
           </div>
         </div>
+        <div class="disclaimer-banner">
+          ⚠️ AI estimates from camera snapshots. Conditions change quickly - verify before critical travel.
+        </div>
       </div>
 
       <div class="chat-section">
@@ -407,23 +408,22 @@
           <div class="chat-messages" id="chatMessages">
             <div class="welcome-message">
               <h2>👋 Ask about border traffic!</h2>
-              <p>Click a question below or type your own.</p>
+              <p>AI analyzes multiple frames for better accuracy.</p>
             </div>
           </div>
 
           <div class="quick-actions-bar">
             <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')">🚗 Current traffic?</button>
-            <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')">⏰ Good time to cross?</button>
-            <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')">📏 Queue length?</button>
-            <button class="quick-action" onclick="sendQuickMessage('What are the wait times?')">⏳ Wait times?</button>
-            <button class="quick-action" onclick="sendQuickMessage('Any issues at the border?')">⚠️ Any issues?</button>
+            <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')">⏰ Good time?</button>
+            <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')">📏 Queue?</button>
+            <button class="quick-action" onclick="sendQuickMessage('Any issues at the border?')">⚠️ Issues?</button>
           </div>
 
           <div class="chat-input-container">
             <div class="chat-input-wrapper">
               <textarea class="chat-input" id="chatInput" placeholder="Ask about the traffic..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
               <button class="send-btn" id="sendBtn" onclick="sendMessage()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="22" y1="2" x2="11" y2="13"></line>
                   <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
@@ -435,7 +435,7 @@
     </div>
 
     <footer>
-      <p>© 2025 <a href="https://4dcs.co.za" target="_blank">4D Climate Solutions</a> | Camera feeds by ETL Webcast</p>
+      <p>© 2025 <a href="https://4dcs.co.za" target="_blank">4D Climate Solutions</a> | Camera by ETL Webcast</p>
     </footer>
   </div>
 
@@ -452,7 +452,7 @@
 
     chatInput.addEventListener('input', function() {
       this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+      this.style.height = Math.min(this.scrollHeight, 80) + 'px';
     });
 
     function handleKeyDown(event) {
