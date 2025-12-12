@@ -45,7 +45,7 @@ async function classifyFrameAngle(imageBuffer) {
   isClassifying = true;
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 50,
       messages: [{
         role: 'user',
@@ -278,8 +278,15 @@ BRIDGE VIEW (river and orange pillar visible)
 ═══════════════════════════════════════════════════════════════
 CANOPY VIEW (green shelter structures, processing yard)
 ═══════════════════════════════════════════════════════════════
-• LEFT side (under green canopy): SA → LESOTHO (arriving from SA)
-• RIGHT side (along wall, trucks queued): LESOTHO → SA (waiting to leave)
+• LEFT side (under green canopy shelter): SA → LESOTHO (arriving from SA)
+• RIGHT side (along wall, trucks/cars in a LINE): LESOTHO → SA (waiting to leave)
+
+CRITICAL FOR CANOPY VIEW - READ CAREFULLY:
+- SA → LS traffic = ONLY vehicles DIRECTLY UNDER the green canopy roof
+- LS → SA traffic = ONLY the LINE of vehicles queued along the right wall
+- Scattered/parked cars in the open yard are NOT queued traffic - ignore them
+- If green canopy area is mostly empty = SA→LS is LIGHT (even if LS→SA is heavy)
+- A busy LS→SA queue does NOT mean SA→LS is also busy - assess each SEPARATELY
 
 ═══════════════════════════════════════════════════════════════
 ENGEN VIEW (petrol station, wide road view)
@@ -290,19 +297,19 @@ ENGEN VIEW (petrol station, wide road view)
 
 ═══════════════════════════════════════════════════════════════
 
-TRAFFIC LEVELS:
-- LIGHT: Few vehicles, flowing freely
-- MODERATE: Some vehicles, moving steadily  
-- HEAVY: Many vehicles queued or slow-moving
-- SEVERE: Traffic backed up to Engen petrol station (mention this specifically!)
+TRAFFIC LEVEL DEFINITIONS (be accurate, don't over-report):
+- LIGHT: 0-3 vehicles in that direction, moving freely
+- MODERATE: 4-10 vehicles, some waiting but manageable
+- HEAVY: 10+ vehicles in a visible queue
+- SEVERE: Traffic backed up to Engen petrol station (LS→SA only)
 
 RESPONSE FORMAT:
 
 **Traffic:** [Brief overall summary - one sentence]
 
 **Conditions:**
-• Lesotho → SA: [Light/Moderate/Heavy/Severe] - [what you observe]
-• SA → Lesotho: [Light/Moderate/Heavy] - [what you observe]
+• Lesotho → SA: [Light/Moderate/Heavy/Severe] - [what you actually see]
+• SA → Lesotho: [Light/Moderate/Heavy] - [what you actually see]
 
 **Advice:** [One practical sentence for travelers]
 
@@ -314,7 +321,9 @@ CRITICAL RULES:
 3. Synthesize ALL frames into ONE unified analysis
 4. If you see Engen petrol station with backed-up traffic, specifically mention "traffic backed up to Engen"
 5. Keep response concise - no technical explanations about camera angles
-6. Bridge LEFT = LS→SA, but Canopy LEFT = SA→LS (they are opposite!)`;
+6. Bridge LEFT = LS→SA, but Canopy LEFT = SA→LS (they are opposite!)
+7. Be ACCURATE - don't exaggerate. If an area looks empty, say it's LIGHT
+8. Only report what you actually SEE, not assumptions`;
 
 
     // Build content array with multiple images
@@ -341,7 +350,7 @@ CRITICAL RULES:
     });
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [
