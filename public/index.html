@@ -268,32 +268,6 @@
       background: var(--bg-secondary);
     }
 
-    /* Mobile: Sticky camera section */
-    @media (max-width: 767px) {
-      .camera-section {
-        position: sticky;
-        top: 52px; /* Height of header */
-        z-index: 90;
-        background: var(--bg-primary);
-      }
-      
-      .chat-section {
-        flex: 1;
-        overflow-y: auto;
-        max-height: calc(100vh - 52px - 320px); /* viewport - header - camera/ad */
-      }
-      
-      .chat-container {
-        min-height: auto;
-        height: 100%;
-      }
-      
-      .chat-messages {
-        max-height: none;
-        overflow-y: visible;
-      }
-    }
-
     .camera-timestamp {
       font-size: 0.7rem;
       color: var(--text-muted);
@@ -623,6 +597,16 @@
     @media (max-width: 360px) {
       .ad-container {
         display: none;
+      }
+    }
+
+    /* Mobile: Sticky camera + ad section */
+    @media (max-width: 767px) {
+      .camera-section {
+        position: sticky;
+        top: 52px;
+        z-index: 90;
+        background: var(--bg-primary);
       }
     }
 
@@ -991,20 +975,7 @@ https://4dcs.co.za`;
         dot.classList.toggle('active', i === currentFrameIndex);
       });
       
-      // Nav buttons always enabled for continuous loop
-      galleryPrev.disabled = false;
-      galleryNext.disabled = false;
-    }
-
-    function prevFrame() {
-      if (frames.length === 0) return;
-      // Loop to end if at beginning
-      currentFrameIndex = (currentFrameIndex - 1 + frames.length) % frames.length;
-      updateGalleryDisplay();
-    }
-
-    function nextFrame() {
-      if (frames.length === 0) return;
+      // Nav buttons always en   if (frames.length === 0) return;
       // Loop to beginning if at end
       currentFrameIndex = (currentFrameIndex + 1) % frames.length;
       updateGalleryDisplay();
@@ -1066,4 +1037,19 @@ https://4dcs.co.za`;
 
     function handleSwipe() {
       const swipeThreshold = 50;
-      con
+      const diff = touchStartX - touchEndX;
+      
+      if (Math.abs(diff) > swipeThreshold) {
+        if (diff > 0) {
+          nextFrame(); // Swipe left = next
+        } else {
+          prevFrame(); // Swipe right = prev
+        }
+      }
+    }
+
+    refreshCamera();
+    setInterval(refreshCamera, 30000); // Refresh every 30 seconds
+  </script>
+</body>
+</html>
