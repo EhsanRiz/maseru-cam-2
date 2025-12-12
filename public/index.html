@@ -755,22 +755,26 @@
       let saToLs = 'Unknown';
       let advice = '';
       
+      // Get full condition text (not just the level)
       const lsMatch = statusText.match(/Lesotho → SA[:\s]+([^\n•]+)/i);
       const saMatch = statusText.match(/SA → Lesotho[:\s]+([^\n•]+)/i);
       const adviceMatch = statusText.match(/Advice[:\s]+([^\n⚠]+)/i);
       
-      if (lsMatch) lsToSa = lsMatch[1].trim().split(' - ')[0].split(' – ')[0];
-      if (saMatch) saToLs = saMatch[1].trim().split(' - ')[0].split(' – ')[0];
+      if (lsMatch) lsToSa = lsMatch[1].trim();
+      if (saMatch) saToLs = saMatch[1].trim();
       if (adviceMatch) advice = adviceMatch[1].trim();
       
-      const message = `🚗 *Maseru Bridge Traffic* (${time})
+      const message = `🌉 *Maseru Bridge Border Traffic*
+📅 ${time}
 
+🚗 *Current Conditions:*
 • Lesotho → SA: ${lsToSa}
 • SA → Lesotho: ${saToLs}
 
-${advice ? '💡 ' + advice + '\n\n' : ''}📍 Live updates: https://traffic.4dcs.co.za
+${advice ? '💡 *Advice:* ' + advice + '\n\n' : ''}🔴 *Live updates:* https://traffic.4dcs.co.za
 
-_Powered by 4D Climate Solutions_`;
+_Powered by 4D Climate Solutions_
+https://4dcs.co.za`;
 
       const encodedMessage = encodeURIComponent(message);
       window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
