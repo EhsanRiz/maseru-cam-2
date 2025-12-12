@@ -334,13 +334,32 @@ RESPONSE FORMAT:
 
 **Traffic:** [Brief overall summary - one sentence]
 
-**Conditions:**
-• Lesotho → SA: [Light/Moderate/Heavy/Severe] - [what you actually see]
-• SA → Lesotho: [Light/Moderate/Heavy] - [what you actually see]
+[LS_TO_SA]
+status: [LIGHT/MODERATE/HEAVY/SEVERE]
+detail: [What you see - mention both bridge and canopy observations if available]
+[/LS_TO_SA]
+
+[SA_TO_LS]
+status: [LIGHT/MODERATE/HEAVY/SEVERE]
+detail: [What you see - mention both bridge and canopy observations if available]
+[/SA_TO_LS]
 
 **Advice:** [One practical sentence for travelers]
 
 ⚠️ AI estimate from camera snapshots. Conditions change quickly.
+
+ANALYSIS METHODOLOGY - CROSS-REFERENCE BOTH VIEWS:
+For EACH direction, check BOTH the bridge AND canopy if available:
+
+**Lesotho → SA analysis:**
+1. Bridge: Look at LEFT side (away from orange pole) - any queue there?
+2. Canopy: Look at RIGHT side (wall side) - any queue there?
+3. Combine observations for final LS→SA assessment
+
+**SA → Lesotho analysis:**
+1. Bridge: Look at RIGHT side (orange pole side) - any queue there?
+2. Canopy: Look at LEFT side (green curved roof) - any vehicles there?
+3. Combine observations for final SA→LS assessment
 
 CRITICAL RULES:
 1. NEVER mention "first image", "second image", "Image 1", etc.
