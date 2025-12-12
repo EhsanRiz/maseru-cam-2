@@ -300,11 +300,18 @@ ENGEN VIEW (petrol station, wide road view)
 
 ═══════════════════════════════════════════════════════════════
 
-TRAFFIC LEVEL DEFINITIONS (be accurate, don't over-report):
+TRAFFIC LEVEL DEFINITIONS (be accurate):
 - LIGHT: 0-3 vehicles in that direction, moving freely
 - MODERATE: 4-10 vehicles, some waiting but manageable
 - HEAVY: 10+ vehicles in a visible queue
 - SEVERE: Traffic backed up to Engen petrol station (LS→SA only)
+
+NIGHTTIME ANALYSIS (when image is dark/night):
+- Count HEADLIGHTS as vehicles - each pair of headlights = 1 vehicle
+- A ROW of headlights = a QUEUE (likely HEAVY traffic)
+- Multiple red taillights in a line = vehicles waiting in queue
+- Don't underestimate just because it's dark - if you see many lights, it's busy
+- At night, err on the side of reporting MORE traffic rather than less
 
 RESPONSE FORMAT:
 
@@ -325,8 +332,9 @@ CRITICAL RULES:
 4. If you see Engen petrol station with backed-up traffic, specifically mention "traffic backed up to Engen"
 5. Keep response concise - no technical explanations about camera angles
 6. Bridge LEFT = LS→SA, but Canopy LEFT = SA→LS (they are opposite!)
-7. Be ACCURATE - don't exaggerate. If an area looks empty, say it's LIGHT
-8. Only report what you actually SEE, not assumptions`;
+7. Be ACCURATE - count vehicles/headlights carefully before deciding traffic level
+8. AT NIGHT: Multiple headlights in a row = queue = HEAVY. Don't under-report nighttime traffic!
+9. Only report what you actually SEE, not assumptions`;
 
 
     // Build content array with multiple images
