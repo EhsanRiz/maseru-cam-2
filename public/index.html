@@ -975,7 +975,20 @@ https://4dcs.co.za`;
         dot.classList.toggle('active', i === currentFrameIndex);
       });
       
-      // Nav buttons always en   if (frames.length === 0) return;
+      // Nav buttons always enabled for continuous loop
+      galleryPrev.disabled = false;
+      galleryNext.disabled = false;
+    }
+
+    function prevFrame() {
+      if (frames.length === 0) return;
+      // Loop to end if at beginning
+      currentFrameIndex = (currentFrameIndex - 1 + frames.length) % frames.length;
+      updateGalleryDisplay();
+    }
+
+    function nextFrame() {
+      if (frames.length === 0) return;
       // Loop to beginning if at end
       currentFrameIndex = (currentFrameIndex + 1) % frames.length;
       updateGalleryDisplay();
