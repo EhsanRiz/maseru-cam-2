@@ -61,10 +61,13 @@ async function classifyFrameAngle(imageBuffer) {
           {
             type: 'text',
             text: `Classify this Maseru Border camera image. Reply with ONLY one word:
-- BRIDGE (if you see the bridge with lanes/vehicles on it)
-- WIDE (if you see ENGEN station, Chiefs Fast Foods, road curving toward bridge)
-- PROCESSING (if you see curved roof canopy, vehicles at border processing area)
-- USELESS (if you only see trees, darkness, lights, or nothing useful)
+
+- BRIDGE: Shows bridge over river with orange/red pillar, vehicles on bridge lanes
+- PROCESSING: Shows green curved roof canopy/shelter, vehicles in processing yard
+- WIDE: Shows Engen petrol station OR Chiefs Fast Foods sign OR road with many vehicles heading to border
+- USELESS: Shows mainly trees, bushes, greenery, darkness, sky, or no clear road/vehicles visible
+
+IMPORTANT: If the image is mostly trees/vegetation with no clear infrastructure, answer USELESS.
 
 Reply with ONE word only.`
           }
@@ -76,8 +79,8 @@ Reply with ONE word only.`
     console.log(`📷 Frame classified as: ${result}`);
     
     if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
-    if (result.includes('WIDE')) return ANGLE_TYPES.WIDE;
     if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
+    if (result.includes('WIDE')) return ANGLE_TYPES.WIDE;
     return ANGLE_TYPES.USELESS;
     
   } catch (error) {
