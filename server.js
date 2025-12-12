@@ -1,7 +1,6 @@
-const express = require('express');
-const Anthropic = require('@anthropic-ai/sdk');
-const cors = require('cors');
-const fetch = require('node-fetch');
+import express from 'express';
+import Anthropic from '@anthropic-ai/sdk';
+import cors from 'cors';
 
 const app = express();
 app.use(cors());
