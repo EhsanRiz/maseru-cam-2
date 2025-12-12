@@ -361,6 +361,89 @@
     .message-time { font-size: 0.6rem; color: var(--text-muted); margin-top: 0.2rem; }
     .message.user .message-time { text-align: right; }
 
+    /* Direction status boxes */
+    .direction-boxes {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 0.75rem 0;
+    }
+
+    .direction-box {
+      border-radius: 8px;
+      padding: 0.75rem;
+      border-left: 4px solid;
+    }
+
+    .direction-box.light {
+      background: rgba(34, 197, 94, 0.1);
+      border-left-color: #22c55e;
+    }
+
+    .direction-box.moderate {
+      background: rgba(234, 179, 8, 0.1);
+      border-left-color: #eab308;
+    }
+
+    .direction-box.heavy {
+      background: rgba(239, 68, 68, 0.1);
+      border-left-color: #ef4444;
+    }
+
+    .direction-box.severe {
+      background: rgba(185, 28, 28, 0.15);
+      border-left-color: #b91c1c;
+    }
+
+    .direction-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+
+    .direction-route {
+      font-weight: 600;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .direction-status {
+      font-weight: 700;
+      font-size: 0.75rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .direction-box.light .direction-status {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .direction-box.moderate .direction-status {
+      background: rgba(234, 179, 8, 0.2);
+      color: #eab308;
+    }
+
+    .direction-box.heavy .direction-status {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .direction-box.severe .direction-status {
+      background: rgba(185, 28, 28, 0.25);
+      color: #fca5a5;
+    }
+
+    .direction-detail {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
     .welcome-message {
       text-align: center;
       padding: 1rem;
@@ -886,6 +969,101 @@
 
     let latestTrafficStatus = null; // Store latest status for sharing
 
+    function parseDirectionBoxes(text) {
+      // Parse the new format with [LS_TO_SA] and [SA_TO_LS] blocks
+      const lsToSaMatch = text.match(/\[LS_TO_SA\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/LS_TO_SA\]/is);
+      const saToLsMatch = text.match(/\[SA_TO_LS\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/SA_TO_LS\]/is);
+      
+      if (!lsToSaMatch && !saToLsMatch) return null;
+      
+      return {
+        lsToSa: lsToSaMatch ? { status: lsToSaMatch[1].trim().toLowerCase(), detail: lsToSaMatch[2].trim() } : null,
+        saToLs: saToLsMatch ? { status: saToLsMatch[1].trim().toLowerCase(), detail: saToLsMatch[2].trim() } : null
+      };
+    }
+
+    function renderDirectionBoxes(directions) {
+      let html = '<div class="direction-boxes">';
+      
+      if (directions.lsToSa) {
+        html += `
+          <div class="direction-box ${directions.lsToSa.status}">
+            <div class="direction-header">
+              <span class="direction-route">🇱🇸 Lesotho → South Africa 🇿🇦</span>
+              <span class="direction-status">${directions.lsToSa.status}</span>
+            </div>
+            <div class="direction-detail">${directions.lsToSa.detail}</div>
+          </div>
+        `;
+      }
+      
+      if (directions.saToLs) {
+        html += `
+          <div class="direction-box ${directions.saToLs.status}">
+            <div class="direction-header">
+              <span class="direction-route">🇿🇦 South Africa → Lesotho 🇱🇸</span>
+              <span class="direction-status">${directions.saToLs.status}</span>
+            </div>
+            <div class="direction-detail">${directions.saToLs.detail}</div>
+          </div>
+        `;
+      }
+      
+      html += '</div>';
+      return html;
+    }
+
+    function formatBotMessage(text, frameTime) {
+      // Try to parse direction boxes
+      const directions = parseDirectionBoxes(text);
+      
+      // Extract Traffic summary and Advice
+      const trafficMatch = text.match(/\*\*Traffic:\*\*\s*([^\n\[]+)/i);
+      const adviceMatch = text.match(/\*\*Advice:\*\*\s*([^\n⚠]+)/i);
+      const warningMatch = text.match(/(⚠️[^\n]+)/);
+      
+      let html = '';
+      
+      if (frameTime) {
+        html += `<div class="frame-timestamp">📸 Based on camera feed at ${frameTime}</div>`;
+      }
+      
+      // Traffic summary
+      if (trafficMatch) {
+        html += `<strong>Traffic:</strong> ${trafficMatch[1].trim()}<br><br>`;
+      }
+      
+      // Direction boxes if parsed successfully
+      if (directions) {
+        html += renderDirectionBoxes(directions);
+      } else {
+        // Fallback: render as before (for non-traffic responses)
+        const cleanText = text
+          .replace(/\*\*Traffic:\*\*[^\n]+\n?/i, '')
+          .replace(/\*\*Advice:\*\*[^\n]+\n?/i, '')
+          .replace(/⚠️[^\n]+\n?/g, '')
+          .replace(/\[LS_TO_SA\][\s\S]*?\[\/LS_TO_SA\]/g, '')
+          .replace(/\[SA_TO_LS\][\s\S]*?\[\/SA_TO_LS\]/g, '')
+          .trim();
+        
+        if (cleanText) {
+          html += cleanText.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+      }
+      
+      // Advice
+      if (adviceMatch) {
+        html += `<br><strong>Advice:</strong> ${adviceMatch[1].trim()}<br>`;
+      }
+      
+      // Warning
+      if (warningMatch) {
+        html += `<br><span style="color: var(--text-muted); font-size: 0.75rem;">${warningMatch[1]}</span>`;
+      }
+      
+      return html;
+    }
+
     function addMessage(text, type, frameTime = null) {
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const messageDiv = document.createElement('div');
@@ -895,7 +1073,7 @@
       let shareButton = '';
       
       if (type === 'bot' && frameTime) {
-        messageContent = `<div class="frame-timestamp">📸 Based on camera feed at ${frameTime}</div>${text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}`;
+        messageContent = formatBotMessage(text, frameTime);
         
         // Store for sharing and add share button
         latestTrafficStatus = { text, time: frameTime };
@@ -934,26 +1112,47 @@
       const statusText = latestTrafficStatus.text;
       const time = latestTrafficStatus.time;
       
-      // Extract key info from the response
-      let lsToSa = 'Unknown';
-      let saToLs = 'Unknown';
+      // Extract key info from the new format
+      let lsToSaStatus = '';
+      let lsToSaDetail = '';
+      let saToLsStatus = '';
+      let saToLsDetail = '';
       let advice = '';
       
-      // Get full condition text (not just the level)
-      const lsMatch = statusText.match(/Lesotho → SA[:\s]+([^\n•]+)/i);
-      const saMatch = statusText.match(/SA → Lesotho[:\s]+([^\n•]+)/i);
-      const adviceMatch = statusText.match(/Advice[:\s]+([^\n⚠]+)/i);
+      // Parse new format with [LS_TO_SA] and [SA_TO_LS] blocks
+      const lsMatch = statusText.match(/\[LS_TO_SA\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/LS_TO_SA\]/is);
+      const saMatch = statusText.match(/\[SA_TO_LS\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/SA_TO_LS\]/is);
+      const adviceMatch = statusText.match(/\*\*Advice:\*\*\s*([^\n⚠]+)/i);
       
-      if (lsMatch) lsToSa = lsMatch[1].trim();
-      if (saMatch) saToLs = saMatch[1].trim();
+      if (lsMatch) {
+        lsToSaStatus = lsMatch[1].trim().toUpperCase();
+        lsToSaDetail = lsMatch[2].trim();
+      }
+      if (saMatch) {
+        saToLsStatus = saMatch[1].trim().toUpperCase();
+        saToLsDetail = saMatch[2].trim();
+      }
       if (adviceMatch) advice = adviceMatch[1].trim();
+      
+      // Status emoji mapping
+      const getEmoji = (status) => {
+        switch(status.toLowerCase()) {
+          case 'light': return '🟢';
+          case 'moderate': return '🟡';
+          case 'heavy': return '🔴';
+          case 'severe': return '🚨';
+          default: return '⚪';
+        }
+      };
       
       const message = `🌉 *Maseru Bridge Border Traffic*
 📅 ${time}
 
-🚗 *Current Conditions:*
-• Lesotho → SA: ${lsToSa}
-• SA → Lesotho: ${saToLs}
+🇱🇸 *Lesotho → South Africa* 🇿🇦
+${getEmoji(lsToSaStatus)} ${lsToSaStatus}${lsToSaDetail ? ' - ' + lsToSaDetail : ''}
+
+🇿🇦 *South Africa → Lesotho* 🇱🇸
+${getEmoji(saToLsStatus)} ${saToLsStatus}${saToLsDetail ? ' - ' + saToLsDetail : ''}
 
 ${advice ? '💡 *Advice:* ' + advice + '\n\n' : ''}🔴 *Live updates:* https://traffic.4dcs.co.za
 
