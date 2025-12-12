@@ -281,15 +281,18 @@ BRIDGE VIEW (river and orange pillar visible)
 ═══════════════════════════════════════════════════════════════
 CANOPY VIEW (green shelter structures, processing yard)
 ═══════════════════════════════════════════════════════════════
-• LEFT SHADE (under green canopy shelter) = SA → LESOTHO (arriving from SA)
-• RIGHT SHADE (along wall, vehicles in LINE near covered area) = LESOTHO → SA (waiting to leave)
+• LEFT side = GREEN CURVED ROOF CANOPY/SHELTER area = SA → LESOTHO (arriving from SA)
+• RIGHT side = WALL SIDE with covered structure = LESOTHO → SA (waiting to leave)
+
+HOW TO IDENTIFY LEFT vs RIGHT IN CANOPY VIEW:
+- LEFT: Look for the distinctive GREEN CURVED ROOF shelter - vehicles under this roof are SA → LS
+- RIGHT: Look for the wall/barrier side where vehicles queue in a LINE heading toward the covered structure - this is LS → SA
 
 CRITICAL FOR CANOPY VIEW - READ CAREFULLY:
-- SA → LS traffic = ONLY vehicles DIRECTLY UNDER the green canopy roof (left shade)
-- LS → SA traffic = ONLY the LINE of vehicles queued along the right wall (right shade near covered area)
-- Scattered/parked cars in the open yard are NOT queued traffic - ignore them
-- If green canopy area is mostly empty = SA→LS is LIGHT (even if LS→SA is heavy)
-- A busy LS→SA queue does NOT mean SA→LS is also busy - assess each SEPARATELY
+- If you see vehicles UNDER the green curved roof canopy = that's SA → LS traffic
+- If you see vehicles in a LINE along the WALL on the right side = that's LS → SA traffic
+- Scattered/parked cars in the MIDDLE of the open yard are NOT queued traffic - ignore them
+- Assess each direction SEPARATELY - one can be heavy while the other is light
 
 ═══════════════════════════════════════════════════════════════
 ENGEN VIEW (petrol station, wide road view)
@@ -305,11 +308,11 @@ Assess each direction by checking BOTH views when available:
 
 **To confirm SA → LS traffic:**
 - Bridge: Check RIGHT side (orange pole side)
-- Canopy: Check LEFT SHADE area (under green canopy)
+- Canopy: Check under the GREEN CURVED ROOF shelter (left side)
 
 **To confirm LS → SA traffic:**
 - Bridge: Check LEFT side (away from orange pole)
-- Canopy: Check RIGHT SHADE area (near covered area on side)
+- Canopy: Check the WALL SIDE where vehicles queue in a line (right side)
 
 Both directions can have heavy traffic simultaneously!
 
@@ -346,8 +349,9 @@ CRITICAL RULES:
 4. If you see Engen petrol station with backed-up traffic, specifically mention "traffic backed up to Engen"
 5. Keep response concise - no technical explanations about camera angles or landmarks
 6. Use landmarks internally to identify direction, but don't explain them to users
-7. Be ACCURATE - if an area is clear/empty, report it as LIGHT not Moderate
-8. Only report what you actually SEE, not assumptions`;
+7. ACCURATELY identify which side has the queue - look for the GREEN CURVED ROOF to identify LEFT in canopy view
+8. If an area is clear/empty, report it as LIGHT not Moderate
+9. Only report what you actually SEE, not assumptions`;
 
 
     // Build content array with multiple images
