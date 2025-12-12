@@ -431,6 +431,53 @@ app.get('/api/screenshot', async (req, res) => {
   }
 });
 
+// Get all unique frames (one per angle type)
+app.get('/api/frames', async (req, res) => {
+  try {
+    // Get the most recent frame of each angle type
+    const framesByAngle = {};
+    const angleLabels = {
+      'bridge': 'Bridge',
+      'processing': 'Canopy', 
+      'wide': 'Engen',
+      'useless': null // Skip useless frames
+    };
+    
+    // Go through buffer in reverse to get most recent of each type
+    for (let i = screenshotBuffer.length - 1; i >= 0; i--) {
+      const frame = screenshotBuffer[i];
+      const angleType = frame.angleType || 'unknown';
+      
+      // Skip useless frames and already captured angles
+      if (angleType === 'useless' || framesByAngle[angleType]) continue;
+      
+      const label = angleLabels[angleType];
+      if (label) {
+        framesByAngle[angleType] = {
+          angleType: angleType,
+          label: label,
+          timestamp: frame.timestamp,
+          image: frame.screenshot.toString('base64')
+        };
+      }
+    }
+    
+    // Convert to array and sort by preferred order: Bridge, Canopy, Engen
+    const order = ['bridge', 'processing', 'wide'];
+    const frames = order
+      .filter(type => framesByAngle[type])
+      .map(type => framesByAngle[type]);
+    
+    res.json({
+      success: true,
+      frames: frames,
+      totalInBuffer: screenshotBuffer.length
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to get frames' });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
