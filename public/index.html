@@ -207,11 +207,6 @@
       background: rgba(0, 0, 0, 0.8);
     }
 
-    .gallery-nav:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-
     .gallery-prev {
       left: 8px;
     }
@@ -955,23 +950,23 @@ https://4dcs.co.za`;
         dot.classList.toggle('active', i === currentFrameIndex);
       });
       
-      // Update nav buttons
-      galleryPrev.disabled = currentFrameIndex === 0;
-      galleryNext.disabled = currentFrameIndex === frames.length - 1;
+      // Nav buttons always enabled for continuous loop
+      galleryPrev.disabled = false;
+      galleryNext.disabled = false;
     }
 
     function prevFrame() {
-      if (currentFrameIndex > 0) {
-        currentFrameIndex--;
-        updateGalleryDisplay();
-      }
+      if (frames.length === 0) return;
+      // Loop to end if at beginning
+      currentFrameIndex = (currentFrameIndex - 1 + frames.length) % frames.length;
+      updateGalleryDisplay();
     }
 
     function nextFrame() {
-      if (currentFrameIndex < frames.length - 1) {
-        currentFrameIndex++;
-        updateGalleryDisplay();
-      }
+      if (frames.length === 0) return;
+      // Loop to beginning if at end
+      currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+      updateGalleryDisplay();
     }
 
     function goToFrame(index) {
