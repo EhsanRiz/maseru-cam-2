@@ -275,18 +275,18 @@ The camera rotates between THREE different views. Use LANDMARKS to identify traf
 ═══════════════════════════════════════════════════════════════
 BRIDGE VIEW (river and orange pillar visible)
 ═══════════════════════════════════════════════════════════════
-• ORANGE POLE side = SA → LESOTHO (traffic entering Lesotho)
-• ENGEN side (away from orange pole) = LESOTHO → SA (traffic entering SA / Emigration Area)
+• LEFT side (away from orange pole) = LESOTHO → SA (traffic entering SA)
+• RIGHT side (orange pole side) = SA → LESOTHO (traffic entering Lesotho)
 
 ═══════════════════════════════════════════════════════════════
 CANOPY VIEW (green shelter structures, processing yard)
 ═══════════════════════════════════════════════════════════════
 • LEFT SHADE (under green canopy shelter) = SA → LESOTHO (arriving from SA)
-• RIGHT SHADE (along wall, vehicles in LINE) = LESOTHO → SA (waiting to leave)
+• RIGHT SHADE (along wall, vehicles in LINE near covered area) = LESOTHO → SA (waiting to leave)
 
 CRITICAL FOR CANOPY VIEW - READ CAREFULLY:
 - SA → LS traffic = ONLY vehicles DIRECTLY UNDER the green canopy roof (left shade)
-- LS → SA traffic = ONLY the LINE of vehicles queued along the right wall (right shade)
+- LS → SA traffic = ONLY the LINE of vehicles queued along the right wall (right shade near covered area)
 - Scattered/parked cars in the open yard are NOT queued traffic - ignore them
 - If green canopy area is mostly empty = SA→LS is LIGHT (even if LS→SA is heavy)
 - A busy LS→SA queue does NOT mean SA→LS is also busy - assess each SEPARATELY
@@ -304,19 +304,19 @@ CROSS-REFERENCE VIEWS FOR ACCURACY:
 Assess each direction by checking BOTH views when available:
 
 **To confirm SA → LS traffic:**
-- Bridge: Check ORANGE POLE side
-- Canopy: Check LEFT SHADE area
+- Bridge: Check RIGHT side (orange pole side)
+- Canopy: Check LEFT SHADE area (under green canopy)
 
 **To confirm LS → SA traffic:**
-- Bridge: Check ENGEN side (away from orange pole)
-- Canopy: Check RIGHT SHADE area
+- Bridge: Check LEFT side (away from orange pole)
+- Canopy: Check RIGHT SHADE area (near covered area on side)
 
 Both directions can have heavy traffic simultaneously!
 
 ═══════════════════════════════════════════════════════════════
 
 TRAFFIC LEVEL DEFINITIONS (be accurate, don't over-report):
-- LIGHT: 0-3 vehicles in that direction, moving freely
+- LIGHT: 0-3 vehicles in that direction, no visible queue
 - MODERATE: 4-10 vehicles, some waiting but manageable
 - HEAVY: 10+ vehicles in a visible queue
 - SEVERE: Traffic backed up to Engen petrol station (LS→SA only)
@@ -346,7 +346,7 @@ CRITICAL RULES:
 4. If you see Engen petrol station with backed-up traffic, specifically mention "traffic backed up to Engen"
 5. Keep response concise - no technical explanations about camera angles or landmarks
 6. Use landmarks internally to identify direction, but don't explain them to users
-7. Be ACCURATE - count vehicles carefully. If an area looks empty, say it's LIGHT
+7. Be ACCURATE - if an area is clear/empty, report it as LIGHT not Moderate
 8. Only report what you actually SEE, not assumptions`;
 
 
