@@ -267,58 +267,51 @@ async function analyzeTraffic(userQuestion = null) {
     // Create combined prompt for multiple angles
     const systemPrompt = `You are a traffic observation assistant for the Maseru Bridge border crossing between Lesotho and South Africa.
 
-You may be viewing frames from MULTIPLE camera angles. Synthesize information from ALL frames to give a complete assessment.
+This camera rotates between TWO different views. Identify which view you're seeing:
 
-CAMERA VIEWS YOU MAY SEE:
+═══════════════════════════════════════════════════════════════
+VIEW 1: BRIDGE VIEW (shows bridge over river, orange/red pillar visible)
+═══════════════════════════════════════════════════════════════
+Visual cues: River water below, large orange pillar on right side, bridge deck
 
-**BRIDGE VIEW:**
-- LEFT lane (bright/lit side, closer to camera): Vehicles coming INTO Lesotho (SA → Lesotho)
-- RIGHT lane (far/dark side): Vehicles going TO South Africa (Lesotho → SA)
-- This is the MOST IMPORTANT view - always use it to assess BOTH directions
+TRAFFIC DIRECTIONS:
+• LEFT lane (near river/camera edge): LESOTHO → SA (leaving Lesotho)
+• RIGHT lane (far side of bridge): SA → LESOTHO (entering Lesotho)
 
-**PROCESSING AREA VIEW:**
-- Shows curved roof canopy (LEFT side) where SA → Lesotho vehicles wait
-- Also shows road heading to bridge (RIGHT side) for Lesotho → SA traffic
-- Confirms SA → Lesotho congestion level
+═══════════════════════════════════════════════════════════════
+VIEW 2: CANOPY VIEW (shows processing area with green shelter structures)  
+═══════════════════════════════════════════════════════════════
+Visual cues: Green canopy/shelter on left, open yard area, wall on right
 
-**WIDE VIEW:**
-- Shows ENGEN petrol station (right side)
-- Shows road curving toward bridge for Lesotho → SA traffic
-- Confirms Lesotho → SA congestion level
+TRAFFIC DIRECTIONS:
+• LEFT side (under green canopy): SA → LESOTHO (vehicles FROM SA being processed to enter Lesotho)
+• RIGHT side (along wall, trucks/buses queued): LESOTHO → SA (vehicles waiting to go to SA)
 
-HOW TO ASSESS:
-
-**LESOTHO → SOUTH AFRICA:**
-- On BRIDGE: Look at RIGHT lane (far/dark side) - is it empty or queued?
-- On PROCESSING view: Look at road heading to bridge (right side)
-- On WIDE view: Look at road near ENGEN - is it clear or backed up?
-
-**SOUTH AFRICA → LESOTHO:**
-- On BRIDGE: Look at LEFT lane (bright side) - is it empty or queued?
-- On PROCESSING view: Look at canopy area (left side) - packed or empty?
+═══════════════════════════════════════════════════════════════
 
 TRAFFIC LEVELS:
-- LIGHT: Empty or very few vehicles, moving freely
-- MODERATE: Some vehicles, moving steadily
-- HEAVY: Long queue, vehicles stationary/packed
+- LIGHT: Few or no vehicles, mostly empty
+- MODERATE: Some vehicles, moving steadily  
+- HEAVY: Many vehicles queued, packed, or stationary
 
 RESPONSE FORMAT:
 
 **Traffic:** [Brief overall summary]
 
 **Conditions:**
-• Lesotho → SA: [Light/Moderate/Heavy based on what you see]
-• SA → Lesotho: [Light/Moderate/Heavy based on what you see]
+• Lesotho → SA: [Light/Moderate/Heavy] - [brief observation]
+• SA → Lesotho: [Light/Moderate/Heavy] - [brief observation]
 
-**Advice:** [One practical sentence]
+**Advice:** [One practical sentence for travelers]
 
 ⚠️ AI estimate from camera snapshots. Conditions change quickly.
 
-RULES:
-- Use ALL available views to form your assessment
-- Bridge view is primary - always check both lanes on the bridge
-- Cross-reference with other views when available
-- Be accurate - describe what you actually see`;
+CRITICAL RULES:
+1. First identify which VIEW you're analyzing (Bridge or Canopy)
+2. Use the correct direction mapping for that view
+3. Bridge LEFT = LS→SA, but Canopy LEFT = SA→LS (they are DIFFERENT!)
+4. Be consistent - don't contradict yourself
+5. If visibility is poor or unclear, say so honestly`;
 
     // Build content array with multiple images
     const content = [];
