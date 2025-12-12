@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Maseru Bridge Traffic | 4D Climate Solutions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>4D Traffic Bot | Maseru Bridge</title>
   
   <!-- SEO & Social Meta Tags -->
   <meta name="description" content="Live AI-powered traffic monitoring for Maseru Bridge border crossing between Lesotho and South Africa. Check current queue status before you travel.">
-  <meta name="keywords" content="Maseru Bridge, border crossing, Lesotho, South Africa, traffic, queue, wait time">
+  <meta name="keywords" content="Maseru Bridge, border crossing, Lesotho, South Africa, traffic, queue, wait time, 4D Traffic Bot">
   
   <!-- Open Graph for WhatsApp/Facebook/LinkedIn -->
-  <meta property="og:title" content="Maseru Bridge Traffic - Live Updates">
+  <meta property="og:title" content="4D Traffic Bot - Maseru Bridge Live Updates">
   <meta property="og:description" content="AI-powered live traffic monitoring for Maseru Bridge border crossing. Check before you travel!">
   <meta property="og:image" content="https://traffic.4dcs.co.za/og-image.png">
   <meta property="og:url" content="https://traffic.4dcs.co.za">
@@ -19,7 +19,7 @@
   
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Maseru Bridge Traffic - Live Updates">
+  <meta name="twitter:title" content="4D Traffic Bot - Maseru Bridge Live Updates">
   <meta name="twitter:description" content="AI-powered live traffic monitoring for Maseru Bridge border crossing.">
   <meta name="twitter:image" content="https://traffic.4dcs.co.za/og-image.png">
   
@@ -36,42 +36,51 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #0a0f1a;
-      --bg-secondary: #111827;
-      --bg-card: #1a2332;
-      --accent: #3b82f6;
+      --bg-primary: #0a1410;
+      --bg-secondary: #0d1a14;
+      --bg-card: #12231a;
+      --accent: #22c55e;
+      --accent-hover: #16a34a;
+      --accent-light: rgba(34, 197, 94, 0.15);
       --text-primary: #f1f5f9;
       --text-secondary: #94a3b8;
       --text-muted: #64748b;
-      --border: #2a3a4a;
-      --success: #10b981;
+      --border: #1e3a2f;
+      --success: #22c55e;
       --warning: #f59e0b;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    body {
+    html, body {
       font-family: 'DM Sans', system-ui, sans-serif;
       background: var(--bg-primary);
       color: var(--text-primary);
-      height: 100vh;
-      overflow: hidden;
+      height: 100%;
+    }
+
+    body {
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     .app-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      min-height: 100%;
     }
 
     .header {
-      background: var(--bg-secondary);
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, #0a1f15 100%);
       border-bottom: 1px solid var(--border);
       padding: 0.5rem 1rem;
       display: flex;
       align-items: center;
       gap: 0.75rem;
       flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
 
     .header-logo {
@@ -79,8 +88,17 @@
       width: auto;
     }
 
-    .header-info h1 { font-size: 1rem; font-weight: 600; }
-    .header-info p { font-size: 0.7rem; color: var(--text-secondary); }
+    .header-info h1 { 
+      font-size: 1.1rem; 
+      font-weight: 700; 
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+    .header-info p { 
+      font-size: 0.7rem; 
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
 
     .status-indicator {
       margin-left: auto;
@@ -110,7 +128,6 @@
       display: flex;
       flex-direction: column;
       flex: 1;
-      overflow: hidden;
       max-width: 900px;
       width: 100%;
       margin: 0 auto;
@@ -277,8 +294,8 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
       padding: 0 0.75rem;
+      min-height: 350px;
     }
 
     .chat-container {
@@ -289,6 +306,7 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
+      min-height: 300px;
     }
 
     .chat-messages {
@@ -585,9 +603,19 @@
     @media (max-width: 640px) {
       .header { padding: 0.4rem 0.6rem; }
       .header-logo { height: 30px; }
-      .header-info h1 { font-size: 0.9rem; }
+      .header-info h1 { font-size: 0.95rem; }
       .camera-preview img { max-height: 180px; }
+      .gallery-image-wrapper img { max-height: 180px; }
       .message { max-width: 92%; }
+    }
+
+    /* Foldable phones - tall narrow screens */
+    @media (max-width: 400px) and (min-height: 700px) {
+      .camera-preview img { max-height: 150px; }
+      .gallery-image-wrapper img { max-height: 150px; }
+      .gallery-dots { padding: 4px 0; }
+      .ad-container { display: none; }
+      .chat-section { min-height: 280px; }
     }
 
     @media (min-width: 768px) {
@@ -609,6 +637,7 @@
       .chat-section {
         width: 55%;
         padding: 0;
+        min-height: auto;
       }
     }
   </style>
@@ -618,8 +647,8 @@
     <header class="header">
       <img src="data:image/jpeg;base64,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" alt="4D Climate Solutions" class="header-logo">
       <div class="header-info">
-        <h1>Maseru Bridge Traffic</h1>
-        <p>Live border crossing monitor</p>
+        <h1>4D Traffic Bot</h1>
+        <p>Maseru Bridge</p>
       </div>
       <div class="status-indicator">
         <span class="status-dot" id="statusDot"></span>
@@ -690,7 +719,7 @@
           </div>
 
           <div class="quick-actions-bar">
-            <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')">🚗 Current traffic?</button>
+            <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')">🚗 Current?</button>
             <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')">⏰ Good time?</button>
             <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')">📏 Queue?</button>
             <button class="quick-action" onclick="sendQuickMessage('Any issues at the border?')">⚠️ Issues?</button>
