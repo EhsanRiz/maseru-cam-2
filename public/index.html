@@ -23,6 +23,14 @@
   <meta name="twitter:description" content="AI-powered live traffic monitoring for Maseru Bridge border crossing.">
   <meta name="twitter:image" content="https://traffic.4dcs.co.za/og-image.png">
   
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#10b981">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Traffic Bot">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-54KT25TNZ8"></script>
   <script>
@@ -707,6 +715,95 @@
       border-color: var(--accent); 
     }
 
+    /* FAQ Modal */
+    .faq-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 1rem;
+    }
+
+    .faq-modal.show {
+      display: flex;
+    }
+
+    .faq-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 400px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .faq-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .faq-header h3 {
+      color: var(--text-primary);
+      font-size: 1rem;
+      margin: 0;
+    }
+
+    .faq-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .faq-close:hover {
+      color: var(--text-primary);
+    }
+
+    .faq-list {
+      overflow-y: auto;
+      padding: 0.5rem;
+    }
+
+    .faq-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .faq-item:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .faq-item:last-child {
+      margin-bottom: 0;
+    }
+
     .chat-input-container {
       padding: 0.6rem;
       background: var(--bg-secondary);
@@ -781,6 +878,238 @@
       display: flex;
       gap: 0.5rem;
       margin-top: 0.4rem;
+    }
+
+    /* Notification Prompt Styles */
+    .notification-prompt {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05));
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      padding: 0.75rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    .notification-prompt.show {
+      display: block;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .notification-prompt-text {
+      font-size: 0.8rem;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .notification-prompt-text span {
+      color: var(--accent);
+    }
+
+    .notification-prompt-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .notification-btn {
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .notification-btn.primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .notification-btn.primary:hover {
+      background: #0ea572;
+    }
+
+    .notification-btn.secondary {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .notification-btn.secondary:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    /* iOS Add to Home Screen Prompt */
+    .ios-prompt {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      padding: 1rem;
+      z-index: 1000;
+      display: none;
+      animation: slideUp 0.3s ease;
+    }
+
+    .ios-prompt.show {
+      display: block;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    .ios-prompt-content {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .ios-prompt-icon {
+      font-size: 2rem;
+      flex-shrink: 0;
+    }
+
+    .ios-prompt-text h4 {
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .ios-prompt-text p {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      line-height: 1.4;
+    }
+
+    .ios-prompt-text .share-icon {
+      display: inline-block;
+      background: var(--bg-secondary);
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+      margin: 0 0.2rem;
+    }
+
+    .ios-prompt-close {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      cursor: pointer;
+      padding: 0.25rem;
+    }
+
+    /* Alert Settings Modal */
+    .alert-settings {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 1rem;
+    }
+
+    .alert-settings.show {
+      display: flex;
+    }
+
+    .alert-settings-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      max-width: 320px;
+      width: 100%;
+    }
+
+    .alert-settings h3 {
+      color: var(--text-primary);
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .alert-option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .alert-option:last-of-type {
+      border-bottom: none;
+    }
+
+    .alert-option input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .alert-option label {
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      cursor: pointer;
+      flex: 1;
+    }
+
+    .alert-option .status-badge {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+    }
+
+    .alert-settings-buttons {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .alert-settings-buttons button {
+      flex: 1;
+    }
+
+    /* Notification Bell in Header */
+    .notification-bell {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+      margin-right: 0.5rem;
+      position: relative;
+      transition: color 0.2s;
+    }
+
+    .notification-bell:hover {
+      color: var(--text-primary);
+    }
+
+    .notification-bell.enabled {
+      color: var(--accent);
+    }
+
+    .notification-bell svg {
+      width: 18px;
+      height: 18px;
     }
 
     footer {
@@ -971,6 +1300,12 @@
         <h1>4D Traffic Bot</h1>
         <p>Maseru Bridge</p>
       </div>
+      <button class="notification-bell" id="notificationBell" onclick="openAlertSettings()" title="Traffic Alerts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+      </button>
       <div class="status-indicator">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">Live</span>
@@ -1048,7 +1383,7 @@
             <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')">🚗 Current?</button>
             <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')">⏰ Good time?</button>
             <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')">📏 Queue?</button>
-            <button class="quick-action" onclick="sendQuickMessage('Any issues at the border?')">⚠️ Issues?</button>
+            <button class="quick-action" onclick="openFAQ()">❓ FAQ</button>
           </div>
 
           <div class="chat-input-container">
@@ -1103,6 +1438,48 @@
     </button>
     
     <div class="lightbox-info" id="lightboxInfo">Captured at --:--:--</div>
+  </div>
+
+  <!-- FAQ Modal -->
+  <div class="faq-modal" id="faqModal">
+    <div class="faq-content">
+      <div class="faq-header">
+        <h3>❓ Frequently Asked Questions</h3>
+        <button class="faq-close" onclick="closeFAQ()">×</button>
+      </div>
+      <div class="faq-list">
+        <button class="faq-item" onclick="askFAQ('I\\'m going from Lesotho to South Africa, how\\'s the traffic?')">
+          🇱🇸→🇿🇦 Going from Lesotho to SA - how's traffic?
+        </button>
+        <button class="faq-item" onclick="askFAQ('I\\'m coming from South Africa to Lesotho, how\\'s the traffic?')">
+          🇿🇦→🇱🇸 Coming from SA to Lesotho - how's traffic?
+        </button>
+        <button class="faq-item" onclick="askFAQ('Is there a queue at Engen petrol station?')">
+          ⛽ Is there a queue at Engen?
+        </button>
+        <button class="faq-item" onclick="askFAQ('How is the bridge looking right now?')">
+          🌉 How does the bridge look right now?
+        </button>
+        <button class="faq-item" onclick="askFAQ('What time should I cross the border?')">
+          🕐 What time should I cross?
+        </button>
+        <button class="faq-item" onclick="askFAQ('Is it a good time to cross now?')">
+          ✅ Is now a good time to cross?
+        </button>
+        <button class="faq-item" onclick="askFAQ('How long is the wait to cross?')">
+          ⏱️ How long is the wait?
+        </button>
+        <button class="faq-item" onclick="askFAQ('Is it busy on weekends?')">
+          📅 Is it busy on weekends?
+        </button>
+        <button class="faq-item" onclick="askFAQ('What are the border operating hours?')">
+          🕕 What are the border operating hours?
+        </button>
+        <button class="faq-item" onclick="askFAQ('Are there any trucks in the queue?')">
+          🚛 Any trucks in the queue?
+        </button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -1280,6 +1657,29 @@
       chatInput.value = text;
       sendMessage();
     }
+
+    // FAQ Modal Functions
+    function openFAQ() {
+      document.getElementById('faqModal').classList.add('show');
+    }
+
+    function closeFAQ() {
+      document.getElementById('faqModal').classList.remove('show');
+    }
+
+    function askFAQ(question) {
+      closeFAQ();
+      chatInput.value = question;
+      sendMessage();
+    }
+
+    // Close FAQ when clicking outside
+    document.addEventListener('click', function(e) {
+      const modal = document.getElementById('faqModal');
+      if (e.target === modal) {
+        closeFAQ();
+      }
+    });
 
     async function sendMessage() {
       const message = chatInput.value.trim();
@@ -1726,6 +2126,359 @@ https://4dcs.co.za`;
     
     refreshCamera();
     setInterval(refreshCamera, 180000); // Refresh every 3 minutes
+  </script>
+
+  <!-- iOS Add to Home Screen Prompt -->
+  <div class="ios-prompt" id="iosPrompt">
+    <button class="ios-prompt-close" onclick="closeIosPrompt()">×</button>
+    <div class="ios-prompt-content">
+      <div class="ios-prompt-icon">📱</div>
+      <div class="ios-prompt-text">
+        <h4>Get Traffic Alerts on iPhone</h4>
+        <p>
+          Tap <span class="share-icon">⬆️</span> below, then <strong>"Add to Home Screen"</strong> to receive notifications when traffic changes.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert Settings Modal -->
+  <div class="alert-settings" id="alertSettings">
+    <div class="alert-settings-content">
+      <h3>🔔 Traffic Alerts</h3>
+      
+      <div class="alert-option">
+        <input type="checkbox" id="alertLsLight" checked>
+        <label for="alertLsLight">🇱🇸→🇿🇦 becomes</label>
+        <span class="status-badge light">LIGHT</span>
+      </div>
+      
+      <div class="alert-option">
+        <input type="checkbox" id="alertSaLight" checked>
+        <label for="alertSaLight">🇿🇦→🇱🇸 becomes</label>
+        <span class="status-badge light">LIGHT</span>
+      </div>
+      
+      <div class="alert-option">
+        <input type="checkbox" id="alertHeavy">
+        <label for="alertHeavy">Either direction becomes</label>
+        <span class="status-badge heavy">HEAVY</span>
+      </div>
+      
+      <div class="alert-settings-buttons">
+        <button class="notification-btn secondary" onclick="closeAlertSettings()">Cancel</button>
+        <button class="notification-btn primary" onclick="saveAlertSettings()">Enable Alerts</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification JavaScript -->
+  <script>
+    // Notification state
+    const NOTIF_STORAGE_KEY = 'maseru_traffic_notifications';
+    let notificationPermission = 'default';
+    let alertSettings = {
+      enabled: false,
+      lsToSaLight: true,
+      saToLsLight: true,
+      anyHeavy: false
+    };
+    let lastKnownStatus = {
+      lsToSa: null,
+      saToLs: null
+    };
+    let notificationPromptShown = false;
+
+    // Check if running as PWA (standalone mode)
+    function isPWA() {
+      return window.matchMedia('(display-mode: standalone)').matches || 
+             window.navigator.standalone === true;
+    }
+
+    // Check if iOS
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    }
+
+    // Check if notifications are supported
+    function notificationsSupported() {
+      return 'Notification' in window && 'serviceWorker' in navigator;
+    }
+
+    // Register service worker
+    async function registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.register('/sw.js');
+          console.log('✅ Service Worker registered:', registration.scope);
+          return registration;
+        } catch (error) {
+          console.log('❌ Service Worker registration failed:', error);
+          return null;
+        }
+      }
+      return null;
+    }
+
+    // Load saved alert settings
+    function loadAlertSettings() {
+      try {
+        const saved = localStorage.getItem(NOTIF_STORAGE_KEY);
+        if (saved) {
+          alertSettings = JSON.parse(saved);
+          updateBellIcon();
+        }
+      } catch (e) {
+        console.log('Could not load alert settings');
+      }
+    }
+
+    // Save alert settings
+    function saveAlertSettingsToStorage() {
+      try {
+        localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(alertSettings));
+      } catch (e) {
+        console.log('Could not save alert settings');
+      }
+    }
+
+    // Update bell icon state
+    function updateBellIcon() {
+      const bell = document.getElementById('notificationBell');
+      if (bell) {
+        if (alertSettings.enabled && Notification.permission === 'granted') {
+          bell.classList.add('enabled');
+          bell.title = 'Traffic Alerts (Enabled)';
+        } else {
+          bell.classList.remove('enabled');
+          bell.title = 'Traffic Alerts';
+        }
+      }
+    }
+
+    // Open alert settings modal
+    function openAlertSettings() {
+      // If iOS Safari (not PWA), show iOS prompt first
+      if (isIOS() && !isPWA() && !notificationsSupported()) {
+        showIosPrompt();
+        return;
+      }
+
+      const modal = document.getElementById('alertSettings');
+      modal.classList.add('show');
+      
+      // Load current settings into checkboxes
+      document.getElementById('alertLsLight').checked = alertSettings.lsToSaLight;
+      document.getElementById('alertSaLight').checked = alertSettings.saToLsLight;
+      document.getElementById('alertHeavy').checked = alertSettings.anyHeavy;
+    }
+
+    // Close alert settings modal
+    function closeAlertSettings() {
+      document.getElementById('alertSettings').classList.remove('show');
+    }
+
+    // Save alert settings and request permission
+    async function saveAlertSettings() {
+      // Get checkbox values
+      alertSettings.lsToSaLight = document.getElementById('alertLsLight').checked;
+      alertSettings.saToLsLight = document.getElementById('alertSaLight').checked;
+      alertSettings.anyHeavy = document.getElementById('alertHeavy').checked;
+      
+      // Request notification permission
+      if (notificationsSupported()) {
+        try {
+          const permission = await Notification.requestPermission();
+          notificationPermission = permission;
+          
+          if (permission === 'granted') {
+            alertSettings.enabled = true;
+            saveAlertSettingsToStorage();
+            updateBellIcon();
+            closeAlertSettings();
+            
+            // Show confirmation notification
+            showLocalNotification('🔔 Alerts Enabled', 'You\'ll be notified when traffic conditions change.');
+          } else if (permission === 'denied') {
+            alert('Notifications blocked. Please enable them in your browser settings.');
+          }
+        } catch (error) {
+          console.log('Error requesting permission:', error);
+        }
+      } else {
+        alert('Notifications are not supported in this browser.');
+      }
+    }
+
+    // Show local notification
+    function showLocalNotification(title, body) {
+      if (Notification.permission === 'granted') {
+        const options = {
+          body: body,
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: 'traffic-update',
+          vibrate: [200, 100, 200]
+        };
+        
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then((registration) => {
+            registration.showNotification(title, options);
+          });
+        } else {
+          new Notification(title, options);
+        }
+      }
+    }
+
+    // Check traffic status and notify if conditions met
+    function checkAndNotify(lsStatus, saStatus) {
+      if (!alertSettings.enabled || Notification.permission !== 'granted') return;
+      
+      // Check if status changed
+      const lsChanged = lastKnownStatus.lsToSa !== null && lastKnownStatus.lsToSa !== lsStatus;
+      const saChanged = lastKnownStatus.saToLs !== null && lastKnownStatus.saToLs !== saStatus;
+      
+      // Update last known status
+      lastKnownStatus.lsToSa = lsStatus;
+      lastKnownStatus.saToLs = saStatus;
+      
+      // Check alert conditions
+      if (lsChanged && alertSettings.lsToSaLight && lsStatus === 'LIGHT') {
+        showLocalNotification(
+          '🟢 LS→SA Now LIGHT',
+          'Lesotho to South Africa traffic is now light. Good time to cross!'
+        );
+      }
+      
+      if (saChanged && alertSettings.saToLsLight && saStatus === 'LIGHT') {
+        showLocalNotification(
+          '🟢 SA→LS Now LIGHT',
+          'South Africa to Lesotho traffic is now light. Good time to cross!'
+        );
+      }
+      
+      if (alertSettings.anyHeavy) {
+        if (lsChanged && lsStatus === 'HEAVY') {
+          showLocalNotification(
+            '🔴 LS→SA Now HEAVY',
+            'Lesotho to South Africa traffic is now heavy. Expect delays.'
+          );
+        }
+        if (saChanged && saStatus === 'HEAVY') {
+          showLocalNotification(
+            '🔴 SA→LS Now HEAVY',
+            'South Africa to Lesotho traffic is now heavy. Expect delays.'
+          );
+        }
+      }
+    }
+
+    // Show iOS prompt
+    function showIosPrompt() {
+      const prompt = document.getElementById('iosPrompt');
+      prompt.classList.add('show');
+    }
+
+    // Close iOS prompt
+    function closeIosPrompt() {
+      const prompt = document.getElementById('iosPrompt');
+      prompt.classList.remove('show');
+      localStorage.setItem('ios_prompt_dismissed', 'true');
+    }
+
+    // Show notification prompt after first traffic response
+    function showNotificationPrompt() {
+      if (notificationPromptShown) return;
+      if (localStorage.getItem('notification_prompt_dismissed')) return;
+      if (alertSettings.enabled) return;
+      if (!notificationsSupported() && !isIOS()) return;
+      
+      notificationPromptShown = true;
+      
+      // Create and insert the prompt
+      const promptHtml = `
+        <div class="notification-prompt show" id="notificationPrompt">
+          <div class="notification-prompt-text">
+            🔔 <span>Want alerts</span> when traffic changes?
+          </div>
+          <div class="notification-prompt-buttons">
+            <button class="notification-btn primary" onclick="handleEnableAlerts()">Enable Alerts</button>
+            <button class="notification-btn secondary" onclick="dismissNotificationPrompt()">Maybe Later</button>
+          </div>
+        </div>
+      `;
+      
+      // Find the last bot message and append after it
+      const messages = document.querySelectorAll('.message.bot');
+      if (messages.length > 0) {
+        const lastBotMessage = messages[messages.length - 1];
+        lastBotMessage.insertAdjacentHTML('afterend', promptHtml);
+      }
+    }
+
+    // Handle enable alerts from prompt
+    function handleEnableAlerts() {
+      dismissNotificationPrompt();
+      openAlertSettings();
+    }
+
+    // Dismiss notification prompt
+    function dismissNotificationPrompt() {
+      const prompt = document.getElementById('notificationPrompt');
+      if (prompt) {
+        prompt.remove();
+      }
+      localStorage.setItem('notification_prompt_dismissed', 'true');
+    }
+
+    // Initialize notifications
+    async function initNotifications() {
+      // Register service worker
+      await registerServiceWorker();
+      
+      // Load saved settings
+      loadAlertSettings();
+      
+      // Check current permission
+      if (notificationsSupported()) {
+        notificationPermission = Notification.permission;
+        updateBellIcon();
+      }
+      
+      // Show iOS prompt if needed (first visit on iOS Safari)
+      if (isIOS() && !isPWA() && !localStorage.getItem('ios_prompt_dismissed')) {
+        // Delay to not overwhelm user
+        setTimeout(showIosPrompt, 3000);
+      }
+    }
+
+    // Hook into the original addMessage to trigger notification prompt
+    const originalAddMessage = addMessage;
+    addMessage = function(text, type, frameTime = null) {
+      originalAddMessage(text, type, frameTime);
+      
+      // After first bot response with traffic data, show notification prompt
+      if (type === 'bot' && frameTime && !notificationPromptShown) {
+        setTimeout(showNotificationPrompt, 1000);
+      }
+      
+      // Extract status and check for notifications
+      if (type === 'bot' && frameTime) {
+        const lsMatch = text.match(/\[LS_TO_SA\][\s\S]*?status:\s*(\w+)/i);
+        const saMatch = text.match(/\[SA_TO_LS\][\s\S]*?status:\s*(\w+)/i);
+        
+        const lsStatus = lsMatch ? lsMatch[1].toUpperCase() : null;
+        const saStatus = saMatch ? saMatch[1].toUpperCase() : null;
+        
+        if (lsStatus && saStatus) {
+          checkAndNotify(lsStatus, saStatus);
+        }
+      }
+    };
+
+    // Initialize on page load
+    initNotifications();
   </script>
 </body>
 </html>
