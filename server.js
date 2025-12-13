@@ -1230,6 +1230,203 @@ app.get('/api/insights', async (req, res) => {
   }
 });
 
+// =============================================
+// USER AUTHENTICATION ENDPOINTS
+// =============================================
+
+// Simple hash function for passwords (SHA-256)
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Register new user
+app.post('/api/auth/register', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    const { phone, countryCode, countryResidence, password, passwordHint, name } = req.body;
+
+    // Validate required fields
+    if (!phone || !countryCode || !countryResidence || !password) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    // Validate phone format
+    const cleanPhone = phone.replace(/\s/g, '');
+    if (countryCode === '+266' && cleanPhone.length !== 8) {
+      return res.status(400).json({ success: false, message: 'Lesotho phone must be 8 digits' });
+    }
+    if (countryCode === '+27' && cleanPhone.length !== 10) {
+      return res.status(400).json({ success: false, message: 'South Africa phone must be 10 digits' });
+    }
+
+    // Validate password
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    // Create full phone number
+    const phoneFull = countryCode + cleanPhone;
+
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('traffic_users')
+      .select('id')
+      .eq('phone_full', phoneFull)
+      .single();
+
+    if (existingUser) {
+      return res.status(409).json({ success: false, message: 'Phone number already registered' });
+    }
+
+    // Hash password
+    const passwordHash = await hashPassword(password);
+
+    // Insert new user
+    const { data, error } = await supabase
+      .from('traffic_users')
+      .insert({
+        phone: cleanPhone,
+        country_code: countryCode,
+        phone_full: phoneFull,
+        country_residence: countryResidence,
+        password_hash: passwordHash,
+        password_hint: passwordHint || null,
+        name: name || null
+      })
+      .select('id, phone_full, country_residence, name, created_at')
+      .single();
+
+    if (error) {
+      console.error('Registration error:', error);
+      return res.status(500).json({ success: false, message: 'Registration failed' });
+    }
+
+    console.log(`✅ New user registered: ${phoneFull} (${countryResidence})`);
+
+    res.json({
+      success: true,
+      message: 'Registration successful',
+      user: {
+        id: data.id,
+        phone: data.phone_full,
+        country: data.country_residence,
+        name: data.name
+      }
+    });
+
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Login user
+app.post('/api/auth/login', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    const { phone, countryCode, password } = req.body;
+
+    if (!phone || !countryCode || !password) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const cleanPhone = phone.replace(/\s/g, '');
+    const phoneFull = countryCode + cleanPhone;
+    const passwordHash = await hashPassword(password);
+
+    // Find user
+    const { data: user, error } = await supabase
+      .from('traffic_users')
+      .select('id, phone_full, country_residence, name, password_hash, preferences')
+      .eq('phone_full', phoneFull)
+      .single();
+
+    if (error || !user) {
+      return res.status(401).json({ success: false, message: 'Phone number not found' });
+    }
+
+    // Check password
+    if (user.password_hash !== passwordHash) {
+      return res.status(401).json({ success: false, message: 'Incorrect password' });
+    }
+
+    // Update last login
+    await supabase
+      .from('traffic_users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', user.id);
+
+    console.log(`✅ User logged in: ${phoneFull}`);
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        phone: user.phone_full,
+        country: user.country_residence,
+        name: user.name,
+        preferences: user.preferences
+      }
+    });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get password hint
+app.post('/api/auth/hint', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    const { phone, countryCode } = req.body;
+
+    if (!phone || !countryCode) {
+      return res.status(400).json({ success: false, message: 'Missing phone number' });
+    }
+
+    const cleanPhone = phone.replace(/\s/g, '');
+    const phoneFull = countryCode + cleanPhone;
+
+    const { data: user, error } = await supabase
+      .from('traffic_users')
+      .select('password_hint')
+      .eq('phone_full', phoneFull)
+      .single();
+
+    if (error || !user) {
+      return res.status(404).json({ success: false, message: 'Phone number not found' });
+    }
+
+    if (!user.password_hint) {
+      return res.json({ success: true, hint: null, message: 'No password hint set' });
+    }
+
+    res.json({
+      success: true,
+      hint: user.password_hint
+    });
+
+  } catch (err) {
+    console.error('Hint error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
