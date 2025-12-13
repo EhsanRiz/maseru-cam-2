@@ -767,6 +767,181 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
+// Insights API - Get traffic analytics from Supabase
+app.get('/api/insights', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({ success: false, message: 'Database not connected' });
+    }
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentDay = now.getDay();
+
+    // Get readings from last 24 hours
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentReadings, error: recentError } = await supabase
+      .from('traffic_readings')
+      .select('*')
+      .gte('timestamp', oneDayAgo)
+      .order('timestamp', { ascending: true });
+
+    if (recentError) {
+      console.error('Error fetching recent readings:', recentError);
+    }
+
+    // Get readings from last 7 days for weekly patterns
+    const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: weeklyReadings, error: weeklyError } = await supabase
+      .from('traffic_readings')
+      .select('*')
+      .gte('timestamp', oneWeekAgo);
+
+    if (weeklyError) {
+      console.error('Error fetching weekly readings:', weeklyError);
+    }
+
+    // Process hourly data (for today)
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayReadings = (recentReadings || []).filter(r => new Date(r.timestamp) >= todayStart);
+    
+    const hourlyData = [];
+    for (let hour = 6; hour <= 22; hour += 2) {
+      const hourReadings = todayReadings.filter(r => {
+        const h = new Date(r.timestamp).getHours();
+        return h >= hour && h < hour + 2;
+      });
+      
+      if (hourReadings.length > 0) {
+        const statuses = hourReadings.map(r => r.ls_to_sa_status || r.sa_to_ls_status).filter(Boolean);
+        const heavyCount = statuses.filter(s => s === 'HEAVY' || s === 'SEVERE').length;
+        const moderateCount = statuses.filter(s => s === 'MODERATE').length;
+        
+        let status = 'light';
+        if (heavyCount > statuses.length / 2) status = 'heavy';
+        else if (moderateCount > statuses.length / 2) status = 'moderate';
+        
+        hourlyData.push({ hour, status, count: hourReadings.length });
+      } else {
+        hourlyData.push({ hour, status: 'empty', count: 0 });
+      }
+    }
+
+    // Process weekly patterns
+    const weeklyData = [];
+    for (let day = 0; day < 7; day++) {
+      const dayReadings = (weeklyReadings || []).filter(r => new Date(r.timestamp).getDay() === day);
+      
+      if (dayReadings.length > 0) {
+        const statuses = dayReadings.map(r => r.ls_to_sa_status || r.sa_to_ls_status).filter(Boolean);
+        const heavyCount = statuses.filter(s => s === 'HEAVY' || s === 'SEVERE').length;
+        const moderateCount = statuses.filter(s => s === 'MODERATE').length;
+        
+        let status = 'light';
+        if (heavyCount > statuses.length / 3) status = 'heavy';
+        else if (moderateCount > statuses.length / 3) status = 'moderate';
+        
+        weeklyData.push({ day, status, count: dayReadings.length });
+      } else {
+        weeklyData.push({ day, status: 'empty', count: 0 });
+      }
+    }
+
+    // Process 24h trends (12 data points, ~2 hours each)
+    const trendsData = [];
+    for (let i = 0; i < 12; i++) {
+      const periodEnd = new Date(now - i * 2 * 60 * 60 * 1000);
+      const periodStart = new Date(periodEnd - 2 * 60 * 60 * 1000);
+      
+      const periodReadings = (recentReadings || []).filter(r => {
+        const t = new Date(r.timestamp);
+        return t >= periodStart && t < periodEnd;
+      });
+      
+      if (periodReadings.length > 0) {
+        const statuses = periodReadings.map(r => r.ls_to_sa_status || r.sa_to_ls_status).filter(Boolean);
+        const heavyCount = statuses.filter(s => s === 'HEAVY' || s === 'SEVERE').length;
+        const moderateCount = statuses.filter(s => s === 'MODERATE').length;
+        
+        let status = 'light';
+        if (heavyCount > 0) status = 'heavy';
+        else if (moderateCount > 0) status = 'moderate';
+        
+        trendsData.unshift({ status, count: periodReadings.length });
+      } else {
+        trendsData.unshift({ status: 'empty', count: 0 });
+      }
+    }
+
+    // Get current status (most recent reading)
+    const latestReading = recentReadings && recentReadings.length > 0 
+      ? recentReadings[recentReadings.length - 1] 
+      : null;
+    const currentStatus = latestReading 
+      ? (latestReading.ls_to_sa_status || latestReading.sa_to_ls_status || 'Unknown')
+      : 'Unknown';
+
+    // Calculate typical status for this hour/day
+    const sameHourReadings = (weeklyReadings || []).filter(r => {
+      const t = new Date(r.timestamp);
+      return t.getHours() === currentHour && t.getDay() === currentDay;
+    });
+    
+    let typicalStatus = 'Unknown';
+    if (sameHourReadings.length > 0) {
+      const statuses = sameHourReadings.map(r => r.ls_to_sa_status || r.sa_to_ls_status).filter(Boolean);
+      const heavyCount = statuses.filter(s => s === 'HEAVY' || s === 'SEVERE').length;
+      const moderateCount = statuses.filter(s => s === 'MODERATE').length;
+      const lightCount = statuses.filter(s => s === 'LIGHT').length;
+      
+      if (heavyCount >= moderateCount && heavyCount >= lightCount) typicalStatus = 'Heavy';
+      else if (moderateCount >= lightCount) typicalStatus = 'Moderate';
+      else typicalStatus = 'Light';
+    }
+
+    // Generate tips
+    const peakHoursTip = hourlyData.some(h => h.status === 'heavy') 
+      ? 'Traffic tends to be heavier during peak hours. Consider traveling early morning or mid-afternoon.'
+      : 'Traffic has been relatively light today. Good conditions for crossing!';
+
+    const busiestDay = weeklyData.reduce((max, d) => d.count > max.count ? d : max, { count: 0 });
+    const dayNames = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+    const weeklyTip = busiestDay.count > 0 
+      ? `${dayNames[busiestDay.day]} tend to be ${busiestDay.status === 'heavy' ? 'busier' : 'moderately busy'}. Plan accordingly.`
+      : 'Not enough weekly data yet to identify patterns.';
+
+    const recentHeavy = trendsData.slice(-6).filter(t => t.status === 'heavy').length;
+    const trendsTip = recentHeavy > 2 
+      ? 'Traffic has been heavy recently. You might want to wait for conditions to improve.'
+      : 'Traffic has been manageable over the last few hours.';
+
+    const comparisonTip = currentStatus === typicalStatus 
+      ? `Traffic is about typical for this time.`
+      : currentStatus === 'Light' || (currentStatus === 'Moderate' && typicalStatus === 'Heavy')
+        ? `Traffic is lighter than usual right now - good time to cross!`
+        : `Traffic is heavier than usual for this time.`;
+
+    res.json({
+      success: true,
+      hourly: hourlyData,
+      weekly: weeklyData,
+      trends: trendsData,
+      currentStatus: currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1).toLowerCase(),
+      typicalStatus,
+      peakHoursTip,
+      weeklyTip,
+      trendsTip,
+      comparisonTip,
+      totalReadings: (recentReadings || []).length
+    });
+
+  } catch (error) {
+    console.error('Error fetching insights:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch insights' });
+  }
+});
+
 app.post('/api/chat', async (req, res) => {
   try {
     const { message } = req.body;
@@ -949,6 +1124,109 @@ app.get('/api/patterns', async (req, res) => {
     });
   } catch (err) {
     res.json({ success: false, message: err.message, patterns: null });
+  }
+});
+
+// Insights API endpoint for charts and analytics
+app.get('/api/insights', async (req, res) => {
+  if (!supabase) {
+    return res.json({ 
+      success: false, 
+      message: 'Database not connected',
+      totalReadings: 0
+    });
+  }
+  
+  try {
+    // Get all readings from the last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const { data: readings, error } = await supabase
+      .from('traffic_readings')
+      .select('*')
+      .gte('timestamp', sevenDaysAgo.toISOString())
+      .order('timestamp', { ascending: false });
+    
+    if (error) throw error;
+    
+    if (!readings || readings.length === 0) {
+      return res.json({
+        success: true,
+        totalReadings: 0,
+        message: 'No data available yet'
+      });
+    }
+    
+    // Process hourly breakdown
+    const hourlyBreakdown = {};
+    for (let h = 0; h < 24; h++) {
+      hourlyBreakdown[h] = { light: 0, moderate: 0, heavy: 0, severe: 0, total: 0 };
+    }
+    
+    // Process weekly breakdown
+    const weeklyBreakdown = {};
+    for (let d = 0; d < 7; d++) {
+      weeklyBreakdown[d] = { light: 0, moderate: 0, heavy: 0, severe: 0, total: 0 };
+    }
+    
+    readings.forEach(reading => {
+      const date = new Date(reading.timestamp);
+      const hour = date.getHours();
+      const day = date.getDay();
+      
+      // Use LS to SA status as primary indicator
+      const status = (reading.ls_to_sa_status || reading.sa_to_ls_status || 'LIGHT').toUpperCase();
+      
+      // Update hourly
+      hourlyBreakdown[hour].total++;
+      if (status === 'LIGHT') hourlyBreakdown[hour].light++;
+      else if (status === 'MODERATE') hourlyBreakdown[hour].moderate++;
+      else if (status === 'HEAVY') hourlyBreakdown[hour].heavy++;
+      else if (status === 'SEVERE') hourlyBreakdown[hour].severe++;
+      
+      // Update weekly
+      weeklyBreakdown[day].total++;
+      if (status === 'LIGHT') weeklyBreakdown[day].light++;
+      else if (status === 'MODERATE') weeklyBreakdown[day].moderate++;
+      else if (status === 'HEAVY') weeklyBreakdown[day].heavy++;
+      else if (status === 'SEVERE') weeklyBreakdown[day].severe++;
+    });
+    
+    // Get current status (most recent reading)
+    const currentStatus = readings[0]?.ls_to_sa_status || readings[0]?.sa_to_ls_status || 'LIGHT';
+    
+    // Calculate typical for current hour
+    const currentHour = new Date().getHours();
+    const hourData = hourlyBreakdown[currentHour];
+    let typicalForNow = 'LIGHT';
+    if (hourData.total > 0) {
+      if (hourData.heavy / hourData.total > 0.4) typicalForNow = 'HEAVY';
+      else if (hourData.moderate / hourData.total > 0.4) typicalForNow = 'MODERATE';
+    }
+    
+    // Get recent readings for trends (last 24 hours)
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    const recentReadings = readings.filter(r => new Date(r.timestamp) >= oneDayAgo);
+    
+    res.json({
+      success: true,
+      totalReadings: readings.length,
+      hourlyBreakdown,
+      weeklyBreakdown,
+      currentStatus: currentStatus.toUpperCase(),
+      typicalForNow,
+      recentReadings: recentReadings.slice(0, 20) // Last 20 readings
+    });
+    
+  } catch (err) {
+    console.error('Insights error:', err);
+    res.json({ 
+      success: false, 
+      message: err.message,
+      totalReadings: 0
+    });
   }
 });
 
