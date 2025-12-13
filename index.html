@@ -2,8 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Maseru Bridge Traffic | 4D Climate Solutions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>4D Traffic Bot | Maseru Bridge</title>
+  
+  <!-- SEO & Social Meta Tags -->
+  <meta name="description" content="Live AI-powered traffic monitoring for Maseru Bridge border crossing between Lesotho and South Africa. Check current queue status before you travel.">
+  <meta name="keywords" content="Maseru Bridge, border crossing, Lesotho, South Africa, traffic, queue, wait time, 4D Traffic Bot">
+  
+  <!-- Open Graph for WhatsApp/Facebook/LinkedIn -->
+  <meta property="og:title" content="4D Traffic Bot - Maseru Bridge Live Updates">
+  <meta property="og:description" content="AI-powered live traffic monitoring for Maseru Bridge border crossing. Check before you travel!">
+  <meta property="og:image" content="https://traffic.4dcs.co.za/og-image.png">
+  <meta property="og:url" content="https://traffic.4dcs.co.za">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="4D Climate Solutions">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="4D Traffic Bot - Maseru Bridge Live Updates">
+  <meta name="twitter:description" content="AI-powered live traffic monitoring for Maseru Bridge border crossing.">
+  <meta name="twitter:image" content="https://traffic.4dcs.co.za/og-image.png">
   
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-54KT25TNZ8"></script>
@@ -18,42 +36,51 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #0a0f1a;
-      --bg-secondary: #111827;
-      --bg-card: #1a2332;
-      --accent: #3b82f6;
+      --bg-primary: #0a1410;
+      --bg-secondary: #0d1a14;
+      --bg-card: #12231a;
+      --accent: #22c55e;
+      --accent-hover: #16a34a;
+      --accent-light: rgba(34, 197, 94, 0.15);
       --text-primary: #f1f5f9;
       --text-secondary: #94a3b8;
       --text-muted: #64748b;
-      --border: #2a3a4a;
-      --success: #10b981;
+      --border: #1e3a2f;
+      --success: #22c55e;
       --warning: #f59e0b;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    body {
+    html, body {
       font-family: 'DM Sans', system-ui, sans-serif;
       background: var(--bg-primary);
       color: var(--text-primary);
-      height: 100vh;
-      overflow: hidden;
+      height: 100%;
+    }
+
+    body {
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     .app-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      min-height: 100%;
     }
 
     .header {
-      background: var(--bg-secondary);
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, #0a1f15 100%);
       border-bottom: 1px solid var(--border);
       padding: 0.5rem 1rem;
       display: flex;
       align-items: center;
       gap: 0.75rem;
       flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
 
     .header-logo {
@@ -61,8 +88,17 @@
       width: auto;
     }
 
-    .header-info h1 { font-size: 1rem; font-weight: 600; }
-    .header-info p { font-size: 0.7rem; color: var(--text-secondary); }
+    .header-info h1 { 
+      font-size: 1.1rem; 
+      font-weight: 700; 
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+    .header-info p { 
+      font-size: 0.7rem; 
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
 
     .status-indicator {
       margin-left: auto;
@@ -80,19 +116,216 @@
       height: 8px;
       border-radius: 50%;
       background: var(--success);
-      animation: pulse 2s infinite;
+      animation: pulse-glow 2s ease-in-out infinite;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    @keyframes pulse-glow {
+      0% { 
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+      }
+      50% { 
+        opacity: 0.8;
+        box-shadow: 0 0 8px 4px rgba(34, 197, 94, 0.4);
+      }
+      100% { 
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+      }
+    }
+
+    /* Status variants */
+    .status-dot.connecting {
+      background: var(--warning);
+      animation: pulse-glow-yellow 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow-yellow {
+      0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.7);
+      }
+      50% { 
+        box-shadow: 0 0 8px 4px rgba(234, 179, 8, 0.4);
+      }
+    }
+
+    .status-dot.error {
+      background: var(--danger);
+      animation: none;
+    }
+
+    /* Camera overlay indicators */
+    .camera-overlay-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 8px;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+      z-index: 10;
+    }
+
+    .camera-timestamp-overlay {
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 500;
+    }
+
+    .last-updated {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.65rem;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .last-updated-icon {
+      font-size: 0.7rem;
+    }
+
+    .last-updated-time {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .last-updated.fresh .last-updated-time {
+      color: #4ade80;
+    }
+
+    .last-updated.stale .last-updated-time {
+      color: #fbbf24;
+    }
+
+    .last-updated.old .last-updated-time {
+      color: #f87171;
+    }
+
+    /* Lightbox / Image Popup */
+    .lightbox {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+
+    .lightbox.active {
+      display: flex;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .lightbox-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .lightbox-content {
+      position: relative;
+      width: 90vw;
+      max-width: 1200px;
+      max-height: 80vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lightbox-content img {
+      width: 100%;
+      height: auto;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .lightbox-label {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(0, 0, 0, 0.7);
+      color: var(--accent);
+      padding: 6px 14px;
+      border-radius: 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .lightbox-info {
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+
+    .lightbox-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .lightbox-nav:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .lightbox-prev {
+      left: 1rem;
+    }
+
+    .lightbox-next {
+      right: 1rem;
+    }
+
+    .gallery-image-inner {
+      cursor: pointer;
+    }
+
+    .gallery-image-inner:hover {
+      opacity: 0.95;
     }
 
     .main-content {
       display: flex;
       flex-direction: column;
       flex: 1;
-      overflow: hidden;
       max-width: 900px;
       width: 100%;
       margin: 0 auto;
@@ -128,53 +361,116 @@
       min-height: 180px;
     }
 
-    .camera-controls {
+    /* Gallery Styles */
+    .gallery-container {
+      position: relative;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 0.5rem 0.75rem;
-      background: var(--bg-secondary);
+      justify-content: center;
     }
 
-    .camera-timestamp {
+    .gallery-image-wrapper {
+      position: relative;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gallery-image-inner {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      overflow: hidden;
+      border-radius: 4px;
+    }
+
+    .gallery-image-inner img {
+      width: 100%;
+      height: auto;
+      max-height: 260px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .gallery-label {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.7);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 12px;
       font-size: 0.7rem;
-      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .refresh-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-secondary);
-      padding: 0.375rem 0.75rem;
-      border-radius: 6px;
+    .gallery-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0, 0, 0, 0.5);
+      border: none;
+      color: white;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
       cursor: pointer;
-      font-family: inherit;
-      font-size: 0.7rem;
       display: flex;
       align-items: center;
-      gap: 0.375rem;
+      justify-content: center;
       transition: all 0.2s;
+      z-index: 10;
     }
 
-    .refresh-btn:hover { background: var(--bg-card); color: var(--text-primary); }
+    .gallery-nav:hover {
+      background: rgba(0, 0, 0, 0.8);
+    }
 
-    .disclaimer-banner {
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid rgba(245, 158, 11, 0.25);
-      color: var(--warning);
-      padding: 0.4rem 0.6rem;
-      font-size: 0.65rem;
-      text-align: center;
-      border-radius: 6px;
-      margin-top: 0.5rem;
+    .gallery-prev {
+      left: 8px;
+    }
+
+    .gallery-next {
+      right: 8px;
+    }
+
+    .gallery-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 0;
+      background: var(--bg-card);
+    }
+
+    .gallery-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      padding: 0;
+    }
+
+    .gallery-dot.active {
+      background: var(--accent);
+      transform: scale(1.2);
+    }
+
+    .gallery-dot:hover:not(.active) {
+      background: var(--text-secondary);
     }
 
     .chat-section {
       flex: 1;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
       padding: 0 0.75rem;
+      min-height: 350px;
     }
 
     .chat-container {
@@ -185,6 +481,7 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
+      min-height: 300px;
     }
 
     .chat-messages {
@@ -228,8 +525,99 @@
     .message.bot .message-content { background: var(--bg-secondary); border-bottom-left-radius: 4px; }
     .message.user .message-content { background: var(--accent); border-bottom-right-radius: 4px; }
 
+    .frame-timestamp {
+      font-size: 0.7rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
     .message-time { font-size: 0.6rem; color: var(--text-muted); margin-top: 0.2rem; }
     .message.user .message-time { text-align: right; }
+
+    /* Direction status boxes */
+    .direction-boxes {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 0.75rem 0;
+    }
+
+    .direction-box {
+      border-radius: 8px;
+      padding: 0.75rem;
+      border-left: 4px solid;
+    }
+
+    .direction-box.light {
+      background: rgba(34, 197, 94, 0.1);
+      border-left-color: #22c55e;
+    }
+
+    .direction-box.moderate {
+      background: rgba(234, 179, 8, 0.1);
+      border-left-color: #eab308;
+    }
+
+    .direction-box.heavy {
+      background: rgba(239, 68, 68, 0.1);
+      border-left-color: #ef4444;
+    }
+
+    .direction-box.severe {
+      background: rgba(185, 28, 28, 0.15);
+      border-left-color: #b91c1c;
+    }
+
+    .direction-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+
+    .direction-route {
+      font-weight: 600;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .direction-status {
+      font-weight: 700;
+      font-size: 0.75rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .direction-box.light .direction-status {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .direction-box.moderate .direction-status {
+      background: rgba(234, 179, 8, 0.2);
+      color: #eab308;
+    }
+
+    .direction-box.heavy .direction-status {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .direction-box.severe .direction-status {
+      background: rgba(185, 28, 28, 0.25);
+      color: #fca5a5;
+    }
+
+    .direction-detail {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
 
     .welcome-message {
       text-align: center;
@@ -336,6 +724,40 @@
     .send-btn:hover { background: #2563eb; transform: scale(1.05); }
     .send-btn:disabled { background: var(--bg-card); color: var(--text-muted); cursor: not-allowed; transform: none; }
 
+    /* WhatsApp Share Button */
+    .share-btn {
+      background: #25D366;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.7rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
+      margin-top: 0.5rem;
+    }
+
+    .share-btn:hover { 
+      background: #128C7E; 
+      transform: scale(1.02); 
+    }
+
+    .share-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: white;
+    }
+
+    .message-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.4rem;
+    }
+
     footer {
       text-align: center;
       padding: 0.4rem;
@@ -347,24 +769,145 @@
 
     footer a { color: var(--accent); text-decoration: none; }
 
+    /* Advertisement Spaces */
+    .ad-container {
+      margin-top: 0.5rem;
+    }
+
+    .ad-placeholder {
+      background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+      position: relative;
+    }
+
+    .ad-label {
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      background: var(--bg-primary);
+      padding: 0 6px;
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .ad-content {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+    }
+
+    .ad-content p {
+      margin: 0 0 0.2rem 0;
+      color: var(--text-primary);
+    }
+
+    .ad-content p:first-child {
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+
+    .ad-content small {
+      color: var(--text-muted);
+      font-size: 0.65rem;
+    }
+
+    .ad-content small a {
+      color: var(--accent);
+      margin: 0 0.25rem;
+    }
+
+    .ad-content a {
+      color: var(--accent);
+    }
+
+    .ad-horizontal {
+      padding: 0.5rem 1rem;
+    }
+
+    .ad-horizontal .ad-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .ad-horizontal .ad-content p {
+      margin: 0;
+      font-size: 0.7rem;
+    }
+
+    .ad-footer {
+      margin: 0.5rem 1rem;
+    }
+
+    /* Hide footer ad on mobile */
+    @media (max-width: 768px) {
+      .ad-footer {
+        display: none;
+      }
+    }
+
+    /* Hide all ads on very small screens if needed */
+    @media (max-width: 360px) {
+      .ad-container {
+        display: none;
+      }
+    }
+
+    /* Mobile: Sticky camera + ad section */
+    @media (max-width: 767px) {
+      .camera-section {
+        position: sticky;
+        top: 52px;
+        z-index: 90;
+        background: var(--bg-primary);
+      }
+    }
+
     @media (max-width: 640px) {
       .header { padding: 0.4rem 0.6rem; }
       .header-logo { height: 30px; }
-      .header-info h1 { font-size: 0.9rem; }
+      .header-info h1 { font-size: 0.95rem; }
       .camera-preview img { max-height: 180px; }
+      .gallery-image-inner img { max-height: 180px; }
       .message { max-width: 92%; }
     }
 
+    /* Foldable phones - tall narrow screens */
+    @media (max-width: 400px) and (min-height: 700px) {
+      .camera-preview img { max-height: 150px; }
+      .gallery-image-inner img { max-height: 150px; }
+      .gallery-dots { padding: 4px 0; }
+      .ad-container { display: none; }
+      .chat-section { min-height: 280px; }
+    }
+
     @media (min-width: 768px) {
+      .app-container {
+        height: 100vh;
+        overflow: hidden;
+      }
+      
       .main-content {
         flex-direction: row;
         padding: 0.75rem;
         gap: 0.75rem;
+        height: calc(100vh - 60px); /* Full height minus header */
+        overflow: hidden;
       }
       
       .camera-section {
         width: 45%;
         padding: 0;
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
       }
       
       .camera-preview img {
@@ -374,6 +917,23 @@
       .chat-section {
         width: 55%;
         padding: 0;
+        min-height: auto;
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .chat-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        max-height: 100%;
+      }
+      
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
       }
     }
   </style>
@@ -383,8 +943,8 @@
     <header class="header">
       <img src="data:image/jpeg;base64,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" alt="4D Climate Solutions" class="header-logo">
       <div class="header-info">
-        <h1>Maseru Bridge Traffic</h1>
-        <p>Live border crossing monitor</p>
+        <h1>4D Traffic Bot</h1>
+        <p>Maseru Bridge</p>
       </div>
       <div class="status-indicator">
         <span class="status-dot" id="statusDot"></span>
@@ -395,20 +955,53 @@
     <div class="main-content">
       <div class="camera-section">
         <div class="camera-preview">
-          <div class="loading" id="cameraLoading">Loading camera feed...</div>
-          <img id="cameraImage" style="display: none;" alt="Maseru Bridge Camera Feed">
-          <div class="camera-controls">
-            <span class="camera-timestamp" id="cameraTimestamp">--:--:--</span>
-            <button class="refresh-btn" id="refreshBtn" onclick="refreshCamera()">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+          <div class="loading" id="cameraLoading">Loading camera feeds...</div>
+          
+          <!-- Gallery Container -->
+          <div class="gallery-container" id="galleryContainer" style="display: none;">
+            <button class="gallery-nav gallery-prev" id="galleryPrev" onclick="prevFrame()">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6"/>
               </svg>
-              Refresh
+            </button>
+            
+            <div class="gallery-image-wrapper">
+              <div class="gallery-image-inner" onclick="openLightbox()">
+                <img id="galleryImage" alt="Maseru Bridge Camera Feed">
+                <div class="gallery-label" id="galleryLabel">Bridge</div>
+                <!-- Bottom overlay bar with timestamp and updated -->
+                <div class="camera-overlay-bar">
+                  <span class="camera-timestamp-overlay" id="cameraTimestamp">--:--:--</span>
+                  <div class="last-updated fresh" id="lastUpdated">
+                    <span class="last-updated-icon">🔄</span>
+                    <span class="last-updated-time" id="lastUpdatedTime">just now</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <button class="gallery-nav gallery-next" id="galleryNext" onclick="nextFrame()">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
             </button>
           </div>
+          
+          <!-- Gallery Dots -->
+          <div class="gallery-dots" id="galleryDots"></div>
         </div>
-        <div class="disclaimer-banner">
-          ⚠️ AI estimates from camera snapshots. Conditions change quickly - verify before critical travel.
+        
+        <!-- Ad Space 1: Below Camera -->
+        <div class="ad-container" id="ad-camera">
+          <div class="ad-placeholder">
+            <span class="ad-label">Advertisement</span>
+            <div class="ad-content">
+              <!-- Replace this div with Google AdSense code or custom ad -->
+              <p>📢 Prime Ad Space Available</p>
+              <p>Be the first business travelers see</p>
+              <small><a href="mailto:ads@4dcs.co.za">ads@4dcs.co.za</a> • <a href="tel:+26622323442">+266 2232 3442</a></small>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -422,7 +1015,7 @@
           </div>
 
           <div class="quick-actions-bar">
-            <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')">🚗 Current traffic?</button>
+            <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')">🚗 Current?</button>
             <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')">⏰ Good time?</button>
             <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')">📏 Queue?</button>
             <button class="quick-action" onclick="sendQuickMessage('Any issues at the border?')">⚠️ Issues?</button>
@@ -444,20 +1037,123 @@
     </div>
 
     <footer>
+      <!-- Ad Space 2: Footer Banner -->
+      <div class="ad-container ad-footer" id="ad-footer">
+        <div class="ad-placeholder ad-horizontal">
+          <span class="ad-label">Advertisement</span>
+          <div class="ad-content">
+            <!-- Replace with Google AdSense or custom ad -->
+            <p>📢 Advertise to 1000s of border travelers | <a href="mailto:ads@4dcs.co.za">ads@4dcs.co.za</a></p>
+          </div>
+        </div>
+      </div>
       <p>© 2025 <a href="https://4dcs.co.za" target="_blank">4D Climate Solutions</a> | Camera by ETL Webcast</p>
     </footer>
+  </div>
+
+  <!-- Lightbox Popup -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    
+    <button class="lightbox-nav lightbox-prev" onclick="lightboxPrev()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 18l-6-6 6-6"/>
+      </svg>
+    </button>
+    
+    <div class="lightbox-content">
+      <img id="lightboxImg" alt="Camera Feed">
+      <div class="lightbox-label" id="lightboxLabel">Bridge</div>
+    </div>
+    
+    <button class="lightbox-nav lightbox-next" onclick="lightboxNext()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+    </button>
+    
+    <div class="lightbox-info" id="lightboxInfo">Captured at --:--:--</div>
   </div>
 
   <script>
     const chatMessages = document.getElementById('chatMessages');
     const chatInput = document.getElementById('chatInput');
     const sendBtn = document.getElementById('sendBtn');
-    const cameraImage = document.getElementById('cameraImage');
     const cameraLoading = document.getElementById('cameraLoading');
     const cameraTimestamp = document.getElementById('cameraTimestamp');
+    
+    // Last updated elements
+    const lastUpdatedContainer = document.getElementById('lastUpdated');
+    const lastUpdatedTime = document.getElementById('lastUpdatedTime');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    
+    // Gallery elements
+    const galleryContainer = document.getElementById('galleryContainer');
+    const galleryImage = document.getElementById('galleryImage');
+    const galleryLabel = document.getElementById('galleryLabel');
+    const galleryDots = document.getElementById('galleryDots');
+    const galleryPrev = document.getElementById('galleryPrev');
+    const galleryNext = document.getElementById('galleryNext');
 
     let isLoading = false;
     let welcomeShown = true;
+    
+    // Gallery state
+    let frames = [];
+    let currentFrameIndex = 0;
+    
+    // Last updated tracking
+    let lastUpdateTimestamp = null;
+    
+    function updateLastUpdatedDisplay() {
+      if (!lastUpdateTimestamp) {
+        lastUpdatedTime.textContent = 'waiting...';
+        lastUpdatedContainer.className = 'last-updated';
+        return;
+      }
+      
+      const now = Date.now();
+      const diffSeconds = Math.floor((now - lastUpdateTimestamp) / 1000);
+      
+      let timeText;
+      let freshness;
+      
+      if (diffSeconds < 10) {
+        timeText = 'just now';
+        freshness = 'fresh';
+      } else if (diffSeconds < 60) {
+        timeText = `${diffSeconds}s ago`;
+        freshness = 'fresh';
+      } else if (diffSeconds < 120) {
+        timeText = '1 min ago';
+        freshness = diffSeconds < 90 ? 'fresh' : 'stale';
+      } else if (diffSeconds < 300) {
+        timeText = `${Math.floor(diffSeconds / 60)} mins ago`;
+        freshness = 'stale';
+      } else {
+        timeText = `${Math.floor(diffSeconds / 60)} mins ago`;
+        freshness = 'old';
+      }
+      
+      lastUpdatedTime.textContent = timeText;
+      lastUpdatedContainer.className = `last-updated ${freshness}`;
+      
+      // Update status indicator based on freshness
+      if (freshness === 'old') {
+        statusDot.className = 'status-dot error';
+        statusText.textContent = 'Stale';
+      } else if (freshness === 'stale') {
+        statusDot.className = 'status-dot connecting';
+        statusText.textContent = 'Live';
+      } else {
+        statusDot.className = 'status-dot';
+        statusText.textContent = 'Live';
+      }
+    }
+    
+    // Update the "last updated" display every 5 seconds
+    setInterval(updateLastUpdatedDisplay, 5000);
 
     chatInput.addEventListener('input', function() {
       this.style.height = 'auto';
@@ -504,7 +1200,20 @@
         const data = await response.json();
         removeTypingIndicator(typingId);
 
-        addMessage(data.success ? data.message : (data.message || 'Sorry, I encountered an error.'), 'bot');
+        if (data.success) {
+          // Format frame time in user's local timezone
+          let frameTime = null;
+          if (data.frameTimestamp) {
+            frameTime = new Date(data.frameTimestamp).toLocaleTimeString([], { 
+              hour: 'numeric', 
+              minute: '2-digit',
+              hour12: true 
+            });
+          }
+          addMessage(data.message, 'bot', frameTime);
+        } else {
+          addMessage(data.message || 'Sorry, I encountered an error.', 'bot');
+        }
       } catch (error) {
         removeTypingIndicator(typingId);
         addMessage('Connection error. Please try again.', 'bot');
@@ -515,19 +1224,200 @@
       }
     }
 
-    function addMessage(text, type) {
+    let latestTrafficStatus = null; // Store latest status for sharing
+
+    function parseDirectionBoxes(text) {
+      // Parse the new format with [LS_TO_SA] and [SA_TO_LS] blocks
+      const lsToSaMatch = text.match(/\[LS_TO_SA\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/LS_TO_SA\]/is);
+      const saToLsMatch = text.match(/\[SA_TO_LS\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/SA_TO_LS\]/is);
+      
+      if (!lsToSaMatch && !saToLsMatch) return null;
+      
+      return {
+        lsToSa: lsToSaMatch ? { status: lsToSaMatch[1].trim().toLowerCase(), detail: lsToSaMatch[2].trim() } : null,
+        saToLs: saToLsMatch ? { status: saToLsMatch[1].trim().toLowerCase(), detail: saToLsMatch[2].trim() } : null
+      };
+    }
+
+    function renderDirectionBoxes(directions) {
+      let html = '<div class="direction-boxes">';
+      
+      if (directions.lsToSa) {
+        html += `
+          <div class="direction-box ${directions.lsToSa.status}">
+            <div class="direction-header">
+              <span class="direction-route">🇱🇸 Lesotho → South Africa 🇿🇦</span>
+              <span class="direction-status">${directions.lsToSa.status}</span>
+            </div>
+            <div class="direction-detail">${directions.lsToSa.detail}</div>
+          </div>
+        `;
+      }
+      
+      if (directions.saToLs) {
+        html += `
+          <div class="direction-box ${directions.saToLs.status}">
+            <div class="direction-header">
+              <span class="direction-route">🇿🇦 South Africa → Lesotho 🇱🇸</span>
+              <span class="direction-status">${directions.saToLs.status}</span>
+            </div>
+            <div class="direction-detail">${directions.saToLs.detail}</div>
+          </div>
+        `;
+      }
+      
+      html += '</div>';
+      return html;
+    }
+
+    function formatBotMessage(text, frameTime) {
+      // Try to parse direction boxes
+      const directions = parseDirectionBoxes(text);
+      
+      // Extract Traffic summary and Advice
+      const trafficMatch = text.match(/\*\*Traffic:\*\*\s*([^\n\[]+)/i);
+      const adviceMatch = text.match(/\*\*Advice:\*\*\s*([^\n⚠]+)/i);
+      const warningMatch = text.match(/(⚠️[^\n]+)/);
+      
+      let html = '';
+      
+      if (frameTime) {
+        html += `<div class="frame-timestamp">📸 Based on camera feed at ${frameTime}</div>`;
+      }
+      
+      // Traffic summary
+      if (trafficMatch) {
+        html += `<strong>Traffic:</strong> ${trafficMatch[1].trim()}<br><br>`;
+      }
+      
+      // Direction boxes if parsed successfully
+      if (directions) {
+        html += renderDirectionBoxes(directions);
+      } else {
+        // Fallback: render as before (for non-traffic responses)
+        const cleanText = text
+          .replace(/\*\*Traffic:\*\*[^\n]+\n?/i, '')
+          .replace(/\*\*Advice:\*\*[^\n]+\n?/i, '')
+          .replace(/⚠️[^\n]+\n?/g, '')
+          .replace(/\[LS_TO_SA\][\s\S]*?\[\/LS_TO_SA\]/g, '')
+          .replace(/\[SA_TO_LS\][\s\S]*?\[\/SA_TO_LS\]/g, '')
+          .trim();
+        
+        if (cleanText) {
+          html += cleanText.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+      }
+      
+      // Advice
+      if (adviceMatch) {
+        html += `<br><strong>Advice:</strong> ${adviceMatch[1].trim()}<br>`;
+      }
+      
+      // Warning
+      if (warningMatch) {
+        html += `<br><span style="color: var(--text-muted); font-size: 0.75rem;">${warningMatch[1]}</span>`;
+      }
+      
+      return html;
+    }
+
+    function addMessage(text, type, frameTime = null) {
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${type}`;
+      
+      let messageContent = '';
+      let shareButton = '';
+      
+      if (type === 'bot' && frameTime) {
+        messageContent = formatBotMessage(text, frameTime);
+        
+        // Store for sharing and add share button
+        latestTrafficStatus = { text, time: frameTime };
+        shareButton = `
+          <div class="message-actions">
+            <button class="share-btn" onclick="shareToWhatsApp()">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+              Share on WhatsApp
+            </button>
+          </div>
+        `;
+      } else if (type === 'bot') {
+        messageContent = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      } else {
+        messageContent = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      }
+      
       messageDiv.innerHTML = `
         <div class="message-avatar">${type === 'bot' ? '🌉' : '👤'}</div>
         <div>
-          <div class="message-content">${text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
+          <div class="message-content">${messageContent}</div>
           <div class="message-time">${time}</div>
+          ${shareButton}
         </div>
       `;
       chatMessages.appendChild(messageDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function shareToWhatsApp() {
+      if (!latestTrafficStatus) return;
+      
+      // Parse the traffic status to create a clean message
+      const statusText = latestTrafficStatus.text;
+      const time = latestTrafficStatus.time;
+      
+      // Extract key info from the new format
+      let lsToSaStatus = '';
+      let lsToSaDetail = '';
+      let saToLsStatus = '';
+      let saToLsDetail = '';
+      let advice = '';
+      
+      // Parse new format with [LS_TO_SA] and [SA_TO_LS] blocks
+      const lsMatch = statusText.match(/\[LS_TO_SA\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/LS_TO_SA\]/is);
+      const saMatch = statusText.match(/\[SA_TO_LS\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/SA_TO_LS\]/is);
+      const adviceMatch = statusText.match(/\*\*Advice:\*\*\s*([^\n⚠]+)/i);
+      
+      if (lsMatch) {
+        lsToSaStatus = lsMatch[1].trim().toUpperCase();
+        lsToSaDetail = lsMatch[2].trim();
+      }
+      if (saMatch) {
+        saToLsStatus = saMatch[1].trim().toUpperCase();
+        saToLsDetail = saMatch[2].trim();
+      }
+      if (adviceMatch) advice = adviceMatch[1].trim();
+      
+      // Status emoji mapping
+      const getEmoji = (status) => {
+        switch(status.toLowerCase()) {
+          case 'light': return '🟢';
+          case 'moderate': return '🟡';
+          case 'heavy': return '🔴';
+          case 'severe': return '🚨';
+          default: return '⚪';
+        }
+      };
+      
+      const message = `🌉 *Maseru Bridge Border Traffic*
+📅 ${time}
+
+🇱🇸 *Lesotho → South Africa* 🇿🇦
+${getEmoji(lsToSaStatus)} ${lsToSaStatus}${lsToSaDetail ? ' - ' + lsToSaDetail : ''}
+
+🇿🇦 *South Africa → Lesotho* 🇱🇸
+${getEmoji(saToLsStatus)} ${saToLsStatus}${saToLsDetail ? ' - ' + saToLsDetail : ''}
+
+${advice ? '💡 *Advice:* ' + advice + '\n\n' : ''}🔴 *Live updates:* https://traffic.4dcs.co.za
+
+_Powered by 4D Climate Solutions_
+https://4dcs.co.za`;
+
+      const encodedMessage = encodeURIComponent(message);
+      window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
     }
 
     function showTypingIndicator() {
@@ -551,23 +1441,175 @@
       if (el) el.remove();
     }
 
+    // Gallery navigation functions
+    function updateGalleryDisplay() {
+      if (frames.length === 0) return;
+      
+      const frame = frames[currentFrameIndex];
+      galleryImage.src = 'data:image/jpeg;base64,' + frame.image;
+      galleryLabel.textContent = frame.label;
+      
+      // Update timestamp
+      const timestamp = new Date(frame.timestamp);
+      cameraTimestamp.textContent = timestamp.toLocaleTimeString();
+      
+      // Update dots
+      const dots = galleryDots.querySelectorAll('.gallery-dot');
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('active', i === currentFrameIndex);
+      });
+      
+      // Nav buttons always enabled for continuous loop
+      galleryPrev.disabled = false;
+      galleryNext.disabled = false;
+    }
+
+    function prevFrame() {
+      if (frames.length === 0) return;
+      // Loop to end if at beginning
+      currentFrameIndex = (currentFrameIndex - 1 + frames.length) % frames.length;
+      updateGalleryDisplay();
+    }
+
+    function nextFrame() {
+      if (frames.length === 0) return;
+      // Loop to beginning if at end
+      currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+      updateGalleryDisplay();
+    }
+
+    function goToFrame(index) {
+      currentFrameIndex = index;
+      updateGalleryDisplay();
+    }
+
+    function renderGalleryDots() {
+      galleryDots.innerHTML = '';
+      frames.forEach((frame, i) => {
+        const dot = document.createElement('button');
+        dot.className = 'gallery-dot' + (i === currentFrameIndex ? ' active' : '');
+        dot.title = frame.label;
+        dot.onclick = () => goToFrame(i);
+        galleryDots.appendChild(dot);
+      });
+    }
+
     async function refreshCamera() {
       try {
-        const response = await fetch('/api/screenshot?' + Date.now());
+        // Show connecting status while fetching
+        statusDot.className = 'status-dot connecting';
+        
+        const response = await fetch('/api/frames?' + Date.now());
         if (response.ok) {
-          const blob = await response.blob();
-          cameraImage.src = URL.createObjectURL(blob);
-          cameraImage.style.display = 'block';
-          cameraLoading.style.display = 'none';
-          cameraTimestamp.textContent = new Date().toLocaleTimeString();
+          const data = await response.json();
+          if (data.success && data.frames.length > 0) {
+            frames = data.frames;
+            
+            // Keep current index in bounds
+            if (currentFrameIndex >= frames.length) {
+              currentFrameIndex = 0;
+            }
+            
+            renderGalleryDots();
+            updateGalleryDisplay();
+            
+            galleryContainer.style.display = 'flex';
+            cameraLoading.style.display = 'none';
+            
+            // Update last updated timestamp
+            lastUpdateTimestamp = Date.now();
+            updateLastUpdatedDisplay();
+          }
+        } else {
+          // Server returned error
+          statusDot.className = 'status-dot error';
+          statusText.textContent = 'Error';
         }
       } catch (error) {
         console.error('Failed to refresh camera:', error);
+        statusDot.className = 'status-dot error';
+        statusText.textContent = 'Offline';
       }
     }
 
+    // Swipe support for mobile
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    galleryContainer.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, false);
+
+    galleryContainer.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, false);
+
+    function handleSwipe() {
+      const swipeThreshold = 50;
+      const diff = touchStartX - touchEndX;
+      
+      if (Math.abs(diff) > swipeThreshold) {
+        if (diff > 0) {
+          nextFrame(); // Swipe left = next
+        } else {
+          prevFrame(); // Swipe right = prev
+        }
+      }
+    }
+
+    // Lightbox functionality
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const lightboxLabel = document.getElementById('lightboxLabel');
+    const lightboxInfo = document.getElementById('lightboxInfo');
+
+    function openLightbox() {
+      if (frames.length === 0) return;
+      const frame = frames[currentFrameIndex];
+      lightboxImg.src = 'data:image/jpeg;base64,' + frame.image;
+      lightboxLabel.textContent = frame.label || 'Camera';
+      
+      const timestamp = new Date(frame.timestamp);
+      lightboxInfo.textContent = `Captured at ${timestamp.toLocaleTimeString()}`;
+      
+      lightbox.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      lightbox.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    function lightboxPrev() {
+      if (frames.length === 0) return;
+      currentFrameIndex = (currentFrameIndex - 1 + frames.length) % frames.length;
+      updateGalleryDisplay();
+      openLightbox();
+    }
+
+    function lightboxNext() {
+      if (frames.length === 0) return;
+      currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+      updateGalleryDisplay();
+      openLightbox();
+    }
+
+    // Close lightbox on escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') lightboxPrev();
+      if (e.key === 'ArrowRight') lightboxNext();
+    });
+
+    // Close lightbox when clicking outside the image
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) closeLightbox();
+    });
+
     refreshCamera();
-    setInterval(refreshCamera, 60000);
+    setInterval(refreshCamera, 30000); // Refresh every 30 seconds
   </script>
 </body>
 </html>
