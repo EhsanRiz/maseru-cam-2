@@ -109,7 +109,6 @@
     }
 
     .status-indicator {
-      margin-left: auto;
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -117,6 +116,13 @@
       background: var(--bg-card);
       border-radius: 2rem;
       font-size: 0.7rem;
+    }
+
+    .header-controls {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .status-dot {
@@ -1153,22 +1159,27 @@
 
     /* Notification Bell in Header */
     .notification-bell {
-      background: none;
-      border: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
       color: var(--text-muted);
       cursor: pointer;
-      padding: 0.25rem;
-      margin-right: 0.5rem;
-      position: relative;
-      transition: color 0.2s;
+      padding: 0.4rem;
+      border-radius: 8px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .notification-bell:hover {
       color: var(--text-primary);
+      border-color: var(--text-secondary);
     }
 
     .notification-bell.enabled {
       color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(16, 185, 129, 0.1);
     }
 
     .notification-bell svg {
@@ -1178,18 +1189,22 @@
 
     /* Insights Button in Header */
     .insights-btn {
-      background: none;
-      border: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
       color: var(--text-muted);
       cursor: pointer;
-      padding: 0.25rem;
-      margin-right: 0.5rem;
-      position: relative;
-      transition: color 0.2s;
+      padding: 0.4rem;
+      border-radius: 8px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .insights-btn:hover {
       color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(16, 185, 129, 0.1);
     }
 
     .insights-btn svg {
@@ -1722,10 +1737,12 @@
         <h1>4D Traffic Bot</h1>
         <p>Maseru Bridge</p>
       </div>
+      <div class="header-controls">
       <button class="insights-btn" id="insightsBtn" onclick="openInsights()" title="Traffic Insights">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 3v18h18"></path>
-          <path d="M18 9l-5 5-4-4-3 3"></path>
+          <rect x="4" y="14" width="4" height="7" rx="1"></rect>
+          <rect x="10" y="10" width="4" height="11" rx="1"></rect>
+          <rect x="16" y="6" width="4" height="15" rx="1"></rect>
         </svg>
       </button>
       <button class="notification-bell" id="notificationBell" onclick="openAlertSettings()" title="Traffic Alerts">
@@ -1737,6 +1754,7 @@
       <div class="status-indicator">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">Live</span>
+      </div>
       </div>
     </header>
 
