@@ -125,6 +125,62 @@
       gap: 0.5rem;
     }
 
+    /* Tooltip Styles */
+    [data-tooltip] {
+      position: relative;
+    }
+
+    [data-tooltip]::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: -35px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    [data-tooltip]::before {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-bottom-color: rgba(0, 0, 0, 0.9);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+      z-index: 1000;
+    }
+
+    [data-tooltip]:hover::after,
+    [data-tooltip]:hover::before {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Tooltip position variants */
+    [data-tooltip-pos="top"]::after {
+      bottom: auto;
+      top: -35px;
+    }
+    [data-tooltip-pos="top"]::before {
+      bottom: auto;
+      top: -8px;
+      border-bottom-color: transparent;
+      border-top-color: rgba(0, 0, 0, 0.9);
+    }
+
     .status-dot {
       width: 8px;
       height: 8px;
@@ -352,10 +408,23 @@
     }
 
     .camera-preview {
-      background: var(--bg-card);
+      background: linear-gradient(135deg, var(--bg-card) 0%, rgba(13, 40, 24, 0.8) 100%);
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
+      position: relative;
+    }
+
+    .camera-preview::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(180deg, transparent 70%, rgba(0,0,0,0.3) 100%);
+      pointer-events: none;
+      z-index: 1;
     }
 
     .camera-preview img {
@@ -576,7 +645,15 @@
       flex-shrink: 0;
     }
 
-    .message.bot .message-avatar { background: linear-gradient(135deg, var(--accent), #1d4ed8); }
+    .message.bot .message-avatar { 
+      background: linear-gradient(135deg, var(--accent), #1d4ed8);
+      padding: 5px;
+    }
+    .message.bot .message-avatar svg {
+      width: 16px;
+      height: 16px;
+      fill: white;
+    }
     .message.user .message-avatar { background: var(--bg-secondary); border: 1px solid var(--border); }
 
     .message-content {
@@ -586,8 +663,15 @@
       line-height: 1.5;
     }
 
-    .message.bot .message-content { background: var(--bg-secondary); border-bottom-left-radius: 4px; }
-    .message.user .message-content { background: var(--accent); border-bottom-right-radius: 4px; }
+    .message.bot .message-content { 
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(17, 24, 17, 0.95) 100%);
+      border-bottom-left-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+    .message.user .message-content { 
+      background: linear-gradient(135deg, var(--accent) 0%, #059669 100%);
+      border-bottom-right-radius: 4px;
+    }
 
     .frame-timestamp {
       font-size: 0.7rem;
@@ -612,26 +696,51 @@
       border-radius: 8px;
       padding: 0.75rem;
       border-left: 4px solid;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .direction-box::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 100px;
+      height: 100%;
+      opacity: 0.1;
+      pointer-events: none;
     }
 
     .direction-box.light {
-      background: rgba(34, 197, 94, 0.1);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%);
       border-left-color: #22c55e;
+    }
+    .direction-box.light::before {
+      background: linear-gradient(90deg, transparent, #22c55e);
     }
 
     .direction-box.moderate {
-      background: rgba(234, 179, 8, 0.1);
+      background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.05) 100%);
       border-left-color: #eab308;
+    }
+    .direction-box.moderate::before {
+      background: linear-gradient(90deg, transparent, #eab308);
     }
 
     .direction-box.heavy {
-      background: rgba(239, 68, 68, 0.1);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%);
       border-left-color: #ef4444;
+    }
+    .direction-box.heavy::before {
+      background: linear-gradient(90deg, transparent, #ef4444);
     }
 
     .direction-box.severe {
-      background: rgba(185, 28, 28, 0.15);
+      background: linear-gradient(135deg, rgba(185, 28, 28, 0.2) 0%, rgba(185, 28, 28, 0.08) 100%);
       border-left-color: #b91c1c;
+    }
+    .direction-box.severe::before {
+      background: linear-gradient(90deg, transparent, #b91c1c);
     }
 
     .direction-header {
@@ -1727,9 +1836,168 @@
         overflow-y: auto;
       }
     }
+    /* Splash Screen */
+    .splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #0a1f15 0%, #0d2818 50%, #071510 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    .splash-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .splash-content {
+      text-align: center;
+      animation: fadeInUp 0.8s ease;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .splash-icon {
+      position: relative;
+      width: 120px;
+      height: 80px;
+      margin: 0 auto 1.5rem;
+    }
+
+    .splash-car {
+      width: 60px;
+      height: 60px;
+      fill: var(--accent);
+      animation: carBounce 1s ease-in-out infinite;
+      position: relative;
+      z-index: 2;
+    }
+
+    @keyframes carBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .splash-road {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 8px;
+      background: #333;
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .road-line {
+      width: 15px;
+      height: 3px;
+      background: #ffd700;
+      margin-top: 2.5px;
+      animation: roadMove 0.8s linear infinite;
+    }
+
+    @keyframes roadMove {
+      0% { transform: translateX(30px); opacity: 0; }
+      50% { opacity: 1; }
+      100% { transform: translateX(-30px); opacity: 0; }
+    }
+
+    .road-line:nth-child(2) { animation-delay: 0.2s; }
+    .road-line:nth-child(3) { animation-delay: 0.4s; }
+
+    .splash-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.3rem;
+      letter-spacing: -0.5px;
+    }
+
+    .splash-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 2rem;
+    }
+
+    .splash-loader {
+      width: 200px;
+      height: 4px;
+      background: var(--bg-secondary);
+      border-radius: 2px;
+      margin: 0 auto 1rem;
+      overflow: hidden;
+    }
+
+    .loader-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #34d399);
+      border-radius: 2px;
+      animation: loadProgress 2s ease-in-out forwards;
+    }
+
+    @keyframes loadProgress {
+      0% { width: 0%; }
+      30% { width: 40%; }
+      60% { width: 70%; }
+      100% { width: 100%; }
+    }
+
+    .splash-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      animation: statusPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes statusPulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
   </style>
 </head>
 <body>
+  <!-- Splash Screen -->
+  <div class="splash-screen" id="splashScreen">
+    <div class="splash-content">
+      <div class="splash-icon">
+        <svg viewBox="0 0 24 24" class="splash-car">
+          <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+        </svg>
+        <div class="splash-road">
+          <div class="road-line"></div>
+          <div class="road-line"></div>
+          <div class="road-line"></div>
+        </div>
+      </div>
+      <h1 class="splash-title">4D Traffic Bot</h1>
+      <p class="splash-subtitle">Maseru Bridge Border Monitor</p>
+      <div class="splash-loader">
+        <div class="loader-bar"></div>
+      </div>
+      <p class="splash-status">Connecting to cameras...</p>
+    </div>
+  </div>
+
   <div class="app-container">
     <header class="header">
       <img src="data:image/jpeg;base64,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" alt="4D Climate Solutions" class="header-logo">
@@ -1738,14 +2006,14 @@
         <p>Maseru Bridge</p>
       </div>
       <div class="header-controls">
-      <button class="insights-btn" id="insightsBtn" onclick="openInsights()" title="Traffic Insights">
+      <button class="insights-btn" id="insightsBtn" onclick="openInsights()" data-tooltip="View traffic patterns & insights">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="4" y="14" width="4" height="7" rx="1"></rect>
           <rect x="10" y="10" width="4" height="11" rx="1"></rect>
           <rect x="16" y="6" width="4" height="15" rx="1"></rect>
         </svg>
       </button>
-      <button class="notification-bell" id="notificationBell" onclick="openAlertSettings()" title="Traffic Alerts">
+      <button class="notification-bell" id="notificationBell" onclick="openAlertSettings()" data-tooltip="Set up traffic alerts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
@@ -1826,10 +2094,10 @@
           </div>
 
           <div class="quick-actions-bar">
-            <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')">🚗 Current?</button>
-            <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')">⏰ Good time?</button>
-            <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')">📏 Queue?</button>
-            <button class="quick-action" onclick="openFAQ()">❓ FAQ</button>
+            <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')" data-tooltip="Check current traffic" data-tooltip-pos="top">🚗 Current?</button>
+            <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')" data-tooltip="Get crossing advice" data-tooltip-pos="top">⏰ Good time?</button>
+            <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')" data-tooltip="Estimate queue length" data-tooltip-pos="top">📏 Queue?</button>
+            <button class="quick-action" onclick="openFAQ()" data-tooltip="Common questions" data-tooltip-pos="top">❓ FAQ</button>
           </div>
 
           <div class="chat-input-container">
@@ -2119,7 +2387,7 @@
           messageDiv.className = `message ${msg.type}`;
           
           messageDiv.innerHTML = `
-            <div class="message-avatar">${msg.type === 'bot' ? '🌉' : '👤'}</div>
+            <div class="message-avatar">${msg.type === 'bot' ? '<svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>' : '👤'}</div>
             <div>
               <div class="message-content">${msg.content}</div>
               <div class="message-time">${msg.time}</div>
@@ -2613,7 +2881,7 @@
       }
       
       messageDiv.innerHTML = `
-        <div class="message-avatar">${type === 'bot' ? '🌉' : '👤'}</div>
+        <div class="message-avatar">${type === 'bot' ? '<svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>' : '👤'}</div>
         <div>
           <div class="message-content">${messageContent}</div>
           <div class="message-time">${time}</div>
@@ -2691,7 +2959,7 @@ https://4dcs.co.za`;
       div.id = id;
       div.className = 'message bot';
       div.innerHTML = `
-        <div class="message-avatar">🌉</div>
+        <div class="message-avatar"><svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg></div>
         <div class="message-content">
           <div class="typing-indicator"><span></span><span></span><span></span></div>
         </div>
@@ -2879,6 +3147,21 @@ https://4dcs.co.za`;
     
     refreshCamera();
     setInterval(refreshCamera, 180000); // Refresh every 3 minutes
+    
+    // Hide splash screen after content loads
+    function hideSplashScreen() {
+      const splash = document.getElementById('splashScreen');
+      if (splash) {
+        splash.classList.add('hidden');
+        // Remove from DOM after animation
+        setTimeout(() => {
+          splash.remove();
+        }, 500);
+      }
+    }
+    
+    // Hide splash after minimum display time (2.5s) or when content ready
+    setTimeout(hideSplashScreen, 2500);
   </script>
 
   <!-- iOS Add to Home Screen Prompt -->
