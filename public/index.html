@@ -484,6 +484,31 @@
       min-height: 300px;
     }
 
+    .chat-header-row {
+      display: flex;
+      justify-content: flex-end;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .clear-chat-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .clear-chat-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+      border-color: var(--text-muted);
+    }
+
     .chat-messages {
       flex: 1;
       overflow-y: auto;
@@ -1007,6 +1032,11 @@
 
       <div class="chat-section">
         <div class="chat-container">
+          <div class="chat-header-row">
+            <button class="clear-chat-btn" onclick="clearChatHistory()" title="Clear chat history">
+              🗑️ Clear
+            </button>
+          </div>
           <div class="chat-messages" id="chatMessages">
             <div class="welcome-message">
               <h2>👋 Ask about border traffic!</h2>
@@ -1105,6 +1135,85 @@
     
     // Last updated tracking
     let lastUpdateTimestamp = null;
+    
+    // Chat history storage
+    const CHAT_STORAGE_KEY = 'maseru_traffic_chat_history';
+    const MAX_STORED_MESSAGES = 50; // Limit stored messages
+    
+    // Save chat history to localStorage
+    function saveChatHistory() {
+      try {
+        const messages = [];
+        const messageElements = chatMessages.querySelectorAll('.message');
+        
+        messageElements.forEach(el => {
+          const type = el.classList.contains('user') ? 'user' : 'bot';
+          const content = el.querySelector('.message-content')?.innerHTML || '';
+          const time = el.querySelector('.message-time')?.textContent || '';
+          
+          messages.push({ type, content, time });
+        });
+        
+        // Keep only last N messages
+        const toStore = messages.slice(-MAX_STORED_MESSAGES);
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(toStore));
+      } catch (e) {
+        console.log('Could not save chat history:', e);
+      }
+    }
+    
+    // Load chat history from localStorage
+    function loadChatHistory() {
+      try {
+        const stored = localStorage.getItem(CHAT_STORAGE_KEY);
+        if (!stored) return false;
+        
+        const messages = JSON.parse(stored);
+        if (!messages || messages.length === 0) return false;
+        
+        // Hide welcome message
+        const welcome = document.querySelector('.welcome-message');
+        if (welcome) welcome.style.display = 'none';
+        welcomeShown = false;
+        
+        // Restore messages
+        messages.forEach(msg => {
+          const messageDiv = document.createElement('div');
+          messageDiv.className = `message ${msg.type}`;
+          
+          messageDiv.innerHTML = `
+            <div class="message-avatar">${msg.type === 'bot' ? '🌉' : '👤'}</div>
+            <div>
+              <div class="message-content">${msg.content}</div>
+              <div class="message-time">${msg.time}</div>
+            </div>
+          `;
+          chatMessages.appendChild(messageDiv);
+        });
+        
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return true;
+      } catch (e) {
+        console.log('Could not load chat history:', e);
+        return false;
+      }
+    }
+    
+    // Clear chat history
+    function clearChatHistory() {
+      if (!confirm('Clear all chat history?')) return;
+      
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+      
+      // Remove all messages except welcome
+      const messages = chatMessages.querySelectorAll('.message');
+      messages.forEach(m => m.remove());
+      
+      // Show welcome message
+      const welcome = document.querySelector('.welcome-message');
+      if (welcome) welcome.style.display = 'block';
+      welcomeShown = true;
+    }
     
     function updateLastUpdatedDisplay() {
       if (!lastUpdateTimestamp) {
@@ -1360,6 +1469,9 @@
       `;
       chatMessages.appendChild(messageDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
+      
+      // Save chat history after each message
+      saveChatHistory();
     }
 
     function shareToWhatsApp() {
@@ -1609,6 +1721,9 @@ https://4dcs.co.za`;
       if (e.target === lightbox) closeLightbox();
     });
 
+    // Load saved chat history on page load
+    loadChatHistory();
+    
     refreshCamera();
     setInterval(refreshCamera, 180000); // Refresh every 3 minutes
   </script>
