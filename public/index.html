@@ -250,13 +250,18 @@
     .gallery-image-wrapper {
       position: relative;
       flex: 1;
-      min-height: 200px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .gallery-image-wrapper img {
+    .gallery-image-inner {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+    }
+
+    .gallery-image-inner img {
       width: 100%;
       height: auto;
       max-height: 260px;
@@ -744,14 +749,14 @@
       .header-logo { height: 30px; }
       .header-info h1 { font-size: 0.95rem; }
       .camera-preview img { max-height: 180px; }
-      .gallery-image-wrapper img { max-height: 180px; }
+      .gallery-image-inner img { max-height: 180px; }
       .message { max-width: 92%; }
     }
 
     /* Foldable phones - tall narrow screens */
     @media (max-width: 400px) and (min-height: 700px) {
       .camera-preview img { max-height: 150px; }
-      .gallery-image-wrapper img { max-height: 150px; }
+      .gallery-image-inner img { max-height: 150px; }
       .gallery-dots { padding: 4px 0; }
       .ad-container { display: none; }
       .chat-section { min-height: 280px; }
@@ -837,14 +842,16 @@
             </button>
             
             <div class="gallery-image-wrapper">
-              <img id="galleryImage" alt="Maseru Bridge Camera Feed">
-              <div class="gallery-label" id="galleryLabel">Bridge</div>
-              <!-- Timestamp overlay - bottom left -->
-              <div class="camera-overlay camera-timestamp-overlay" id="cameraTimestamp">--:--:--</div>
-              <!-- Last Updated overlay - bottom right -->
-              <div class="camera-overlay last-updated fresh" id="lastUpdated">
-                <span class="last-updated-icon">🔄</span>
-                <span class="last-updated-time" id="lastUpdatedTime">just now</span>
+              <div class="gallery-image-inner">
+                <img id="galleryImage" alt="Maseru Bridge Camera Feed">
+                <div class="gallery-label" id="galleryLabel">Bridge</div>
+                <!-- Timestamp overlay - bottom left -->
+                <div class="camera-overlay camera-timestamp-overlay" id="cameraTimestamp">--:--:--</div>
+                <!-- Last Updated overlay - bottom right -->
+                <div class="camera-overlay last-updated fresh" id="lastUpdated">
+                  <span class="last-updated-icon">🔄</span>
+                  <span class="last-updated-time" id="lastUpdatedTime">just now</span>
+                </div>
               </div>
             </div>
             
