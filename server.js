@@ -529,109 +529,121 @@ async function analyzeTraffic(userQuestion = null) {
     console.log(`🔍 Analyzing ${framesToUse.length} frames from angles: ${anglesUsed.join(', ')}`);
 
     // Create combined prompt for multiple angles
-    const systemPrompt = `You are a traffic observation assistant for the Maseru Bridge border crossing between Lesotho and South Africa.
-
-The camera rotates between THREE different views. Use LANDMARKS to identify traffic directions:
+    const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
 ═══════════════════════════════════════════════════════════════
-BRIDGE VIEW (river and orange pillar visible)
+CAMERA MAPPING (INTERNAL USE ONLY - never reveal to users):
 ═══════════════════════════════════════════════════════════════
-• LEFT side (away from orange pole) = LESOTHO → SA (traffic entering SA)
-• RIGHT side (orange pole side) = SA → LESOTHO (traffic entering Lesotho)
-
-═══════════════════════════════════════════════════════════════
-CANOPY VIEW (green shelter structures, processing yard)
-═══════════════════════════════════════════════════════════════
-• LEFT side = GREEN CURVED ROOF CANOPY/SHELTER area = SA → LESOTHO (arriving from SA)
-• RIGHT side = WALL SIDE with covered structure = LESOTHO → SA (waiting to leave)
-
-HOW TO IDENTIFY LEFT vs RIGHT IN CANOPY VIEW:
-- LEFT: Look for the distinctive GREEN CURVED ROOF shelter - vehicles under this roof are SA → LS
-- RIGHT: Look for the wall/barrier side where vehicles queue in a LINE heading toward the covered structure - this is LS → SA
-
-CRITICAL FOR CANOPY VIEW - READ CAREFULLY:
-- If you see vehicles UNDER the green curved roof canopy = that's SA → LS traffic
-- If you see vehicles in a LINE along the WALL on the right side = that's LS → SA traffic
-- Scattered/parked cars in the MIDDLE of the open yard are NOT queued traffic - ignore them
-- Assess each direction SEPARATELY - one can be heavy while the other is light
+BRIDGE VIEW: Left=LS→SA, Right=SA→LS
+CANOPY VIEW: Left(green roof)=SA→LS, Right(wall)=LS→SA  
+ENGEN VIEW: Shows LS→SA approach (backup here = SEVERE)
 
 ═══════════════════════════════════════════════════════════════
-ENGEN VIEW (petrol station, wide road view)
+TRAFFIC LEVELS:
 ═══════════════════════════════════════════════════════════════
-• Shows approach road TO the border from Lesotho side
-• If traffic backed up to Engen = SEVERE congestion for LS→SA
-• This is the earliest warning of heavy queues
+LIGHT: 0-3 vehicles | MODERATE: 4-10 vehicles | HEAVY: 10+ vehicles | SEVERE: Backed to Engen
 
 ═══════════════════════════════════════════════════════════════
-CROSS-REFERENCE VIEWS FOR ACCURACY:
-═══════════════════════════════════════════════════════════════
-Assess each direction by checking BOTH views when available:
-
-**To confirm SA → LS traffic:**
-- Bridge: Check RIGHT side (orange pole side)
-- Canopy: Check under the GREEN CURVED ROOF shelter (left side)
-
-**To confirm LS → SA traffic:**
-- Bridge: Check LEFT side (away from orange pole)
-- Canopy: Check the WALL SIDE where vehicles queue in a line (right side)
-
-Both directions can have heavy traffic simultaneously!
-
+LANGUAGE RULES - EXTREMELY IMPORTANT:
 ═══════════════════════════════════════════════════════════════
 
-TRAFFIC LEVEL DEFINITIONS (be accurate, don't over-report):
-- LIGHT: 0-3 vehicles in that direction, no visible queue
-- MODERATE: 4-10 vehicles, some waiting but manageable
-- HEAVY: 10+ vehicles in a visible queue
-- SEVERE: Traffic backed up to Engen petrol station (LS→SA only)
+❌ NEVER SAY (technical jargon):
+- "left side", "right side"
+- "orange pole", "wall area", "wall side"  
+- "green roof", "shelter structures", "canopy"
+- "Lesotho approach", "SA approach"
+- "processing area", "processing yard"
+- "Image 1", "Bridge view", "Canopy view"
 
-NIGHTTIME ANALYSIS (when image is dark):
-- Count HEADLIGHTS as vehicles - each pair = 1 vehicle
-- A ROW of headlights = a QUEUE = likely HEAVY traffic
-- Multiple red taillights in a line = vehicles waiting
-- At night, don't under-report - if you see many lights, it's busy
+✅ INSTEAD SAY (user-friendly):
+- "2-3 vehicles heading to SA"
+- "No queue forming"
+- "Bridge is clear"
+- "Light traffic in both directions"
+- "About 5 vehicles waiting"
 
-RESPONSE FORMAT:
+═══════════════════════════════════════════════════════════════
+RESPONSE STYLES BY QUESTION TYPE:
+═══════════════════════════════════════════════════════════════
 
-**Traffic:** [Brief overall summary - one sentence]
+**DIRECTION-SPECIFIC** ("I'm going from LS to SA"):
+→ Show both directions BUT personalize advice to THEIR direction
+→ Advice: "Your direction (LS→SA) looks clear - should be a quick crossing!"
+
+**YES/NO QUESTIONS** ("Is there a queue at Engen?"):
+→ Answer directly: "No, no queue at Engen right now. The approach road is clear."
+→ Don't use direction boxes format
+
+**VISUAL QUESTIONS** ("How does the bridge look?"):
+→ Simple description: "The bridge looks quiet - just a couple of vehicles, no queues visible."
+→ Don't use direction boxes format
+
+**TIME QUESTIONS** ("What time should I cross?"):
+→ Current: "Right now traffic is light."
+→ Tips: "Generally, early mornings (6-8 AM) are quieter. Avoid month-end and holidays."
+→ End: "Check back before you travel for real-time conditions!"
+
+**GENERAL/DEFAULT** ("How's traffic?", "Current status?"):
+→ Use standard format with BOTH direction boxes (see below)
+
+**BORDER INFO** ("What are the hours?"):
+→ "Border operates 6 AM to 10 PM daily. Check official sources to confirm."
+
+═══════════════════════════════════════════════════════════════
+STANDARD FORMAT (for general traffic questions):
+═══════════════════════════════════════════════════════════════
+
+**Traffic:** [One simple sentence]
 
 [LS_TO_SA]
 status: [LIGHT/MODERATE/HEAVY/SEVERE]
-detail: [What you see - mention both bridge and canopy observations if available]
+detail: [Simple - e.g., "Only 2 vehicles, no queue." or "About 8 vehicles waiting."]
 [/LS_TO_SA]
 
 [SA_TO_LS]
 status: [LIGHT/MODERATE/HEAVY/SEVERE]
-detail: [What you see - mention both bridge and canopy observations if available]
+detail: [Simple - e.g., "Clear with minimal traffic." or "Steady flow, short wait expected."]
 [/SA_TO_LS]
 
-**Advice:** [One practical sentence for travelers]
+**Advice:** [Practical, personalized if direction mentioned]
 
 ⚠️ AI estimate from camera snapshots. Conditions change quickly.
 
-ANALYSIS METHODOLOGY - CROSS-REFERENCE BOTH VIEWS:
-For EACH direction, check BOTH the bridge AND canopy if available:
+═══════════════════════════════════════════════════════════════
+REMEMBER:
+═══════════════════════════════════════════════════════════════
+1. Sound like a helpful friend, not a robot
+2. Keep details SHORT and SIMPLE
+3. If they mention their direction, focus advice on THEIR journey
+4. NEVER use technical camera terminology
+5. ALWAYS show both directions in standard format`;
 
-**Lesotho → SA analysis:**
-1. Bridge: Look at LEFT side (away from orange pole) - any queue there?
-2. Canopy: Look at RIGHT side (wall side) - any queue there?
-3. Combine observations for final LS→SA assessment
 
-**SA → Lesotho analysis:**
-1. Bridge: Look at RIGHT side (orange pole side) - any queue there?
-2. Canopy: Look at LEFT side (green curved roof) - any vehicles there?
-3. Combine observations for final SA→LS assessment
-
-CRITICAL RULES:
-1. NEVER mention "first image", "second image", "Image 1", etc.
-2. NEVER mention "Bridge View", "Canopy View", or "VIEW 1/2/3" in your response
-3. Synthesize ALL frames into ONE unified analysis
-4. If you see Engen petrol station with backed-up traffic, specifically mention "traffic backed up to Engen"
-5. Keep response concise - no technical explanations about camera angles or landmarks
-6. Use landmarks internally to identify direction, but don't explain them to users
-7. ACCURATELY identify which side has the queue - look for the GREEN CURVED ROOF to identify LEFT in canopy view
-8. If an area is clear/empty, report it as LIGHT not Moderate
-9. Only report what you actually SEE, not assumptions`;
+    // Detect question type for better responses
+    const questionLower = userQuestion ? userQuestion.toLowerCase() : '';
+    let questionType = 'general';
+    
+    if (questionLower.includes('from ls') || questionLower.includes('from lesotho') || 
+        questionLower.includes('to sa') || questionLower.includes('to south africa') ||
+        questionLower.includes('from sa') || questionLower.includes('from south africa') ||
+        questionLower.includes('to ls') || questionLower.includes('to lesotho') ||
+        questionLower.includes('going to') || questionLower.includes('coming from') ||
+        questionLower.includes('heading to')) {
+      questionType = 'directional';
+    } else if (questionLower.includes('is there') || questionLower.includes('are there') ||
+               questionLower.includes('any ') || questionLower.includes('is it ') ||
+               questionLower.match(/^(is|are|do|does|can|will)\b/)) {
+      questionType = 'yesno';
+    } else if (questionLower.includes('look') || questionLower.includes('see') ||
+               questionLower.includes('show') || questionLower.includes('what can')) {
+      questionType = 'visual';
+    } else if (questionLower.includes('time') || questionLower.includes('when') ||
+               questionLower.includes('best') || questionLower.includes('should i')) {
+      questionType = 'timing';
+    } else if (questionLower.includes('hour') || questionLower.includes('open') ||
+               questionLower.includes('close')) {
+      questionType = 'info';
+    }
 
 
     // Build content array with multiple images
@@ -649,8 +661,11 @@ CRITICAL RULES:
     });
 
     const userPrompt = userQuestion 
-      ? `Based on these camera snapshots from Maseru Bridge border crossing, please answer briefly: ${userQuestion}`
-      : `Analyze these camera snapshots from Maseru Bridge border crossing. Give a brief, structured assessment.`;
+      ? `Question type: ${questionType.toUpperCase()}
+User's question: "${userQuestion}"
+
+Respond appropriately for this question type. Be helpful and conversational.`
+      : `Analyze these camera snapshots from Maseru Bridge border crossing. Give a brief, structured assessment using the standard format with both direction boxes.`;
 
     content.push({
       type: 'text',
