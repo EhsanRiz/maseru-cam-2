@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,11 +18,22 @@ const config = {
   cacheTimeout: 180000,         // Cache analysis for 3 minutes
   maxBufferSize: 12,            // Keep last 12 frames (6 minutes of history)
   analysisFrames: 3,            // Use 3 frames for analysis
+  supabaseUrl: process.env.SUPABASE_URL,
+  supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
 };
 
 const anthropic = new Anthropic({
   apiKey: config.anthropicApiKey,
 });
+
+// Initialize Supabase client (only if credentials provided)
+let supabase = null;
+if (config.supabaseUrl && config.supabaseServiceKey) {
+  supabase = createClient(config.supabaseUrl, config.supabaseServiceKey);
+  console.log('✅ Supabase client initialized');
+} else {
+  console.log('⚠️ Supabase credentials not found - running without persistence');
+}
 
 // Buffer to store multiple screenshots with timestamps and angle classification
 let screenshotBuffer = [];
@@ -44,6 +56,188 @@ const ANGLE_TYPES = {
   PROCESSING: 'processing',   // Processing area with curved roof
   USELESS: 'useless'          // Trees, darkness, no useful info
 };
+
+// =============================================
+// SUPABASE HELPER FUNCTIONS
+// =============================================
+
+// Upload frame to Supabase Storage
+async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
+  if (!supabase) return null;
+  
+  try {
+    const fileName = `${angleType}/${timestamp}.jpg`;
+    
+    const { data, error } = await supabase.storage
+      .from('frames')
+      .upload(fileName, imageBuffer, {
+        contentType: 'image/jpeg',
+        upsert: true
+      });
+    
+    if (error) {
+      console.error('❌ Storage upload error:', error.message);
+      return null;
+    }
+    
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('frames')
+      .getPublicUrl(fileName);
+    
+    return urlData?.publicUrl || fileName;
+  } catch (err) {
+    console.error('❌ Storage upload failed:', err.message);
+    return null;
+  }
+}
+
+// Update preserved frame in database
+async function updatePreservedFrame(angleType, framePath, timestamp) {
+  if (!supabase) return;
+  
+  try {
+    const { error } = await supabase
+      .from('preserved_frames')
+      .upsert({
+        angle_type: angleType,
+        frame_path: framePath,
+        timestamp: new Date(timestamp).toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'angle_type'
+      });
+    
+    if (error) {
+      console.error('❌ DB update error:', error.message);
+    }
+  } catch (err) {
+    console.error('❌ Failed to update preserved frame:', err.message);
+  }
+}
+
+// Log traffic reading to database
+async function logTrafficReading(analysisResult, framesUsed, responseTimeMs) {
+  if (!supabase) return;
+  
+  try {
+    // Parse the analysis result to extract structured data
+    const message = analysisResult.message || '';
+    
+    // Extract status from direction boxes
+    const lsMatch = message.match(/\[LS_TO_SA\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/LS_TO_SA\]/is);
+    const saMatch = message.match(/\[SA_TO_LS\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/SA_TO_LS\]/is);
+    const trafficMatch = message.match(/\*\*Traffic:\*\*\s*([^\n\[]+)/i);
+    const adviceMatch = message.match(/\*\*Advice:\*\*\s*([^\n⚠]+)/i);
+    
+    const reading = {
+      timestamp: new Date().toISOString(),
+      traffic_summary: trafficMatch ? trafficMatch[1].trim() : null,
+      ls_to_sa_status: lsMatch ? lsMatch[1].trim().toUpperCase() : null,
+      ls_to_sa_detail: lsMatch ? lsMatch[2].trim() : null,
+      sa_to_ls_status: saMatch ? saMatch[1].trim().toUpperCase() : null,
+      sa_to_ls_detail: saMatch ? saMatch[2].trim() : null,
+      advice: adviceMatch ? adviceMatch[1].trim() : null,
+      frames_used: framesUsed,
+      angles_available: framesUsed.map(f => f.angleType),
+      response_time_ms: responseTimeMs
+    };
+    
+    const { error } = await supabase
+      .from('traffic_readings')
+      .insert(reading);
+    
+    if (error) {
+      console.error('❌ Failed to log reading:', error.message);
+    } else {
+      console.log('📊 Traffic reading logged to database');
+    }
+  } catch (err) {
+    console.error('❌ Failed to log traffic reading:', err.message);
+  }
+}
+
+// Load preserved frames from database on startup
+async function loadPreservedFramesFromDB() {
+  if (!supabase) return;
+  
+  try {
+    const { data, error } = await supabase
+      .from('preserved_frames')
+      .select('*');
+    
+    if (error) {
+      console.error('❌ Failed to load preserved frames:', error.message);
+      return;
+    }
+    
+    if (!data || data.length === 0) {
+      console.log('📷 No preserved frames in database yet');
+      return;
+    }
+    
+    // Download each preserved frame
+    for (const row of data) {
+      if (!row.frame_path) continue;
+      
+      try {
+        // Download from storage
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('frames')
+          .download(row.frame_path.replace(/^.*\/frames\//, ''));
+        
+        if (downloadError || !fileData) {
+          console.log(`⚠️ Could not download ${row.angle_type} frame`);
+          continue;
+        }
+        
+        // Convert to buffer
+        const arrayBuffer = await fileData.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        // Restore to memory
+        preservedFrames[row.angle_type] = {
+          screenshot: buffer,
+          timestamp: new Date(row.timestamp).getTime(),
+          angleType: row.angle_type
+        };
+        
+        console.log(`✅ Restored ${row.angle_type} frame from database`);
+      } catch (err) {
+        console.log(`⚠️ Error restoring ${row.angle_type}:`, err.message);
+      }
+    }
+    
+    const restored = Object.values(preservedFrames).filter(f => f !== null).length;
+    console.log(`📷 Restored ${restored}/3 preserved frames from database`);
+    
+  } catch (err) {
+    console.error('❌ Failed to load preserved frames:', err.message);
+  }
+}
+
+// Get typical traffic for current time (for predictions)
+async function getTypicalTraffic() {
+  if (!supabase) return null;
+  
+  try {
+    const { data, error } = await supabase.rpc('get_typical_traffic');
+    
+    if (error) {
+      console.error('❌ Failed to get typical traffic:', error.message);
+      return null;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('❌ Error getting typical traffic:', err.message);
+    return null;
+  }
+}
+
+// =============================================
+// END SUPABASE HELPER FUNCTIONS
+// =============================================
 
 // Classify frame angle using AI
 async function classifyFrameAngle(imageBuffer) {
@@ -156,6 +350,12 @@ async function captureFrame() {
           // Also preserve the latest frame for each useful angle type
           if (angleType !== 'useless' && preservedFrames.hasOwnProperty(angleType)) {
             preservedFrames[angleType] = frameData;
+            
+            // Upload to Supabase Storage and update database
+            const framePath = await uploadFrameToStorage(imageBuffer, angleType, timestamp);
+            if (framePath) {
+              await updatePreservedFrame(angleType, framePath, timestamp);
+            }
           }
           
           // Keep only recent frames in main buffer
@@ -428,6 +628,9 @@ CRITICAL RULES:
 
     // Get timestamp of most recent frame
     const latestFrame = framesToUse[framesToUse.length - 1];
+    
+    // Calculate response time
+    const responseTime = Date.now() - now;
 
     const analysis = {
       success: true,
@@ -441,6 +644,13 @@ CRITICAL RULES:
     if (!userQuestion) {
       latestAnalysis = analysis;
       lastAnalysisTime = now;
+      
+      // Log traffic reading to database (only for automatic analyses, not chat questions)
+      logTrafficReading(
+        analysis, 
+        framesToUse.map(f => ({ angleType: f.angleType, timestamp: f.timestamp })),
+        responseTime
+      );
     }
 
     return analysis;
@@ -586,7 +796,67 @@ app.get('/api/debug', (req, res) => {
     })),
     isCapturing,
     isClassifying,
+    supabaseConnected: !!supabase
   });
+});
+
+// Get traffic history from database
+app.get('/api/history', async (req, res) => {
+  if (!supabase) {
+    return res.json({ 
+      success: false, 
+      message: 'Database not connected',
+      readings: []
+    });
+  }
+  
+  try {
+    const hours = parseInt(req.query.hours) || 24;
+    const limit = parseInt(req.query.limit) || 100;
+    
+    const { data, error } = await supabase
+      .from('traffic_readings')
+      .select('*')
+      .gte('timestamp', new Date(Date.now() - hours * 60 * 60 * 1000).toISOString())
+      .order('timestamp', { ascending: false })
+      .limit(limit);
+    
+    if (error) {
+      return res.json({ success: false, message: error.message, readings: [] });
+    }
+    
+    res.json({
+      success: true,
+      readings: data || [],
+      count: data?.length || 0
+    });
+  } catch (err) {
+    res.json({ success: false, message: err.message, readings: [] });
+  }
+});
+
+// Get typical traffic patterns
+app.get('/api/patterns', async (req, res) => {
+  if (!supabase) {
+    return res.json({ 
+      success: false, 
+      message: 'Database not connected',
+      patterns: null
+    });
+  }
+  
+  try {
+    const typical = await getTypicalTraffic();
+    
+    res.json({
+      success: true,
+      currentHour: new Date().getHours(),
+      currentDay: new Date().getDay(),
+      patterns: typical
+    });
+  } catch (err) {
+    res.json({ success: false, message: err.message, patterns: null });
+  }
 });
 
 app.get('/', (req, res) => {
@@ -610,6 +880,12 @@ async function start() {
   console.log('=================================');
   console.log(`📡 Stream URL: ${config.streamUrl}`);
   console.log(`📊 Multi-frame analysis: ${config.analysisFrames} frames`);
+  
+  // Load preserved frames from Supabase on startup
+  if (supabase) {
+    console.log('📂 Loading preserved frames from database...');
+    await loadPreservedFramesFromDB();
+  }
   
   startBackgroundCapture();
   
