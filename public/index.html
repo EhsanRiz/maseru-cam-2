@@ -249,12 +249,17 @@
 
     .lightbox-content {
       position: relative;
-      max-width: 95%;
+      width: 90vw;
+      max-width: 1200px;
       max-height: 80vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .lightbox-content img {
-      max-width: 100%;
+      width: 100%;
+      height: auto;
       max-height: 80vh;
       object-fit: contain;
       border-radius: 8px;
@@ -1562,7 +1567,8 @@ https://4dcs.co.za`;
     function openLightbox() {
       if (frames.length === 0) return;
       const frame = frames[currentFrameIndex];
-      lightboxImg.src = frame.image;
+      // Copy src directly from gallery image (already has correct format)
+      lightboxImg.src = galleryImage.src;
       lightboxLabel.textContent = frame.label || 'Camera';
       
       const timestamp = new Date(frame.timestamp);
