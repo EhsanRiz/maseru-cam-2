@@ -156,27 +156,31 @@
     }
 
     /* Camera overlay indicators */
-    .camera-overlay {
+    .camera-overlay-bar {
       position: absolute;
-      bottom: 8px;
+      bottom: 0;
+      left: 0;
+      right: 0;
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 0.3rem;
-      padding: 0.25rem 0.5rem;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      border-radius: 0.4rem;
-      font-size: 0.65rem;
-      color: rgba(255, 255, 255, 0.9);
+      padding: 6px 8px;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
       z-index: 10;
     }
 
     .camera-timestamp-overlay {
-      left: 8px;
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 500;
     }
 
     .last-updated {
-      right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.65rem;
+      color: rgba(255, 255, 255, 0.8);
     }
 
     .last-updated-icon {
@@ -198,6 +202,119 @@
 
     .last-updated.old .last-updated-time {
       color: #f87171;
+    }
+
+    /* Lightbox / Image Popup */
+    .lightbox {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+
+    .lightbox.active {
+      display: flex;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .lightbox-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .lightbox-content {
+      position: relative;
+      max-width: 95%;
+      max-height: 80vh;
+    }
+
+    .lightbox-content img {
+      max-width: 100%;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .lightbox-label {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(0, 0, 0, 0.7);
+      color: var(--accent);
+      padding: 6px 14px;
+      border-radius: 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .lightbox-info {
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+
+    .lightbox-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .lightbox-nav:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .lightbox-prev {
+      left: 1rem;
+    }
+
+    .lightbox-next {
+      right: 1rem;
+    }
+
+    .gallery-image-inner {
+      cursor: pointer;
+    }
+
+    .gallery-image-inner:hover {
+      opacity: 0.95;
     }
 
     .main-content {
@@ -259,6 +376,8 @@
       position: relative;
       display: inline-block;
       line-height: 0;
+      overflow: hidden;
+      border-radius: 4px;
     }
 
     .gallery-image-inner img {
@@ -842,15 +961,16 @@
             </button>
             
             <div class="gallery-image-wrapper">
-              <div class="gallery-image-inner">
+              <div class="gallery-image-inner" onclick="openLightbox()">
                 <img id="galleryImage" alt="Maseru Bridge Camera Feed">
                 <div class="gallery-label" id="galleryLabel">Bridge</div>
-                <!-- Timestamp overlay - bottom left -->
-                <div class="camera-overlay camera-timestamp-overlay" id="cameraTimestamp">--:--:--</div>
-                <!-- Last Updated overlay - bottom right -->
-                <div class="camera-overlay last-updated fresh" id="lastUpdated">
-                  <span class="last-updated-icon">🔄</span>
-                  <span class="last-updated-time" id="lastUpdatedTime">just now</span>
+                <!-- Bottom overlay bar with timestamp and updated -->
+                <div class="camera-overlay-bar">
+                  <span class="camera-timestamp-overlay" id="cameraTimestamp">--:--:--</span>
+                  <div class="last-updated fresh" id="lastUpdated">
+                    <span class="last-updated-icon">🔄</span>
+                    <span class="last-updated-time" id="lastUpdatedTime">just now</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1409,8 +1529,82 @@ https://4dcs.co.za`;
       }
     }
 
+    // Lightbox functionality
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const lightboxLabel = document.getElementById('lightboxLabel');
+    const lightboxInfo = document.getElementById('lightboxInfo');
+
+    function openLightbox() {
+      if (frames.length === 0) return;
+      const frame = frames[currentFrameIndex];
+      lightboxImg.src = frame.image;
+      lightboxLabel.textContent = frame.label || 'Camera';
+      
+      const timestamp = new Date(frame.timestamp);
+      lightboxInfo.textContent = `Captured at ${timestamp.toLocaleTimeString()}`;
+      
+      lightbox.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      lightbox.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    function lightboxPrev() {
+      if (frames.length === 0) return;
+      currentFrameIndex = (currentFrameIndex - 1 + frames.length) % frames.length;
+      updateGalleryDisplay();
+      openLightbox();
+    }
+
+    function lightboxNext() {
+      if (frames.length === 0) return;
+      currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+      updateGalleryDisplay();
+      openLightbox();
+    }
+
+    // Close lightbox on escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') lightboxPrev();
+      if (e.key === 'ArrowRight') lightboxNext();
+    });
+
+    // Close lightbox when clicking outside the image
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) closeLightbox();
+    });
+
     refreshCamera();
     setInterval(refreshCamera, 30000); // Refresh every 30 seconds
   </script>
+
+  <!-- Lightbox Popup -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    
+    <button class="lightbox-nav lightbox-prev" onclick="lightboxPrev()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 18l-6-6 6-6"/>
+      </svg>
+    </button>
+    
+    <div class="lightbox-content">
+      <img id="lightboxImg" alt="Camera Feed">
+      <div class="lightbox-label" id="lightboxLabel">Bridge</div>
+    </div>
+    
+    <button class="lightbox-nav lightbox-next" onclick="lightboxNext()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+    </button>
+    
+    <div class="lightbox-info" id="lightboxInfo">Captured at --:--:--</div>
+  </div>
 </body>
 </html>
