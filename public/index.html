@@ -1125,10 +1125,10 @@
       } else if (diffSeconds < 60) {
         timeText = `${diffSeconds}s ago`;
         freshness = 'fresh';
-      } else if (diffSeconds < 120) {
-        timeText = '1 min ago';
-        freshness = diffSeconds < 90 ? 'fresh' : 'stale';
-      } else if (diffSeconds < 300) {
+      } else if (diffSeconds < 180) {
+        timeText = `${Math.floor(diffSeconds / 60)} min ago`;
+        freshness = 'fresh';
+      } else if (diffSeconds < 360) {
         timeText = `${Math.floor(diffSeconds / 60)} mins ago`;
         freshness = 'stale';
       } else {
@@ -1610,7 +1610,7 @@ https://4dcs.co.za`;
     });
 
     refreshCamera();
-    setInterval(refreshCamera, 30000); // Refresh every 30 seconds
+    setInterval(refreshCamera, 180000); // Refresh every 3 minutes
   </script>
 </body>
 </html>
