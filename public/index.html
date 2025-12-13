@@ -116,12 +116,78 @@
       height: 8px;
       border-radius: 50%;
       background: var(--success);
-      animation: pulse 2s infinite;
+      animation: pulse-glow 2s ease-in-out infinite;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    @keyframes pulse-glow {
+      0% { 
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+      }
+      50% { 
+        opacity: 0.8;
+        box-shadow: 0 0 8px 4px rgba(34, 197, 94, 0.4);
+      }
+      100% { 
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+      }
+    }
+
+    /* Status variants */
+    .status-dot.connecting {
+      background: var(--warning);
+      animation: pulse-glow-yellow 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow-yellow {
+      0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.7);
+      }
+      50% { 
+        box-shadow: 0 0 8px 4px rgba(234, 179, 8, 0.4);
+      }
+    }
+
+    .status-dot.error {
+      background: var(--danger);
+      animation: none;
+    }
+
+    /* Last updated indicator */
+    .last-updated {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      background: var(--bg-card);
+      border-radius: 0.5rem;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    .last-updated-icon {
+      font-size: 0.8rem;
+    }
+
+    .last-updated-time {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .last-updated.fresh .last-updated-time {
+      color: var(--success);
+    }
+
+    .last-updated.stale .last-updated-time {
+      color: var(--warning);
+    }
+
+    .last-updated.old .last-updated-time {
+      color: var(--danger);
     }
 
     .main-content {
@@ -814,6 +880,13 @@
               Refresh
             </button>
           </div>
+          
+          <!-- Last Updated Indicator -->
+          <div class="last-updated fresh" id="lastUpdated">
+            <span class="last-updated-icon">🔄</span>
+            <span>Updated</span>
+            <span class="last-updated-time" id="lastUpdatedTime">just now</span>
+          </div>
         </div>
         
         <!-- Ad Space 1: Below Camera -->
@@ -883,6 +956,12 @@
     const cameraLoading = document.getElementById('cameraLoading');
     const cameraTimestamp = document.getElementById('cameraTimestamp');
     
+    // Last updated elements
+    const lastUpdatedContainer = document.getElementById('lastUpdated');
+    const lastUpdatedTime = document.getElementById('lastUpdatedTime');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    
     // Gallery elements
     const galleryContainer = document.getElementById('galleryContainer');
     const galleryImage = document.getElementById('galleryImage');
@@ -897,6 +976,58 @@
     // Gallery state
     let frames = [];
     let currentFrameIndex = 0;
+    
+    // Last updated tracking
+    let lastUpdateTimestamp = null;
+    
+    function updateLastUpdatedDisplay() {
+      if (!lastUpdateTimestamp) {
+        lastUpdatedTime.textContent = 'waiting...';
+        lastUpdatedContainer.className = 'last-updated';
+        return;
+      }
+      
+      const now = Date.now();
+      const diffSeconds = Math.floor((now - lastUpdateTimestamp) / 1000);
+      
+      let timeText;
+      let freshness;
+      
+      if (diffSeconds < 10) {
+        timeText = 'just now';
+        freshness = 'fresh';
+      } else if (diffSeconds < 60) {
+        timeText = `${diffSeconds}s ago`;
+        freshness = 'fresh';
+      } else if (diffSeconds < 120) {
+        timeText = '1 min ago';
+        freshness = diffSeconds < 90 ? 'fresh' : 'stale';
+      } else if (diffSeconds < 300) {
+        timeText = `${Math.floor(diffSeconds / 60)} mins ago`;
+        freshness = 'stale';
+      } else {
+        timeText = `${Math.floor(diffSeconds / 60)} mins ago`;
+        freshness = 'old';
+      }
+      
+      lastUpdatedTime.textContent = timeText;
+      lastUpdatedContainer.className = `last-updated ${freshness}`;
+      
+      // Update status indicator based on freshness
+      if (freshness === 'old') {
+        statusDot.className = 'status-dot error';
+        statusText.textContent = 'Stale';
+      } else if (freshness === 'stale') {
+        statusDot.className = 'status-dot connecting';
+        statusText.textContent = 'Live';
+      } else {
+        statusDot.className = 'status-dot';
+        statusText.textContent = 'Live';
+      }
+    }
+    
+    // Update the "last updated" display every 5 seconds
+    setInterval(updateLastUpdatedDisplay, 5000);
 
     chatInput.addEventListener('input', function() {
       this.style.height = 'auto';
@@ -1239,6 +1370,9 @@ https://4dcs.co.za`;
 
     async function refreshCamera() {
       try {
+        // Show connecting status while fetching
+        statusDot.className = 'status-dot connecting';
+        
         const response = await fetch('/api/frames?' + Date.now());
         if (response.ok) {
           const data = await response.json();
@@ -1255,10 +1389,20 @@ https://4dcs.co.za`;
             
             galleryContainer.style.display = 'flex';
             cameraLoading.style.display = 'none';
+            
+            // Update last updated timestamp
+            lastUpdateTimestamp = Date.now();
+            updateLastUpdatedDisplay();
           }
+        } else {
+          // Server returned error
+          statusDot.className = 'status-dot error';
+          statusText.textContent = 'Error';
         }
       } catch (error) {
         console.error('Failed to refresh camera:', error);
+        statusDot.className = 'status-dot error';
+        statusText.textContent = 'Offline';
       }
     }
 
