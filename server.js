@@ -30,6 +30,13 @@ let lastAnalysisTime = 0;
 let isCapturing = false;
 let isClassifying = false;
 
+// Preserved frames - one for each angle, never evicted
+let preservedFrames = {
+  bridge: null,
+  processing: null,
+  wide: null
+};
+
 // Angle types
 const ANGLE_TYPES = {
   BRIDGE: 'bridge',           // View of the bridge showing both lanes
@@ -137,14 +144,21 @@ async function captureFrame() {
           // Classify the frame angle
           const angleType = await classifyFrameAngle(imageBuffer);
           
-          // Add to buffer with angle type
-          screenshotBuffer.push({
+          const frameData = {
             screenshot: imageBuffer,
             timestamp: timestamp,
             angleType: angleType
-          });
+          };
           
-          // Keep only recent frames
+          // Add to buffer
+          screenshotBuffer.push(frameData);
+          
+          // Also preserve the latest frame for each useful angle type
+          if (angleType !== 'useless' && preservedFrames.hasOwnProperty(angleType)) {
+            preservedFrames[angleType] = frameData;
+          }
+          
+          // Keep only recent frames in main buffer
           if (screenshotBuffer.length > config.maxBufferSize) {
             screenshotBuffer = screenshotBuffer.slice(-config.maxBufferSize);
           }
@@ -209,7 +223,7 @@ async function analyzeTraffic(userQuestion = null) {
     // Filter out useless frames and group by angle type
     const usefulFrames = screenshotBuffer.filter(f => f.angleType !== ANGLE_TYPES.USELESS);
     
-    if (usefulFrames.length === 0) {
+    if (usefulFrames.length === 0 && !preservedFrames.bridge && !preservedFrames.processing && !preservedFrames.wide) {
       return {
         success: false,
         message: "Camera view is currently limited. Please try again in a moment for a better view.",
@@ -238,6 +252,10 @@ async function analyzeTraffic(userQuestion = null) {
         const frames = framesByAngle[angleType];
         framesToUse.push(frames[frames.length - 1]);
         anglesUsed.push(angleType);
+      } else if (preservedFrames[angleType]) {
+        // Use preserved frame as fallback
+        framesToUse.push(preservedFrames[angleType]);
+        anglesUsed.push(angleType + ' (preserved)');
       }
     }
     
@@ -509,8 +527,24 @@ app.get('/api/frames', async (req, res) => {
       }
     }
     
-    // Convert to array and sort by preferred order: Bridge, Canopy, Engen
+    // Fill in any missing angles from preserved frames
     const order = ['bridge', 'processing', 'wide'];
+    for (const angleType of order) {
+      if (!framesByAngle[angleType] && preservedFrames[angleType]) {
+        const frame = preservedFrames[angleType];
+        const label = angleLabels[angleType];
+        if (label) {
+          framesByAngle[angleType] = {
+            angleType: angleType,
+            label: label,
+            timestamp: frame.timestamp,
+            image: frame.screenshot.toString('base64')
+          };
+        }
+      }
+    }
+    
+    // Convert to array and sort by preferred order: Bridge, Canopy, Engen
     const frames = order
       .filter(type => framesByAngle[type])
       .map(type => framesByAngle[type]);
