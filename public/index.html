@@ -1176,6 +1176,364 @@
       height: 18px;
     }
 
+    /* Insights Button in Header */
+    .insights-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+      margin-right: 0.5rem;
+      position: relative;
+      transition: color 0.2s;
+    }
+
+    .insights-btn:hover {
+      color: var(--accent);
+    }
+
+    .insights-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Insights Modal */
+    .insights-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+
+    .insights-modal.show {
+      display: flex;
+    }
+
+    .insights-content {
+      background: var(--bg-card);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+    }
+
+    .insights-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+    }
+
+    .insights-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .insights-back {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0.25rem;
+      display: none;
+    }
+
+    .insights-back.show {
+      display: block;
+    }
+
+    .insights-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .insights-close:hover {
+      color: var(--text-primary);
+    }
+
+    .insights-menu {
+      padding: 0.5rem;
+    }
+
+    .insights-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.875rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      cursor: pointer;
+      margin-bottom: 0.5rem;
+      transition: all 0.2s;
+      text-align: left;
+    }
+
+    .insights-menu-item:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .insights-menu-item .icon {
+      font-size: 1.2rem;
+    }
+
+    .insights-chart-container {
+      padding: 1rem;
+      display: none;
+    }
+
+    .insights-chart-container.show {
+      display: block;
+    }
+
+    .chart-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .chart-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    /* Bar Chart Styles */
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      height: 150px;
+      padding: 0 0.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.5rem;
+    }
+
+    .bar-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+    }
+
+    .bar {
+      width: 20px;
+      border-radius: 4px 4px 0 0;
+      transition: height 0.5s ease;
+      min-height: 4px;
+    }
+
+    .bar.light { background: linear-gradient(to top, #22c55e, #4ade80); }
+    .bar.moderate { background: linear-gradient(to top, #eab308, #facc15); }
+    .bar.heavy { background: linear-gradient(to top, #ef4444, #f87171); }
+    .bar.severe { background: linear-gradient(to top, #b91c1c, #dc2626); }
+    .bar.empty { background: var(--bg-secondary); }
+
+    .bar-label {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      margin-top: 0.4rem;
+    }
+
+    .chart-legend {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    .legend-dot.light { background: #22c55e; }
+    .legend-dot.moderate { background: #eab308; }
+    .legend-dot.heavy { background: #ef4444; }
+
+    .insight-tip {
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-top: 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .insight-tip .icon {
+      font-size: 1rem;
+    }
+
+    .insight-tip p {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin: 0;
+      line-height: 1.4;
+    }
+
+    .comparison-card {
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .comparison-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .comparison-status {
+      font-size: 1.5rem;
+      font-weight: 700;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      display: inline-block;
+    }
+
+    .comparison-status.light {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .comparison-status.moderate {
+      background: rgba(234, 179, 8, 0.2);
+      color: #eab308;
+    }
+
+    .comparison-status.heavy {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .comparison-status.unknown {
+      background: var(--bg-card);
+      color: var(--text-muted);
+    }
+
+    .comparison-text {
+      font-size: 0.9rem;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .comparison-detail {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .weekly-pattern {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .day-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .day-label {
+      width: 40px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .day-bar-container {
+      flex: 1;
+      height: 20px;
+      background: var(--bg-secondary);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .day-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .day-value {
+      width: 30px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    .loading-spinner {
+      display: flex;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .loading-spinner::after {
+      content: '';
+      width: 30px;
+      height: 30px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-secondary);
+    }
+
+    .no-data .icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
     footer {
       text-align: center;
       padding: 0.4rem;
@@ -1364,6 +1722,12 @@
         <h1>4D Traffic Bot</h1>
         <p>Maseru Bridge</p>
       </div>
+      <button class="insights-btn" id="insightsBtn" onclick="openInsights()" title="Traffic Insights">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3v18h18"></path>
+          <path d="M18 9l-5 5-4-4-3 3"></path>
+        </svg>
+      </button>
       <button class="notification-bell" id="notificationBell" onclick="openAlertSettings()" title="Traffic Alerts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -1504,6 +1868,119 @@
     <div class="lightbox-info" id="lightboxInfo">Captured at --:--:--</div>
   </div>
 
+  <!-- Insights Modal -->
+  <div class="insights-modal" id="insightsModal">
+    <div class="insights-content">
+      <div class="insights-header">
+        <button class="insights-back" id="insightsBack" onclick="showInsightsMenu()">←</button>
+        <h3 id="insightsTitle">📊 Traffic Insights</h3>
+        <button class="insights-close" onclick="closeInsights()">×</button>
+      </div>
+      
+      <!-- Menu View -->
+      <div class="insights-menu" id="insightsMenu">
+        <button class="insights-menu-item" onclick="showInsight('peakHours')">
+          <span class="icon">📈</span>
+          <span>Peak Hours Today</span>
+        </button>
+        <button class="insights-menu-item" onclick="showInsight('weeklyPatterns')">
+          <span class="icon">📅</span>
+          <span>Weekly Patterns</span>
+        </button>
+        <button class="insights-menu-item" onclick="showInsight('trends')">
+          <span class="icon">🔄</span>
+          <span>Traffic Trends (Last 24h)</span>
+        </button>
+        <button class="insights-menu-item" onclick="showInsight('comparison')">
+          <span class="icon">⚖️</span>
+          <span>Now vs Typical</span>
+        </button>
+      </div>
+      
+      <!-- Peak Hours Chart -->
+      <div class="insights-chart-container" id="peakHoursChart">
+        <div class="chart-title">Traffic by Hour</div>
+        <div class="chart-subtitle">Today's traffic patterns</div>
+        <div class="bar-chart" id="peakHoursBars"></div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-dot light"></span> Light</div>
+          <div class="legend-item"><span class="legend-dot moderate"></span> Moderate</div>
+          <div class="legend-item"><span class="legend-dot heavy"></span> Heavy</div>
+        </div>
+        <div class="insight-tip">
+          <span class="icon">💡</span>
+          <p id="peakHoursTip">Loading tip...</p>
+        </div>
+      </div>
+      
+      <!-- Weekly Patterns Chart -->
+      <div class="insights-chart-container" id="weeklyPatternsChart">
+        <div class="chart-title">Weekly Traffic Patterns</div>
+        <div class="chart-subtitle">Average traffic by day of week</div>
+        <div class="bar-chart" id="weeklyPatternsBars"></div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-dot light"></span> Light</div>
+          <div class="legend-item"><span class="legend-dot moderate"></span> Moderate</div>
+          <div class="legend-item"><span class="legend-dot heavy"></span> Heavy</div>
+        </div>
+        <div class="insight-tip">
+          <span class="icon">💡</span>
+          <p id="weeklyPatternsTip">Loading tip...</p>
+        </div>
+      </div>
+      
+      <!-- Traffic Trends Chart -->
+      <div class="insights-chart-container" id="trendsChart">
+        <div class="chart-title">Last 24 Hours</div>
+        <div class="chart-subtitle">Traffic trend over time</div>
+        <div class="bar-chart" id="trendsBars"></div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-dot light"></span> Light</div>
+          <div class="legend-item"><span class="legend-dot moderate"></span> Moderate</div>
+          <div class="legend-item"><span class="legend-dot heavy"></span> Heavy</div>
+        </div>
+        <div class="insight-tip">
+          <span class="icon">💡</span>
+          <p id="trendsTip">Loading tip...</p>
+        </div>
+      </div>
+      
+      <!-- Comparison View -->
+      <div class="insights-chart-container" id="comparisonChart">
+        <div class="chart-title">Current vs Typical</div>
+        <div class="chart-subtitle" id="comparisonTime">For this time of day</div>
+        <div class="comparison-card">
+          <div class="comparison-current" id="comparisonCurrent">
+            <div class="comparison-label">Right Now</div>
+            <div class="comparison-status" id="currentStatus">--</div>
+          </div>
+        </div>
+        <div class="comparison-card">
+          <div class="comparison-typical" id="comparisonTypical">
+            <div class="comparison-label">Usually at this time</div>
+            <div class="comparison-status" id="typicalStatus">--</div>
+          </div>
+        </div>
+        <div class="insight-tip">
+          <span class="icon">💡</span>
+          <p id="comparisonTip">Loading comparison...</p>
+        </div>
+      </div>
+      
+      <!-- Loading State -->
+      <div class="insights-loading" id="insightsLoading" style="display: none; text-align: center; padding: 2rem;">
+        <div>Loading insights...</div>
+      </div>
+      
+      <!-- No Data State -->
+      <div class="insights-no-data" id="insightsNoData" style="display: none; text-align: center; padding: 2rem; color: var(--text-secondary);">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+        <div>Not enough data yet</div>
+        <div style="font-size: 0.8rem; margin-top: 0.5rem;">Check back after more traffic readings are collected</div>
+      </div>
+    </div>
+  </div>
+
   <!-- FAQ Modal -->
   <div class="faq-modal" id="faqModal">
     <div class="faq-content">
@@ -1542,6 +2019,42 @@
         <button class="faq-item" onclick="askFAQ('Are there any trucks in the queue?')">
           🚛 Any trucks in the queue?
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Insights Modal -->
+  <div class="insights-modal" id="insightsModal">
+    <div class="insights-content">
+      <div class="insights-header">
+        <button class="insights-back" id="insightsBack" onclick="showInsightsMenu()">←</button>
+        <h3 id="insightsTitle">📊 Traffic Insights</h3>
+        <button class="insights-close" onclick="closeInsights()">×</button>
+      </div>
+      
+      <!-- Menu View -->
+      <div class="insights-menu" id="insightsMenu">
+        <button class="insights-menu-item" onclick="showChart('peakHours')">
+          <span class="icon">📈</span>
+          <span>Peak Hours Today</span>
+        </button>
+        <button class="insights-menu-item" onclick="showChart('weeklyPatterns')">
+          <span class="icon">📅</span>
+          <span>Weekly Patterns</span>
+        </button>
+        <button class="insights-menu-item" onclick="showChart('comparison')">
+          <span class="icon">⚖️</span>
+          <span>Now vs Typical</span>
+        </button>
+        <button class="insights-menu-item" onclick="showChart('trends')">
+          <span class="icon">🔄</span>
+          <span>Last 24 Hours</span>
+        </button>
+      </div>
+      
+      <!-- Chart Views -->
+      <div class="insights-chart-container" id="chartContainer">
+        <div id="chartContent"></div>
       </div>
     </div>
   </div>
@@ -1722,6 +2235,196 @@
       sendMessage();
     }
 
+    // Insights Modal Functions
+    let insightsData = null;
+    
+    function openInsights() {
+      document.getElementById('insightsModal').classList.add('show');
+      showInsightsMenu();
+      loadInsightsData();
+    }
+    
+    function closeInsights() {
+      document.getElementById('insightsModal').classList.remove('show');
+    }
+    
+    function showInsightsMenu() {
+      document.getElementById('insightsMenu').style.display = 'block';
+      document.getElementById('insightsBack').classList.remove('show');
+      document.getElementById('insightsTitle').textContent = '📊 Traffic Insights';
+      
+      // Hide all charts
+      document.querySelectorAll('.insights-chart-container').forEach(el => {
+        el.classList.remove('show');
+      });
+    }
+    
+    async function loadInsightsData() {
+      document.getElementById('insightsLoading').style.display = 'block';
+      
+      try {
+        const response = await fetch('/api/insights');
+        const data = await response.json();
+        
+        if (data.success) {
+          insightsData = data;
+          document.getElementById('insightsLoading').style.display = 'none';
+        } else {
+          showNoData();
+        }
+      } catch (error) {
+        console.error('Failed to load insights:', error);
+        showNoData();
+      }
+    }
+    
+    function showNoData() {
+      document.getElementById('insightsLoading').style.display = 'none';
+      document.getElementById('insightsNoData').style.display = 'block';
+      document.getElementById('insightsMenu').style.display = 'none';
+    }
+    
+    function showInsight(type) {
+      if (!insightsData) return;
+      
+      document.getElementById('insightsMenu').style.display = 'none';
+      document.getElementById('insightsBack').classList.add('show');
+      document.getElementById('insightsNoData').style.display = 'none';
+      
+      // Hide all charts first
+      document.querySelectorAll('.insights-chart-container').forEach(el => {
+        el.classList.remove('show');
+      });
+      
+      switch(type) {
+        case 'peakHours':
+          document.getElementById('insightsTitle').textContent = '📈 Peak Hours Today';
+          document.getElementById('peakHoursChart').classList.add('show');
+          renderPeakHoursChart();
+          break;
+        case 'weeklyPatterns':
+          document.getElementById('insightsTitle').textContent = '📅 Weekly Patterns';
+          document.getElementById('weeklyPatternsChart').classList.add('show');
+          renderWeeklyPatternsChart();
+          break;
+        case 'trends':
+          document.getElementById('insightsTitle').textContent = '🔄 Traffic Trends';
+          document.getElementById('trendsChart').classList.add('show');
+          renderTrendsChart();
+          break;
+        case 'comparison':
+          document.getElementById('insightsTitle').textContent = '⚖️ Now vs Typical';
+          document.getElementById('comparisonChart').classList.add('show');
+          renderComparisonChart();
+          break;
+      }
+    }
+    
+    function renderPeakHoursChart() {
+      const container = document.getElementById('peakHoursBars');
+      container.innerHTML = '';
+      
+      const hourlyData = insightsData.hourly || [];
+      const hours = ['6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM'];
+      
+      hours.forEach((label, i) => {
+        const hourIndex = 6 + (i * 2);
+        const data = hourlyData.find(h => h.hour === hourIndex) || { status: 'empty', count: 0 };
+        const height = data.count > 0 ? Math.max(20, Math.min(100, data.count * 10)) : 10;
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'bar-wrapper';
+        wrapper.innerHTML = `
+          <div class="bar ${data.status || 'empty'}" style="height: ${height}px"></div>
+          <div class="bar-label">${label}</div>
+        `;
+        container.appendChild(wrapper);
+      });
+      
+      // Set tip
+      const tip = insightsData.peakHoursTip || 'Early mornings (6-8 AM) are typically quieter.';
+      document.getElementById('peakHoursTip').textContent = tip;
+    }
+    
+    function renderWeeklyPatternsChart() {
+      const container = document.getElementById('weeklyPatternsBars');
+      container.innerHTML = '';
+      
+      const weeklyData = insightsData.weekly || [];
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      
+      days.forEach((label, i) => {
+        const data = weeklyData.find(d => d.day === i) || { status: 'empty', count: 0 };
+        const height = data.count > 0 ? Math.max(20, Math.min(100, data.count * 5)) : 10;
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'bar-wrapper';
+        wrapper.innerHTML = `
+          <div class="bar ${data.status || 'empty'}" style="height: ${height}px"></div>
+          <div class="bar-label">${label}</div>
+        `;
+        container.appendChild(wrapper);
+      });
+      
+      const tip = insightsData.weeklyTip || 'Weekends and month-end tend to be busier.';
+      document.getElementById('weeklyPatternsTip').textContent = tip;
+    }
+    
+    function renderTrendsChart() {
+      const container = document.getElementById('trendsBars');
+      container.innerHTML = '';
+      
+      const trendsData = insightsData.trends || [];
+      
+      // Show last 12 data points (each represents ~2 hours)
+      const labels = [];
+      for (let i = 0; i < 12; i++) {
+        const hoursAgo = (11 - i) * 2;
+        labels.push(hoursAgo === 0 ? 'Now' : `-${hoursAgo}h`);
+      }
+      
+      labels.forEach((label, i) => {
+        const data = trendsData[i] || { status: 'empty' };
+        const height = data.status === 'empty' ? 10 : (data.status === 'light' ? 30 : (data.status === 'moderate' ? 60 : 90));
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'bar-wrapper';
+        wrapper.innerHTML = `
+          <div class="bar ${data.status || 'empty'}" style="height: ${height}px"></div>
+          <div class="bar-label">${label}</div>
+        `;
+        container.appendChild(wrapper);
+      });
+      
+      const tip = insightsData.trendsTip || 'Traffic patterns help you plan the best time to cross.';
+      document.getElementById('trendsTip').textContent = tip;
+    }
+    
+    function renderComparisonChart() {
+      const current = insightsData.currentStatus || 'Unknown';
+      const typical = insightsData.typicalStatus || 'Unknown';
+      
+      document.getElementById('currentStatus').textContent = current;
+      document.getElementById('currentStatus').className = 'comparison-status ' + current.toLowerCase();
+      
+      document.getElementById('typicalStatus').textContent = typical;
+      document.getElementById('typicalStatus').className = 'comparison-status ' + typical.toLowerCase();
+      
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      document.getElementById('comparisonTime').textContent = `For ${timeStr} on ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][now.getDay()]}s`;
+      
+      const tip = insightsData.comparisonTip || 'Compare current conditions to typical patterns.';
+      document.getElementById('comparisonTip').textContent = tip;
+    }
+    
+    // Close insights when clicking outside
+    document.getElementById('insightsModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeInsights();
+      }
+    });
+
     // FAQ Modal Functions
     function openFAQ() {
       document.getElementById('faqModal').classList.add('show');
@@ -1745,6 +2448,308 @@
     document.getElementById('faqModal').addEventListener('click', function(e) {
       if (e.target === this) {
         closeFAQ();
+      }
+    });
+
+    // ============================================
+    // INSIGHTS FUNCTIONS
+    // ============================================
+    
+    let insightsData = null;
+    
+    function openInsights() {
+      document.getElementById('insightsModal').classList.add('show');
+      showInsightsMenu();
+    }
+    
+    function closeInsights() {
+      document.getElementById('insightsModal').classList.remove('show');
+    }
+    
+    function showInsightsMenu() {
+      document.getElementById('insightsMenu').style.display = 'block';
+      document.getElementById('chartContainer').classList.remove('show');
+      document.getElementById('insightsBack').classList.remove('show');
+      document.getElementById('insightsTitle').textContent = '📊 Traffic Insights';
+    }
+    
+    async function showChart(chartType) {
+      document.getElementById('insightsMenu').style.display = 'none';
+      document.getElementById('chartContainer').classList.add('show');
+      document.getElementById('insightsBack').classList.add('show');
+      
+      const chartContent = document.getElementById('chartContent');
+      chartContent.innerHTML = '<div class="loading-spinner"></div>';
+      
+      try {
+        // Fetch insights data from API
+        const response = await fetch('/api/insights');
+        insightsData = await response.json();
+        
+        if (!insightsData.success || insightsData.totalReadings < 5) {
+          chartContent.innerHTML = `
+            <div class="no-data">
+              <div class="icon">📊</div>
+              <p>Not enough data yet.<br>Check back after a few days of monitoring!</p>
+            </div>
+          `;
+          return;
+        }
+        
+        switch(chartType) {
+          case 'peakHours':
+            renderPeakHoursChart(chartContent);
+            document.getElementById('insightsTitle').textContent = '📈 Peak Hours Today';
+            break;
+          case 'weeklyPatterns':
+            renderWeeklyPatterns(chartContent);
+            document.getElementById('insightsTitle').textContent = '📅 Weekly Patterns';
+            break;
+          case 'comparison':
+            renderComparison(chartContent);
+            document.getElementById('insightsTitle').textContent = '⚖️ Now vs Typical';
+            break;
+          case 'trends':
+            renderTrends(chartContent);
+            document.getElementById('insightsTitle').textContent = '🔄 Last 24 Hours';
+            break;
+        }
+      } catch (error) {
+        chartContent.innerHTML = `
+          <div class="no-data">
+            <div class="icon">⚠️</div>
+            <p>Could not load insights.<br>Please try again later.</p>
+          </div>
+        `;
+      }
+    }
+    
+    function renderPeakHoursChart(container) {
+      const hourlyData = insightsData.hourlyBreakdown || {};
+      const hours = ['6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21'];
+      
+      let barsHtml = '';
+      let maxCount = 1;
+      
+      // Find max for scaling
+      hours.forEach(h => {
+        const count = hourlyData[h]?.total || 0;
+        if (count > maxCount) maxCount = count;
+      });
+      
+      hours.forEach(hour => {
+        const data = hourlyData[hour] || { light: 0, moderate: 0, heavy: 0, total: 0 };
+        const height = data.total > 0 ? Math.max(10, (data.total / maxCount) * 120) : 4;
+        
+        // Determine predominant status
+        let barClass = 'empty';
+        if (data.total > 0) {
+          if (data.heavy > data.moderate && data.heavy > data.light) barClass = 'heavy';
+          else if (data.moderate > data.light) barClass = 'moderate';
+          else barClass = 'light';
+        }
+        
+        const displayHour = hour > 12 ? (hour - 12) + 'p' : hour + 'a';
+        barsHtml += `
+          <div class="bar-wrapper">
+            <div class="bar ${barClass}" style="height: ${height}px"></div>
+            <span class="bar-label">${displayHour}</span>
+          </div>
+        `;
+      });
+      
+      // Find best time
+      let bestHour = '6';
+      let lowestHeavy = Infinity;
+      hours.forEach(h => {
+        const heavyCount = hourlyData[h]?.heavy || 0;
+        if (heavyCount < lowestHeavy) {
+          lowestHeavy = heavyCount;
+          bestHour = h;
+        }
+      });
+      const bestTimeDisplay = bestHour > 12 ? (bestHour - 12) + ' PM' : bestHour + ' AM';
+      
+      container.innerHTML = `
+        <div class="chart-title">Traffic Levels by Hour</div>
+        <div class="chart-subtitle">Based on ${insightsData.totalReadings} readings</div>
+        <div class="bar-chart">${barsHtml}</div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot light"></div> Light</div>
+          <div class="legend-item"><div class="legend-dot moderate"></div> Moderate</div>
+          <div class="legend-item"><div class="legend-dot heavy"></div> Heavy</div>
+        </div>
+        <div class="insight-tip">
+          <span class="icon">💡</span>
+          <p>Best time to cross: <strong>${bestTimeDisplay}</strong> typically has the lightest traffic.</p>
+        </div>
+      `;
+    }
+    
+    function renderWeeklyPatterns(container) {
+      const weeklyData = insightsData.weeklyBreakdown || {};
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      
+      let maxTotal = 1;
+      days.forEach((_, i) => {
+        const total = weeklyData[i]?.total || 0;
+        if (total > maxTotal) maxTotal = total;
+      });
+      
+      let rowsHtml = '';
+      let busiestDay = 'Mon';
+      let busiestHeavy = 0;
+      
+      days.forEach((day, i) => {
+        const data = weeklyData[i] || { light: 0, moderate: 0, heavy: 0, total: 0 };
+        const percentage = data.total > 0 ? (data.total / maxTotal) * 100 : 0;
+        
+        // Determine color
+        let barClass = 'light';
+        if (data.total > 0) {
+          const heavyRatio = data.heavy / data.total;
+          if (heavyRatio > 0.4) barClass = 'heavy';
+          else if (heavyRatio > 0.2 || data.moderate / data.total > 0.4) barClass = 'moderate';
+        }
+        
+        if (data.heavy > busiestHeavy) {
+          busiestHeavy = data.heavy;
+          busiestDay = day;
+        }
+        
+        rowsHtml += `
+          <div class="day-row">
+            <span class="day-label">${day}</span>
+            <div class="day-bar-container">
+              <div class="day-bar bar ${barClass}" style="width: ${percentage}%"></div>
+            </div>
+            <span class="day-value">${data.total}</span>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = `
+        <div class="chart-title">Traffic by Day of Week</div>
+        <div class="chart-subtitle">Readings per day</div>
+        <div class="weekly-pattern">${rowsHtml}</div>
+        <div class="insight-tip">
+          <span class="icon">💡</span>
+          <p><strong>${busiestDay}</strong> tends to be the busiest. Plan accordingly!</p>
+        </div>
+      `;
+    }
+    
+    function renderComparison(container) {
+      const current = insightsData.currentStatus || 'LIGHT';
+      const typical = insightsData.typicalForNow || 'LIGHT';
+      
+      let emoji = '😊';
+      let text = 'About average';
+      let detail = 'Traffic is normal for this time.';
+      
+      const statusRank = { 'LIGHT': 1, 'MODERATE': 2, 'HEAVY': 3, 'SEVERE': 4 };
+      const currentRank = statusRank[current] || 1;
+      const typicalRank = statusRank[typical] || 1;
+      
+      if (currentRank < typicalRank) {
+        emoji = '🎉';
+        text = 'Lighter than usual!';
+        detail = `Usually ${typical.toLowerCase()} at this time, but it's ${current.toLowerCase()} right now.`;
+      } else if (currentRank > typicalRank) {
+        emoji = '⚠️';
+        text = 'Busier than usual';
+        detail = `Usually ${typical.toLowerCase()} at this time, but it's ${current.toLowerCase()} right now.`;
+      }
+      
+      container.innerHTML = `
+        <div class="chart-title">Right Now vs Typical</div>
+        <div class="comparison-card">
+          <div class="comparison-status">${emoji}</div>
+          <div class="comparison-text">${text}</div>
+          <div class="comparison-detail">${detail}</div>
+        </div>
+        <div class="comparison-card">
+          <div style="display: flex; justify-content: space-around;">
+            <div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">Current</div>
+              <div style="font-size: 1.1rem; font-weight: 600; color: ${current === 'LIGHT' ? '#22c55e' : current === 'MODERATE' ? '#eab308' : '#ef4444'}">${current}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">Typical</div>
+              <div style="font-size: 1.1rem; font-weight: 600; color: ${typical === 'LIGHT' ? '#22c55e' : typical === 'MODERATE' ? '#eab308' : '#ef4444'}">${typical}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderTrends(container) {
+      const recentReadings = insightsData.recentReadings || [];
+      
+      if (recentReadings.length < 3) {
+        container.innerHTML = `
+          <div class="no-data">
+            <div class="icon">📊</div>
+            <p>Not enough recent data.<br>Check back in a few hours!</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Show last 12 readings as a mini timeline
+      const last12 = recentReadings.slice(0, 12).reverse();
+      
+      let barsHtml = '';
+      last12.forEach(reading => {
+        const status = reading.ls_to_sa_status || reading.sa_to_ls_status || 'LIGHT';
+        const time = new Date(reading.timestamp);
+        const timeStr = time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        
+        let height = 40;
+        let barClass = 'light';
+        if (status === 'MODERATE') { height = 70; barClass = 'moderate'; }
+        else if (status === 'HEAVY') { height = 100; barClass = 'heavy'; }
+        else if (status === 'SEVERE') { height = 120; barClass = 'severe'; }
+        
+        barsHtml += `
+          <div class="bar-wrapper">
+            <div class="bar ${barClass}" style="height: ${height}px"></div>
+            <span class="bar-label">${timeStr}</span>
+          </div>
+        `;
+      });
+      
+      // Determine trend
+      const firstHalf = last12.slice(0, 6);
+      const secondHalf = last12.slice(6);
+      const avgFirst = firstHalf.filter(r => r.ls_to_sa_status === 'HEAVY' || r.ls_to_sa_status === 'MODERATE').length / firstHalf.length;
+      const avgSecond = secondHalf.filter(r => r.ls_to_sa_status === 'HEAVY' || r.ls_to_sa_status === 'MODERATE').length / secondHalf.length;
+      
+      let trendEmoji = '➡️';
+      let trendText = 'Stable';
+      if (avgSecond > avgFirst + 0.2) { trendEmoji = '📈'; trendText = 'Getting busier'; }
+      else if (avgSecond < avgFirst - 0.2) { trendEmoji = '📉'; trendText = 'Getting lighter'; }
+      
+      container.innerHTML = `
+        <div class="chart-title">Traffic Trend</div>
+        <div class="chart-subtitle">Last ${last12.length} readings</div>
+        <div class="bar-chart">${barsHtml}</div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot light"></div> Light</div>
+          <div class="legend-item"><div class="legend-dot moderate"></div> Moderate</div>
+          <div class="legend-item"><div class="legend-dot heavy"></div> Heavy</div>
+        </div>
+        <div class="insight-tip">
+          <span class="icon">${trendEmoji}</span>
+          <p><strong>${trendText}</strong> - ${trendText === 'Getting busier' ? 'Consider crossing soon!' : trendText === 'Getting lighter' ? 'Good time to wait a bit.' : 'Traffic has been consistent.'}</p>
+        </div>
+      `;
+    }
+    
+    // Close insights when clicking outside
+    document.getElementById('insightsModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeInsights();
       }
     });
 
