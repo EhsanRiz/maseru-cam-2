@@ -149,11 +149,45 @@ async function logTrafficReading(analysisResult, framesUsed, responseTimeMs) {
     
     console.log('📝 Attempting to log traffic reading...');
     
-    // Extract status from direction boxes - more flexible regex
-    const lsMatch = message.match(/\[LS_TO_SA\][\s\S]*?status:\s*(\w+)[\s\S]*?detail:\s*([\s\S]*?)\[\/LS_TO_SA\]/i);
-    const saMatch = message.match(/\[SA_TO_LS\][\s\S]*?status:\s*(\w+)[\s\S]*?detail:\s*([\s\S]*?)\[\/SA_TO_LS\]/i);
+    // Extract status from direction boxes - multiple regex patterns for flexibility
+    let lsStatus = null, lsDetail = null, saStatus = null, saDetail = null;
+    
+    // Pattern 1: Standard format [LS_TO_SA] status: X detail: Y [/LS_TO_SA]
+    const lsMatch1 = message.match(/\[LS_TO_SA\][\s\S]*?status:\s*(\w+)[\s\S]*?detail:\s*([\s\S]*?)\[\/LS_TO_SA\]/i);
+    const saMatch1 = message.match(/\[SA_TO_LS\][\s\S]*?status:\s*(\w+)[\s\S]*?detail:\s*([\s\S]*?)\[\/SA_TO_LS\]/i);
+    
+    if (lsMatch1) {
+      lsStatus = lsMatch1[1];
+      lsDetail = lsMatch1[2];
+    }
+    if (saMatch1) {
+      saStatus = saMatch1[1];
+      saDetail = saMatch1[2];
+    }
+    
+    // Pattern 2: Look for status badges like "LIGHT" after direction headers
+    if (!lsStatus) {
+      const lsAlt = message.match(/Lesotho\s*→\s*South Africa[^]*?(LIGHT|MODERATE|HEAVY|SEVERE)/i);
+      if (lsAlt) lsStatus = lsAlt[1];
+    }
+    if (!saStatus) {
+      const saAlt = message.match(/South Africa\s*→\s*Lesotho[^]*?(LIGHT|MODERATE|HEAVY|SEVERE)/i);
+      if (saAlt) saStatus = saAlt[1];
+    }
+    
+    // Extract traffic summary and advice
     const trafficMatch = message.match(/\*\*Traffic:\*\*\s*([^\n\[]+)/i);
     const adviceMatch = message.match(/\*\*Advice:\*\*\s*([^\n⚠]+)/i);
+    
+    // For non-standard responses, try to extract a summary
+    let summary = trafficMatch ? trafficMatch[1].trim() : null;
+    if (!summary && message.length > 0) {
+      // Take first sentence as summary for non-standard responses
+      const firstSentence = message.match(/^[^.!?]*[.!?]/);
+      if (firstSentence) {
+        summary = firstSentence[0].trim().substring(0, 200);
+      }
+    }
     
     // Normalize status values to match CHECK constraint
     const normalizeStatus = (status) => {
@@ -167,11 +201,11 @@ async function logTrafficReading(analysisResult, framesUsed, responseTimeMs) {
     
     const reading = {
       timestamp: new Date().toISOString(),
-      traffic_summary: trafficMatch ? trafficMatch[1].trim() : null,
-      ls_to_sa_status: normalizeStatus(lsMatch ? lsMatch[1] : null),
-      ls_to_sa_detail: lsMatch ? lsMatch[2].trim() : null,
-      sa_to_ls_status: normalizeStatus(saMatch ? saMatch[1] : null),
-      sa_to_ls_detail: saMatch ? saMatch[2].trim() : null,
+      traffic_summary: summary,
+      ls_to_sa_status: normalizeStatus(lsStatus),
+      ls_to_sa_detail: lsDetail ? lsDetail.trim() : null,
+      sa_to_ls_status: normalizeStatus(saStatus),
+      sa_to_ls_detail: saDetail ? saDetail.trim() : null,
       advice: adviceMatch ? adviceMatch[1].trim() : null,
       frames_used: framesUsed,
       angles_available: framesUsed.map(f => f.angleType),
