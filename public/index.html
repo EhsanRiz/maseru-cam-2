@@ -155,11 +155,10 @@
       animation: none;
     }
 
-    /* Last updated indicator - overlaid on camera */
-    .last-updated {
+    /* Camera overlay indicators */
+    .camera-overlay {
       position: absolute;
       bottom: 8px;
-      right: 8px;
       display: flex;
       align-items: center;
       gap: 0.3rem;
@@ -168,8 +167,16 @@
       backdrop-filter: blur(4px);
       border-radius: 0.4rem;
       font-size: 0.65rem;
-      color: rgba(255, 255, 255, 0.8);
+      color: rgba(255, 255, 255, 0.9);
       z-index: 10;
+    }
+
+    .camera-timestamp-overlay {
+      left: 8px;
+    }
+
+    .last-updated {
+      right: 8px;
     }
 
     .last-updated-icon {
@@ -328,36 +335,6 @@
     .gallery-dot:hover:not(.active) {
       background: var(--text-secondary);
     }
-
-    .camera-controls {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.5rem 0.75rem;
-      background: var(--bg-secondary);
-    }
-
-    .camera-timestamp {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-    }
-
-    .refresh-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-secondary);
-      padding: 0.375rem 0.75rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 0.7rem;
-      display: flex;
-      align-items: center;
-      gap: 0.375rem;
-      transition: all 0.2s;
-    }
-
-    .refresh-btn:hover { background: var(--bg-card); color: var(--text-primary); }
 
     .chat-section {
       flex: 1;
@@ -862,8 +839,10 @@
             <div class="gallery-image-wrapper">
               <img id="galleryImage" alt="Maseru Bridge Camera Feed">
               <div class="gallery-label" id="galleryLabel">Bridge</div>
-              <!-- Last Updated Indicator - overlaid on image -->
-              <div class="last-updated fresh" id="lastUpdated">
+              <!-- Timestamp overlay - bottom left -->
+              <div class="camera-overlay camera-timestamp-overlay" id="cameraTimestamp">--:--:--</div>
+              <!-- Last Updated overlay - bottom right -->
+              <div class="camera-overlay last-updated fresh" id="lastUpdated">
                 <span class="last-updated-icon">🔄</span>
                 <span class="last-updated-time" id="lastUpdatedTime">just now</span>
               </div>
@@ -878,16 +857,6 @@
           
           <!-- Gallery Dots -->
           <div class="gallery-dots" id="galleryDots"></div>
-          
-          <div class="camera-controls">
-            <span class="camera-timestamp" id="cameraTimestamp">--:--:--</span>
-            <button class="refresh-btn" id="refreshBtn" onclick="refreshCamera()">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-              </svg>
-              Refresh
-            </button>
-          </div>
         </div>
         
         <!-- Ad Space 1: Below Camera -->
