@@ -126,6 +126,10 @@
     }
 
     /* Report Button */
+    .report-wrapper {
+      position: relative;
+    }
+
     .report-btn {
       display: flex;
       align-items: center;
@@ -146,9 +150,80 @@
       box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
     }
 
+    .report-btn.active {
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+
     .report-btn svg {
       width: 14px;
       height: 14px;
+    }
+
+    /* Report Dropdown Menu */
+    .report-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.5rem;
+      min-width: 240px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.2s ease;
+      z-index: 1000;
+    }
+
+    .report-menu.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .report-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.75rem;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-size: 0.8rem;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.15s;
+      text-align: left;
+    }
+
+    .report-item:hover {
+      background: var(--bg-secondary);
+    }
+
+    .report-item svg {
+      width: 20px;
+      height: 20px;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .report-item-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .report-item-text span {
+      font-weight: 500;
+    }
+
+    .report-item-text small {
+      font-size: 0.7rem;
+      color: var(--text-muted);
     }
 
     /* Settings Wrapper */
@@ -2188,15 +2263,42 @@
         <p>Maseru Bridge</p>
       </div>
       <div class="header-controls">
-        <button class="report-btn" onclick="showComingSoon('Report Wait Time')" data-tooltip="Report your wait time">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2v10l4 2"></path>
-            <circle cx="12" cy="12" r="10"></circle>
-          </svg>
-          <span>Report</span>
-        </button>
+        <div class="report-wrapper">
+          <button class="report-btn" id="reportBtn" onclick="toggleReport()" data-tooltip="Report traffic info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v10l4 2"></path>
+              <circle cx="12" cy="12" r="10"></circle>
+            </svg>
+            <span>Report</span>
+          </button>
+          <div class="report-menu" id="reportMenu">
+            <button class="report-item" onclick="showComingSoon('Report Wait Time'); closeReport();">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v10l4 2"></path>
+                <circle cx="12" cy="12" r="10"></circle>
+              </svg>
+              <div class="report-item-text">
+                <span>Report Wait Time</span>
+                <small>Share your crossing time</small>
+              </div>
+              <span class="soon-badge">Soon</span>
+            </button>
+            <button class="report-item" onclick="showComingSoon('Report Incident'); closeReport();">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              <div class="report-item-text">
+                <span>Report Incident</span>
+                <small>Alert others about issues</small>
+              </div>
+              <span class="soon-badge">Soon</span>
+            </button>
+          </div>
+        </div>
         <div class="settings-wrapper">
-          <button class="settings-btn" id="settingsBtn" onclick="toggleSettings()" data-tooltip="Settings & more">
+          <button class="settings-btn" id="settingsBtn" onclick="toggleSettings()" data-tooltip="Settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="3"></circle>
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -2217,24 +2319,6 @@
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
               </svg>
               <span>Alert Settings</span>
-            </button>
-            <div class="settings-divider"></div>
-            <button class="settings-item coming-soon" onclick="showComingSoon('Report Wait Time')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2v10l4 2"></path>
-                <circle cx="12" cy="12" r="10"></circle>
-              </svg>
-              <span>Report Wait Time</span>
-              <span class="soon-badge">Soon</span>
-            </button>
-            <button class="settings-item coming-soon" onclick="showComingSoon('Report Incident')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                <line x1="12" y1="9" x2="12" y2="13"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
-              <span>Report Incident</span>
-              <span class="soon-badge">Soon</span>
             </button>
           </div>
         </div>
@@ -2720,6 +2804,8 @@
       const btn = document.getElementById('settingsBtn');
       const isOpen = menu.classList.contains('show');
       
+      closeReport(); // Close report menu if open
+      
       if (isOpen) {
         closeSettings();
       } else {
@@ -2733,17 +2819,46 @@
       document.getElementById('settingsBtn').classList.remove('active');
     }
     
-    // Close settings when clicking outside
+    // Report Menu Functions
+    function toggleReport() {
+      const menu = document.getElementById('reportMenu');
+      const btn = document.getElementById('reportBtn');
+      const isOpen = menu.classList.contains('show');
+      
+      closeSettings(); // Close settings menu if open
+      
+      if (isOpen) {
+        closeReport();
+      } else {
+        menu.classList.add('show');
+        btn.classList.add('active');
+      }
+    }
+    
+    function closeReport() {
+      const menu = document.getElementById('reportMenu');
+      const btn = document.getElementById('reportBtn');
+      if (menu) menu.classList.remove('show');
+      if (btn) btn.classList.remove('active');
+    }
+    
+    // Close menus when clicking outside
     document.addEventListener('click', function(e) {
-      const wrapper = document.querySelector('.settings-wrapper');
-      if (wrapper && !wrapper.contains(e.target)) {
+      const settingsWrapper = document.querySelector('.settings-wrapper');
+      const reportWrapper = document.querySelector('.report-wrapper');
+      
+      if (settingsWrapper && !settingsWrapper.contains(e.target)) {
         closeSettings();
+      }
+      if (reportWrapper && !reportWrapper.contains(e.target)) {
+        closeReport();
       }
     });
     
     // Coming Soon Toast
     function showComingSoon(feature) {
       closeSettings();
+      closeReport();
       const toast = document.getElementById('comingSoonToast');
       document.getElementById('toastFeature').textContent = feature;
       toast.classList.add('show');
