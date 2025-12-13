@@ -1,15 +1,20 @@
 {
   "name": "maseru-traffic-bot",
   "version": "2.0.0",
-  "description": "AI-powered traffic analysis for Maseru Bridge border crossing",
+  "description": "AI-powered Maseru Bridge border traffic monitor",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0",
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@supabase/supabase-js": "^2.47.0",
     "cors": "^2.8.5",
-    "express": "^4.18.2"
+    "express": "^4.21.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
