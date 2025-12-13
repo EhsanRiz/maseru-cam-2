@@ -92,6 +92,27 @@ async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
   }
 }
 
+// Log frame to history table (keeps 7 days of history)
+async function logFrameHistory(angleType, framePath, timestamp) {
+  if (!supabase) return;
+  
+  try {
+    const { error } = await supabase
+      .from('frame_history')
+      .insert({
+        angle_type: angleType,
+        frame_path: framePath,
+        timestamp: new Date(timestamp).toISOString()
+      });
+    
+    if (error) {
+      console.error('❌ Failed to log frame history:', error.message);
+    }
+  } catch (err) {
+    console.error('❌ Frame history error:', err.message);
+  }
+}
+
 // Update preserved frame in database
 async function updatePreservedFrame(angleType, framePath, timestamp) {
   if (!supabase) return;
@@ -118,24 +139,38 @@ async function updatePreservedFrame(angleType, framePath, timestamp) {
 
 // Log traffic reading to database
 async function logTrafficReading(analysisResult, framesUsed, responseTimeMs) {
-  if (!supabase) return;
+  if (!supabase) {
+    console.log('⚠️ Supabase not connected, skipping traffic log');
+    return;
+  }
   
   try {
-    // Parse the analysis result to extract structured data
     const message = analysisResult.message || '';
     
-    // Extract status from direction boxes
-    const lsMatch = message.match(/\[LS_TO_SA\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/LS_TO_SA\]/is);
-    const saMatch = message.match(/\[SA_TO_LS\]\s*status:\s*(\w+)\s*detail:\s*([^\[]+)\[\/SA_TO_LS\]/is);
+    console.log('📝 Attempting to log traffic reading...');
+    
+    // Extract status from direction boxes - more flexible regex
+    const lsMatch = message.match(/\[LS_TO_SA\][\s\S]*?status:\s*(\w+)[\s\S]*?detail:\s*([\s\S]*?)\[\/LS_TO_SA\]/i);
+    const saMatch = message.match(/\[SA_TO_LS\][\s\S]*?status:\s*(\w+)[\s\S]*?detail:\s*([\s\S]*?)\[\/SA_TO_LS\]/i);
     const trafficMatch = message.match(/\*\*Traffic:\*\*\s*([^\n\[]+)/i);
     const adviceMatch = message.match(/\*\*Advice:\*\*\s*([^\n⚠]+)/i);
+    
+    // Normalize status values to match CHECK constraint
+    const normalizeStatus = (status) => {
+      if (!status) return null;
+      const upper = status.toUpperCase().trim();
+      if (['LIGHT', 'MODERATE', 'HEAVY', 'SEVERE'].includes(upper)) {
+        return upper;
+      }
+      return null;
+    };
     
     const reading = {
       timestamp: new Date().toISOString(),
       traffic_summary: trafficMatch ? trafficMatch[1].trim() : null,
-      ls_to_sa_status: lsMatch ? lsMatch[1].trim().toUpperCase() : null,
+      ls_to_sa_status: normalizeStatus(lsMatch ? lsMatch[1] : null),
       ls_to_sa_detail: lsMatch ? lsMatch[2].trim() : null,
-      sa_to_ls_status: saMatch ? saMatch[1].trim().toUpperCase() : null,
+      sa_to_ls_status: normalizeStatus(saMatch ? saMatch[1] : null),
       sa_to_ls_detail: saMatch ? saMatch[2].trim() : null,
       advice: adviceMatch ? adviceMatch[1].trim() : null,
       frames_used: framesUsed,
@@ -143,14 +178,21 @@ async function logTrafficReading(analysisResult, framesUsed, responseTimeMs) {
       response_time_ms: responseTimeMs
     };
     
-    const { error } = await supabase
+    console.log('📊 Parsed reading:', JSON.stringify({
+      ls_status: reading.ls_to_sa_status,
+      sa_status: reading.sa_to_ls_status,
+      summary: reading.traffic_summary?.substring(0, 50)
+    }));
+    
+    const { data, error } = await supabase
       .from('traffic_readings')
-      .insert(reading);
+      .insert(reading)
+      .select();
     
     if (error) {
-      console.error('❌ Failed to log reading:', error.message);
+      console.error('❌ Failed to log reading:', error.message, error.details);
     } else {
-      console.log('📊 Traffic reading logged to database');
+      console.log('✅ Traffic reading logged to database, id:', data?.[0]?.id);
     }
   } catch (err) {
     console.error('❌ Failed to log traffic reading:', err.message);
@@ -355,6 +397,7 @@ async function captureFrame() {
             const framePath = await uploadFrameToStorage(imageBuffer, angleType, timestamp);
             if (framePath) {
               await updatePreservedFrame(angleType, framePath, timestamp);
+              await logFrameHistory(angleType, framePath, timestamp);
             }
           }
           
@@ -641,17 +684,18 @@ CRITICAL RULES:
       cached: false,
     };
 
+    // Cache only automatic analyses
     if (!userQuestion) {
       latestAnalysis = analysis;
       lastAnalysisTime = now;
-      
-      // Log traffic reading to database (only for automatic analyses, not chat questions)
-      logTrafficReading(
-        analysis, 
-        framesToUse.map(f => ({ angleType: f.angleType, timestamp: f.timestamp })),
-        responseTime
-      );
     }
+    
+    // Log ALL traffic readings to database (both automatic and user questions)
+    logTrafficReading(
+      analysis, 
+      framesToUse.map(f => ({ angleType: f.angleType, timestamp: f.timestamp })),
+      responseTime
+    );
 
     return analysis;
   } catch (error) {
