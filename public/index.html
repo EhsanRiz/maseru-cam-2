@@ -382,6 +382,325 @@
       margin: 0;
     }
 
+    /* Auth Modal Styles */
+    .auth-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+      padding: 1rem;
+    }
+
+    .auth-modal.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .auth-modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 380px;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .auth-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .auth-close:hover {
+      color: var(--text-primary);
+    }
+
+    .auth-form h2 {
+      font-size: 1.3rem;
+      margin-bottom: 0.25rem;
+      color: var(--text-primary);
+    }
+
+    .auth-subtitle {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .auth-benefits {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 1.25rem 0;
+      background: rgba(16, 185, 129, 0.1);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+
+    .auth-benefits li {
+      color: var(--accent);
+      font-size: 0.8rem;
+      padding: 0.25rem 0;
+    }
+
+    .auth-field {
+      margin-bottom: 1rem;
+    }
+
+    .auth-field label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.4rem;
+    }
+
+    .auth-field input,
+    .auth-field select {
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+
+    .auth-field input:focus,
+    .auth-field select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .auth-field small {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+    }
+
+    .phone-input-group {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .phone-input-group select {
+      width: 110px;
+      flex-shrink: 0;
+    }
+
+    .phone-input-group input {
+      flex: 1;
+    }
+
+    .phone-format {
+      color: var(--text-muted);
+    }
+
+    .password-input-group {
+      display: flex;
+      position: relative;
+    }
+
+    .password-input-group input {
+      flex: 1;
+      padding-right: 45px;
+    }
+
+    .toggle-password {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      opacity: 0.6;
+    }
+
+    .toggle-password:hover {
+      opacity: 1;
+    }
+
+    .auth-error {
+      color: #ef4444;
+      font-size: 0.8rem;
+      padding: 0.5rem;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .auth-error.show {
+      display: block;
+    }
+
+    .auth-submit {
+      width: 100%;
+      padding: 0.75rem;
+      background: linear-gradient(135deg, var(--accent) 0%, #059669 100%);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .auth-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .auth-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .auth-switch {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 1rem;
+    }
+
+    .auth-switch a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .auth-forgot {
+      text-align: center;
+      font-size: 0.8rem;
+      margin-top: 0.75rem;
+    }
+
+    .auth-forgot a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .auth-forgot a:hover {
+      color: var(--accent);
+    }
+
+    .hint-display {
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .hint-display label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .hint-display p {
+      font-size: 1rem;
+      color: var(--accent);
+      margin: 0.5rem 0 0 0;
+      font-weight: 500;
+    }
+
+    /* Logged In View */
+    .user-avatar {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--accent), #1d4ed8);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin: 0 auto 1rem;
+    }
+
+    #loggedInView h2 {
+      text-align: center;
+    }
+
+    #loggedInView .auth-subtitle {
+      text-align: center;
+    }
+
+    .user-country {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .logged-in-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .auth-option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .auth-option:hover {
+      border-color: var(--accent);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .auth-logout {
+      width: 100%;
+      padding: 0.65rem;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .auth-logout:hover {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
     /* Tooltip Styles */
     [data-tooltip] {
       position: relative;
@@ -2337,6 +2656,14 @@
               </svg>
               <span>Alert Settings</span>
             </button>
+            <div class="settings-divider"></div>
+            <button class="settings-item" id="authMenuItem" onclick="openAuthModal(); closeSettings();">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span id="authMenuText">Sign Up / Login</span>
+            </button>
           </div>
         </div>
         <div class="status-indicator">
@@ -2885,6 +3212,396 @@
         toast.classList.remove('show');
       }, 3000);
     }
+
+    // =============================================
+    // AUTH SYSTEM
+    // =============================================
+    
+    const AUTH_STORAGE_KEY = 'maseru_traffic_user';
+    let currentUser = null;
+    
+    // Load user from localStorage on startup
+    function loadStoredUser() {
+      try {
+        const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+        if (stored) {
+          currentUser = JSON.parse(stored);
+          updateAuthUI();
+        }
+      } catch (e) {
+        console.error('Error loading stored user:', e);
+      }
+    }
+    
+    // Save user to localStorage
+    function saveUser(user) {
+      currentUser = user;
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+      updateAuthUI();
+    }
+    
+    // Clear stored user
+    function clearUser() {
+      currentUser = null;
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      updateAuthUI();
+    }
+    
+    // Update UI based on login state
+    function updateAuthUI() {
+      const menuText = document.getElementById('authMenuText');
+      if (currentUser) {
+        menuText.textContent = currentUser.name || 'My Account';
+      } else {
+        menuText.textContent = 'Sign Up / Login';
+      }
+    }
+    
+    // Open auth modal
+    function openAuthModal() {
+      const modal = document.getElementById('authModal');
+      modal.classList.add('show');
+      
+      if (currentUser) {
+        showLoggedInView();
+      } else {
+        showSignupForm();
+      }
+    }
+    
+    // Close auth modal
+    function closeAuthModal() {
+      document.getElementById('authModal').classList.remove('show');
+      clearAuthErrors();
+    }
+    
+    // Show signup form
+    function showSignupForm() {
+      document.getElementById('signupForm').style.display = 'block';
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('hintForm').style.display = 'none';
+      document.getElementById('loggedInView').style.display = 'none';
+      clearAuthErrors();
+    }
+    
+    // Show login form
+    function showLoginForm() {
+      document.getElementById('signupForm').style.display = 'none';
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('hintForm').style.display = 'none';
+      document.getElementById('loggedInView').style.display = 'none';
+      clearAuthErrors();
+    }
+    
+    // Show password hint form
+    function showPasswordHint() {
+      document.getElementById('signupForm').style.display = 'none';
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('hintForm').style.display = 'block';
+      document.getElementById('loggedInView').style.display = 'none';
+      document.getElementById('hintDisplay').style.display = 'none';
+      clearAuthErrors();
+    }
+    
+    // Show logged in view
+    function showLoggedInView() {
+      document.getElementById('signupForm').style.display = 'none';
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('hintForm').style.display = 'none';
+      document.getElementById('loggedInView').style.display = 'block';
+      
+      if (currentUser) {
+        document.getElementById('loggedInName').textContent = currentUser.name || 'Welcome!';
+        document.getElementById('loggedInPhone').textContent = currentUser.phone || '';
+        document.getElementById('loggedInCountry').textContent = currentUser.country || '';
+      }
+    }
+    
+    // Clear all auth errors
+    function clearAuthErrors() {
+      document.querySelectorAll('.auth-error').forEach(el => {
+        el.classList.remove('show');
+        el.textContent = '';
+      });
+    }
+    
+    // Show error
+    function showAuthError(elementId, message) {
+      const el = document.getElementById(elementId);
+      el.textContent = message;
+      el.classList.add('show');
+    }
+    
+    // Update phone country based on residence
+    function updatePhoneCountry() {
+      const residence = document.getElementById('signupCountryResidence').value;
+      const countryCode = document.getElementById('signupCountryCode');
+      
+      if (residence === 'Lesotho') {
+        countryCode.value = '+266';
+      } else if (residence === 'South Africa') {
+        countryCode.value = '+27';
+      }
+      updatePhoneFormat();
+    }
+    
+    // Update phone format hint
+    function updatePhoneFormat() {
+      const countryCode = document.getElementById('signupCountryCode').value;
+      const hint = document.getElementById('phoneFormatHint');
+      const input = document.getElementById('signupPhone');
+      
+      if (countryCode === '+266') {
+        hint.textContent = 'Format: XXXX XXXX';
+        input.placeholder = '5812 3456';
+      } else {
+        hint.textContent = 'Format: 0XX XXX XXXX';
+        input.placeholder = '082 123 4567';
+      }
+      input.value = '';
+    }
+    
+    // Update login phone format
+    function updateLoginPhoneFormat() {
+      const countryCode = document.getElementById('loginCountryCode').value;
+      const hint = document.getElementById('loginPhoneFormatHint');
+      const input = document.getElementById('loginPhone');
+      
+      if (countryCode === '+266') {
+        hint.textContent = 'Format: XXXX XXXX';
+        input.placeholder = '5812 3456';
+      } else {
+        hint.textContent = 'Format: 0XX XXX XXXX';
+        input.placeholder = '082 123 4567';
+      }
+      input.value = '';
+    }
+    
+    // Format phone input for Lesotho (XXXX XXXX)
+    function formatLesothoPhone(value) {
+      const digits = value.replace(/\D/g, '').substring(0, 8);
+      if (digits.length > 4) {
+        return digits.substring(0, 4) + ' ' + digits.substring(4);
+      }
+      return digits;
+    }
+    
+    // Format phone input for SA (0XX XXX XXXX)
+    function formatSAPhone(value) {
+      const digits = value.replace(/\D/g, '').substring(0, 10);
+      if (digits.length > 6) {
+        return digits.substring(0, 3) + ' ' + digits.substring(3, 6) + ' ' + digits.substring(6);
+      } else if (digits.length > 3) {
+        return digits.substring(0, 3) + ' ' + digits.substring(3);
+      }
+      return digits;
+    }
+    
+    // Format phone input based on country
+    function formatPhoneInput(input) {
+      const countryCode = document.getElementById('signupCountryCode').value;
+      if (countryCode === '+266') {
+        input.value = formatLesothoPhone(input.value);
+      } else {
+        input.value = formatSAPhone(input.value);
+      }
+    }
+    
+    // Format login phone input
+    function formatLoginPhoneInput(input) {
+      const countryCode = document.getElementById('loginCountryCode').value;
+      if (countryCode === '+266') {
+        input.value = formatLesothoPhone(input.value);
+      } else {
+        input.value = formatSAPhone(input.value);
+      }
+    }
+    
+    // Toggle password visibility
+    function togglePassword(inputId) {
+      const input = document.getElementById(inputId);
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+    
+    // Handle signup
+    async function handleSignup() {
+      clearAuthErrors();
+      
+      const countryResidence = document.getElementById('signupCountryResidence').value;
+      const countryCode = document.getElementById('signupCountryCode').value;
+      const phone = document.getElementById('signupPhone').value;
+      const name = document.getElementById('signupName').value.trim();
+      const password = document.getElementById('signupPassword').value;
+      const passwordHint = document.getElementById('signupHint').value.trim();
+      
+      // Validate phone
+      const cleanPhone = phone.replace(/\s/g, '');
+      if (countryCode === '+266' && cleanPhone.length !== 8) {
+        showAuthError('signupError', 'Lesotho phone must be 8 digits');
+        return;
+      }
+      if (countryCode === '+27' && cleanPhone.length !== 10) {
+        showAuthError('signupError', 'South Africa phone must be 10 digits');
+        return;
+      }
+      
+      // Validate password
+      if (password.length < 6) {
+        showAuthError('signupError', 'Password must be at least 6 characters');
+        return;
+      }
+      
+      // Disable button
+      const btn = document.querySelector('#signupForm .auth-submit');
+      btn.disabled = true;
+      btn.textContent = 'Creating Account...';
+      
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: cleanPhone,
+            countryCode,
+            countryResidence,
+            password,
+            passwordHint: passwordHint || null,
+            name: name || null
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          saveUser(data.user);
+          showLoggedInView();
+          showToast('Account created successfully! 🎉');
+        } else {
+          showAuthError('signupError', data.message || 'Registration failed');
+        }
+      } catch (err) {
+        showAuthError('signupError', 'Connection error. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+      }
+    }
+    
+    // Handle login
+    async function handleLogin() {
+      clearAuthErrors();
+      
+      const countryCode = document.getElementById('loginCountryCode').value;
+      const phone = document.getElementById('loginPhone').value;
+      const password = document.getElementById('loginPassword').value;
+      
+      if (!phone || !password) {
+        showAuthError('loginError', 'Please enter phone and password');
+        return;
+      }
+      
+      const btn = document.querySelector('#loginForm .auth-submit');
+      btn.disabled = true;
+      btn.textContent = 'Logging in...';
+      
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phone.replace(/\s/g, ''),
+            countryCode,
+            password
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          saveUser(data.user);
+          showLoggedInView();
+          showToast('Welcome back! 👋');
+        } else {
+          showAuthError('loginError', data.message || 'Login failed');
+        }
+      } catch (err) {
+        showAuthError('loginError', 'Connection error. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Login';
+      }
+    }
+    
+    // Get password hint
+    async function getPasswordHint() {
+      clearAuthErrors();
+      
+      const countryCode = document.getElementById('hintCountryCode').value;
+      const phone = document.getElementById('hintPhone').value;
+      
+      if (!phone) {
+        showAuthError('hintError', 'Please enter your phone number');
+        return;
+      }
+      
+      const btn = document.querySelector('#hintForm .auth-submit');
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+      
+      try {
+        const response = await fetch('/api/auth/hint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phone.replace(/\s/g, ''),
+            countryCode
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          const hintDisplay = document.getElementById('hintDisplay');
+          const hintText = document.getElementById('hintText');
+          
+          if (data.hint) {
+            hintText.textContent = data.hint;
+            hintDisplay.style.display = 'block';
+          } else {
+            showAuthError('hintError', 'No password hint was set for this account');
+          }
+        } else {
+          showAuthError('hintError', data.message || 'Could not retrieve hint');
+        }
+      } catch (err) {
+        showAuthError('hintError', 'Connection error. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Show Hint';
+      }
+    }
+    
+    // Handle logout
+    function handleLogout() {
+      clearUser();
+      closeAuthModal();
+      showToast('Logged out successfully');
+    }
+    
+    // Show simple toast
+    function showToast(message) {
+      const toast = document.getElementById('comingSoonToast');
+      document.getElementById('toastFeature').textContent = message;
+      document.querySelector('#comingSoonToast .toast-content p').textContent = '';
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+        document.querySelector('#comingSoonToast .toast-content p').textContent = "Coming soon! We're working on it.";
+      }, 2500);
+    }
+    
+    // Load user on page load
+    loadStoredUser();
 
     // Insights Modal Functions
     let insightsData = null;
@@ -3574,6 +4291,150 @@ https://4dcs.co.za`;
         <p>
           Tap <span class="share-icon">⬆️</span> below, then <strong>"Add to Home Screen"</strong> to receive notifications when traffic changes.
         </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modal (Sign Up / Login) -->
+  <div class="auth-modal" id="authModal">
+    <div class="auth-modal-content">
+      <button class="auth-close" onclick="closeAuthModal()">×</button>
+      
+      <!-- Sign Up Form -->
+      <div class="auth-form" id="signupForm">
+        <h2>Create Account</h2>
+        <p class="auth-subtitle">Get more from Traffic Bot:</p>
+        <ul class="auth-benefits">
+          <li>✓ Save your alert preferences</li>
+          <li>✓ Report wait times (coming soon)</li>
+          <li>✓ Personalized insights</li>
+        </ul>
+        
+        <div class="auth-field">
+          <label>Country of Residence</label>
+          <select id="signupCountryResidence" onchange="updatePhoneCountry()">
+            <option value="Lesotho">🇱🇸 Lesotho</option>
+            <option value="South Africa">🇿🇦 South Africa</option>
+            <option value="Other">🌍 Other</option>
+          </select>
+        </div>
+        
+        <div class="auth-field">
+          <label>Phone Number</label>
+          <div class="phone-input-group">
+            <select id="signupCountryCode" onchange="updatePhoneFormat()">
+              <option value="+266">🇱🇸 +266</option>
+              <option value="+27">🇿🇦 +27</option>
+            </select>
+            <input type="tel" id="signupPhone" placeholder="5812 3456" oninput="formatPhoneInput(this)">
+          </div>
+          <small class="phone-format" id="phoneFormatHint">Format: XXXX XXXX</small>
+        </div>
+        
+        <div class="auth-field">
+          <label>Name (optional)</label>
+          <input type="text" id="signupName" placeholder="Your name">
+        </div>
+        
+        <div class="auth-field">
+          <label>Password</label>
+          <div class="password-input-group">
+            <input type="password" id="signupPassword" placeholder="Min 6 characters">
+            <button type="button" class="toggle-password" onclick="togglePassword('signupPassword')">👁</button>
+          </div>
+        </div>
+        
+        <div class="auth-field">
+          <label>Password Hint (optional)</label>
+          <input type="text" id="signupHint" placeholder="E.g., My dog's name + year">
+          <small>Only shown to you if you forget</small>
+        </div>
+        
+        <div class="auth-error" id="signupError"></div>
+        
+        <button class="auth-submit" onclick="handleSignup()">Create Account</button>
+        
+        <p class="auth-switch">Already have an account? <a href="#" onclick="showLoginForm()">Login</a></p>
+      </div>
+      
+      <!-- Login Form -->
+      <div class="auth-form" id="loginForm" style="display: none;">
+        <h2>Welcome Back</h2>
+        <p class="auth-subtitle">Login to your account</p>
+        
+        <div class="auth-field">
+          <label>Phone Number</label>
+          <div class="phone-input-group">
+            <select id="loginCountryCode" onchange="updateLoginPhoneFormat()">
+              <option value="+266">🇱🇸 +266</option>
+              <option value="+27">🇿🇦 +27</option>
+            </select>
+            <input type="tel" id="loginPhone" placeholder="5812 3456" oninput="formatLoginPhoneInput(this)">
+          </div>
+          <small class="phone-format" id="loginPhoneFormatHint">Format: XXXX XXXX</small>
+        </div>
+        
+        <div class="auth-field">
+          <label>Password</label>
+          <div class="password-input-group">
+            <input type="password" id="loginPassword" placeholder="Your password">
+            <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')">👁</button>
+          </div>
+        </div>
+        
+        <div class="auth-error" id="loginError"></div>
+        
+        <button class="auth-submit" onclick="handleLogin()">Login</button>
+        
+        <p class="auth-forgot"><a href="#" onclick="showPasswordHint()">Forgot password?</a></p>
+        <p class="auth-switch">Don't have an account? <a href="#" onclick="showSignupForm()">Sign Up</a></p>
+      </div>
+      
+      <!-- Password Hint Display -->
+      <div class="auth-form" id="hintForm" style="display: none;">
+        <h2>Password Hint</h2>
+        <p class="auth-subtitle">Enter your phone number to see your hint</p>
+        
+        <div class="auth-field">
+          <label>Phone Number</label>
+          <div class="phone-input-group">
+            <select id="hintCountryCode">
+              <option value="+266">🇱🇸 +266</option>
+              <option value="+27">🇿🇦 +27</option>
+            </select>
+            <input type="tel" id="hintPhone" placeholder="5812 3456">
+          </div>
+        </div>
+        
+        <div class="hint-display" id="hintDisplay" style="display: none;">
+          <label>Your hint:</label>
+          <p id="hintText"></p>
+        </div>
+        
+        <div class="auth-error" id="hintError"></div>
+        
+        <button class="auth-submit" onclick="getPasswordHint()">Show Hint</button>
+        
+        <p class="auth-switch"><a href="#" onclick="showLoginForm()">Back to Login</a></p>
+      </div>
+      
+      <!-- Logged In View -->
+      <div class="auth-form" id="loggedInView" style="display: none;">
+        <div class="user-avatar">👤</div>
+        <h2 id="loggedInName">Welcome!</h2>
+        <p class="auth-subtitle" id="loggedInPhone"></p>
+        <p class="user-country" id="loggedInCountry"></p>
+        
+        <div class="logged-in-options">
+          <button class="auth-option" onclick="showComingSoon('Saved Preferences')">
+            <span>⚙️</span> Saved Preferences
+          </button>
+          <button class="auth-option" onclick="showComingSoon('My Reports')">
+            <span>📊</span> My Reports
+          </button>
+        </div>
+        
+        <button class="auth-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
   </div>
