@@ -1046,6 +1046,30 @@
     </footer>
   </div>
 
+  <!-- Lightbox Popup -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    
+    <button class="lightbox-nav lightbox-prev" onclick="lightboxPrev()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 18l-6-6 6-6"/>
+      </svg>
+    </button>
+    
+    <div class="lightbox-content">
+      <img id="lightboxImg" alt="Camera Feed">
+      <div class="lightbox-label" id="lightboxLabel">Bridge</div>
+    </div>
+    
+    <button class="lightbox-nav lightbox-next" onclick="lightboxNext()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+    </button>
+    
+    <div class="lightbox-info" id="lightboxInfo">Captured at --:--:--</div>
+  </div>
+
   <script>
     const chatMessages = document.getElementById('chatMessages');
     const chatInput = document.getElementById('chatInput');
@@ -1582,29 +1606,5 @@ https://4dcs.co.za`;
     refreshCamera();
     setInterval(refreshCamera, 30000); // Refresh every 30 seconds
   </script>
-
-  <!-- Lightbox Popup -->
-  <div class="lightbox" id="lightbox">
-    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
-    
-    <button class="lightbox-nav lightbox-prev" onclick="lightboxPrev()">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M15 18l-6-6 6-6"/>
-      </svg>
-    </button>
-    
-    <div class="lightbox-content">
-      <img id="lightboxImg" alt="Camera Feed">
-      <div class="lightbox-label" id="lightboxLabel">Bridge</div>
-    </div>
-    
-    <button class="lightbox-nav lightbox-next" onclick="lightboxNext()">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 18l6-6-6-6"/>
-      </svg>
-    </button>
-    
-    <div class="lightbox-info" id="lightboxInfo">Captured at --:--:--</div>
-  </div>
 </body>
 </html>
