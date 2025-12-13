@@ -1448,10 +1448,10 @@
         <button class="faq-close" onclick="closeFAQ()">×</button>
       </div>
       <div class="faq-list">
-        <button class="faq-item" onclick="askFAQ('I\\'m going from Lesotho to South Africa, how\\'s the traffic?')">
+        <button class="faq-item" onclick="askFAQ('Going from Lesotho to South Africa, how is the traffic?')">
           🇱🇸→🇿🇦 Going from Lesotho to SA - how's traffic?
         </button>
-        <button class="faq-item" onclick="askFAQ('I\\'m coming from South Africa to Lesotho, how\\'s the traffic?')">
+        <button class="faq-item" onclick="askFAQ('Coming from South Africa to Lesotho, how is the traffic?')">
           🇿🇦→🇱🇸 Coming from SA to Lesotho - how's traffic?
         </button>
         <button class="faq-item" onclick="askFAQ('Is there a queue at Engen petrol station?')">
@@ -1668,15 +1668,18 @@
     }
 
     function askFAQ(question) {
+      event.stopPropagation(); // Prevent modal close
       closeFAQ();
       chatInput.value = question;
-      sendMessage();
+      // Small delay to ensure modal closes first
+      setTimeout(() => {
+        sendMessage();
+      }, 100);
     }
 
-    // Close FAQ when clicking outside
-    document.addEventListener('click', function(e) {
-      const modal = document.getElementById('faqModal');
-      if (e.target === modal) {
+    // Close FAQ when clicking outside (on the overlay only)
+    document.getElementById('faqModal').addEventListener('click', function(e) {
+      if (e.target === this) {
         closeFAQ();
       }
     });
