@@ -13,7 +13,7 @@ const config = {
   port: process.env.PORT || 3000,
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridge.stream_all/playlist.m3u8',
-  captureInterval: 30000,       // Capture every 30 seconds
+  captureInterval: 180000,       // Capture every 3 minutes
   cacheTimeout: 180000,         // Cache analysis for 3 minutes
   maxBufferSize: 12,            // Keep last 12 frames (6 minutes of history)
   analysisFrames: 3,            // Use 3 frames for analysis
