@@ -1590,6 +1590,213 @@ async function startBackgroundCapture() {
   }, config.captureInterval);
 }
 
+// =============================================
+// MESSAGE REACTIONS API
+// =============================================
+
+// Store reaction
+app.post('/api/reactions', async (req, res) => {
+  try {
+    const { messageId, reaction, previousReaction, messageSnippet, userId, timestamp } = req.body;
+
+    // Log reaction for analytics (in production, store in database)
+    console.log(`📊 Reaction: ${reaction || 'removed'} | User: ${userId || 'anonymous'} | Snippet: ${messageSnippet?.substring(0, 50)}...`);
+
+    // Store in Supabase if available
+    if (supabase) {
+      if (reaction) {
+        // Insert or update reaction
+        await supabase.from('message_reactions').upsert({
+          message_id: messageId,
+          user_id: userId,
+          reaction: reaction,
+          message_snippet: messageSnippet?.substring(0, 100),
+          created_at: timestamp
+        }, { onConflict: 'message_id,user_id' });
+      } else if (previousReaction) {
+        // Remove reaction
+        await supabase.from('message_reactions')
+          .delete()
+          .match({ message_id: messageId, user_id: userId || 'anonymous' });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Reaction error:', err);
+    res.json({ success: true }); // Don't fail silently
+  }
+});
+
+// Get reaction stats (for admin dashboard)
+app.get('/api/reactions/stats', async (req, res) => {
+  if (!supabase) {
+    return res.json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    // Get reaction counts
+    const { data: upCount } = await supabase
+      .from('message_reactions')
+      .select('id', { count: 'exact' })
+      .eq('reaction', 'up');
+    
+    const { data: downCount } = await supabase
+      .from('message_reactions')
+      .select('id', { count: 'exact' })
+      .eq('reaction', 'down');
+
+    // Get recent reactions
+    const { data: recent } = await supabase
+      .from('message_reactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    res.json({
+      success: true,
+      stats: {
+        thumbsUp: upCount?.length || 0,
+        thumbsDown: downCount?.length || 0,
+        recent: recent || []
+      }
+    });
+  } catch (err) {
+    console.error('Reaction stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =============================================
+// USER ACTIVITY TRACKING API
+// =============================================
+
+// Track user activity
+app.post('/api/activity/track', async (req, res) => {
+  if (!supabase) {
+    return res.json({ success: true }); // Silently succeed if no DB
+  }
+
+  try {
+    const { userId, action, timestamp } = req.body;
+
+    if (!userId) {
+      return res.json({ success: true });
+    }
+
+    await supabase.from('user_activity').insert({
+      user_id: userId,
+      action: action,
+      created_at: timestamp
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Activity tracking error:', err);
+    res.json({ success: true }); // Don't fail
+  }
+});
+
+// Get user stats
+app.get('/api/activity/stats', async (req, res) => {
+  if (!supabase) {
+    return res.json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.json({ success: false, message: 'User ID required' });
+    }
+
+    // Get this month's check count
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { data: monthlyData, count: monthlyChecks } = await supabase
+      .from('user_activity')
+      .select('*', { count: 'exact' })
+      .eq('user_id', userId)
+      .eq('action', 'status_check')
+      .gte('created_at', startOfMonth.toISOString());
+
+    // Get activity by day of week
+    const { data: activityData } = await supabase
+      .from('user_activity')
+      .select('created_at')
+      .eq('user_id', userId)
+      .eq('action', 'status_check');
+
+    // Calculate favorite day and time
+    let favoriteDay = '--';
+    let favoriteTime = '--';
+    let streak = 0;
+
+    if (activityData && activityData.length > 0) {
+      const dayCount = {};
+      const hourCount = {};
+      const uniqueDays = new Set();
+
+      activityData.forEach(a => {
+        const date = new Date(a.created_at);
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+        const hour = date.getHours();
+        const dateStr = date.toDateString();
+
+        dayCount[dayName] = (dayCount[dayName] || 0) + 1;
+        hourCount[hour] = (hourCount[hour] || 0) + 1;
+        uniqueDays.add(dateStr);
+      });
+
+      // Find favorite day
+      const maxDay = Object.entries(dayCount).sort((a, b) => b[1] - a[1])[0];
+      if (maxDay) favoriteDay = maxDay[0];
+
+      // Find favorite time (group into ranges)
+      const maxHour = Object.entries(hourCount).sort((a, b) => b[1] - a[1])[0];
+      if (maxHour) {
+        const h = parseInt(maxHour[0]);
+        if (h < 6) favoriteTime = 'Night';
+        else if (h < 12) favoriteTime = 'Morning';
+        else if (h < 17) favoriteTime = 'Afternoon';
+        else favoriteTime = 'Evening';
+      }
+
+      // Calculate streak (consecutive days)
+      const sortedDays = Array.from(uniqueDays)
+        .map(d => new Date(d))
+        .sort((a, b) => b - a);
+
+      if (sortedDays.length > 0) {
+        streak = 1;
+        for (let i = 1; i < sortedDays.length; i++) {
+          const diff = (sortedDays[i - 1] - sortedDays[i]) / (1000 * 60 * 60 * 24);
+          if (diff <= 1) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      stats: {
+        monthlyChecks: monthlyChecks || 0,
+        favoriteDay,
+        favoriteTime,
+        streak
+      }
+    });
+  } catch (err) {
+    console.error('Activity stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // Start server
 async function start() {
   console.log('🌉 Maseru Bridge Traffic Bot v2.0');
