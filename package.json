@@ -1,6 +1,6 @@
 {
   "name": "maseru-traffic-bot",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "AI-powered traffic analysis for Maseru Bridge border crossing",
   "main": "server.js",
   "type": "module",

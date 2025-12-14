@@ -1447,6 +1447,207 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// =============================================
+// ADMIN DASHBOARD ROUTES
+// =============================================
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'change-me-in-production';
+const adminSessions = new Set(); // Simple in-memory session store
+
+// Generate a random session token
+function generateToken() {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
+
+// Admin login
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+  
+  if (password === ADMIN_PASSWORD) {
+    const token = generateToken();
+    adminSessions.add(token);
+    
+    // Auto-expire token after 24 hours
+    setTimeout(() => adminSessions.delete(token), 24 * 60 * 60 * 1000);
+    
+    res.json({ success: true, token });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid password' });
+  }
+});
+
+// Admin logout
+app.post('/api/admin/logout', (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) adminSessions.delete(token);
+  res.json({ success: true });
+});
+
+// Middleware to check admin auth
+function requireAdmin(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token || !adminSessions.has(token)) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  }
+  next();
+}
+
+// Admin stats endpoint
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({ success: false, message: 'Database not connected' });
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Get today's readings
+    const { data: todayData, count: todayCount } = await supabase
+      .from('traffic_readings')
+      .select('*', { count: 'exact' })
+      .gte('timestamp', todayStart);
+
+    // Get this week's readings
+    const { count: weekCount } = await supabase
+      .from('traffic_readings')
+      .select('*', { count: 'exact' })
+      .gte('timestamp', weekAgo);
+
+    // Get this month's readings
+    const { count: monthCount } = await supabase
+      .from('traffic_readings')
+      .select('*', { count: 'exact' })
+      .gte('timestamp', monthAgo);
+
+    // Get total readings
+    const { count: totalCount } = await supabase
+      .from('traffic_readings')
+      .select('*', { count: 'exact' });
+
+    // Get hourly distribution for today
+    const hourlyData = {};
+    if (todayData) {
+      todayData.forEach(reading => {
+        const hour = new Date(reading.timestamp).getHours();
+        hourlyData[hour] = (hourlyData[hour] || 0) + 1;
+      });
+    }
+
+    // Get daily counts for the past 7 days
+    const { data: weekData } = await supabase
+      .from('traffic_readings')
+      .select('timestamp')
+      .gte('timestamp', weekAgo)
+      .order('timestamp', { ascending: true });
+
+    const dailyData = {};
+    if (weekData) {
+      weekData.forEach(reading => {
+        const date = new Date(reading.timestamp).toISOString().split('T')[0];
+        dailyData[date] = (dailyData[date] || 0) + 1;
+      });
+    }
+
+    // Get average response time
+    const { data: responseTimeData } = await supabase
+      .from('traffic_readings')
+      .select('response_time_ms')
+      .not('response_time_ms', 'is', null)
+      .gte('timestamp', weekAgo);
+
+    let avgResponseTime = 0;
+    if (responseTimeData && responseTimeData.length > 0) {
+      const sum = responseTimeData.reduce((acc, r) => acc + (r.response_time_ms || 0), 0);
+      avgResponseTime = Math.round(sum / responseTimeData.length);
+    }
+
+    // Get feedback stats
+    let feedbackStats = { total: 0, likes: {}, improvements: {} };
+    const { data: feedbackData, count: feedbackCount } = await supabase
+      .from('feedback')
+      .select('*', { count: 'exact' });
+    
+    if (feedbackData) {
+      feedbackStats.total = feedbackCount || 0;
+      feedbackData.forEach(fb => {
+        if (fb.likes) {
+          fb.likes.forEach(like => {
+            feedbackStats.likes[like] = (feedbackStats.likes[like] || 0) + 1;
+          });
+        }
+        if (fb.improvements) {
+          fb.improvements.forEach(imp => {
+            feedbackStats.improvements[imp] = (feedbackStats.improvements[imp] || 0) + 1;
+          });
+        }
+      });
+    }
+
+    // Get cache stats
+    const cacheStats = {};
+    for (const [category, cached] of Object.entries(responseCache)) {
+      if (cached) {
+        const age = Math.round((now - cached.timestamp) / 1000);
+        cacheStats[category] = { ageSeconds: age, valid: age < (CACHE_TTL / 1000) };
+      } else {
+        cacheStats[category] = null;
+      }
+    }
+
+    res.json({
+      success: true,
+      stats: {
+        questions: {
+          today: todayCount || 0,
+          thisWeek: weekCount || 0,
+          thisMonth: monthCount || 0,
+          total: totalCount || 0
+        },
+        hourlyDistribution: hourlyData,
+        dailyDistribution: dailyData,
+        avgResponseTimeMs: avgResponseTime,
+        feedback: feedbackStats,
+        cache: cacheStats,
+        server: {
+          uptime: Math.round(process.uptime()),
+          bufferSize: screenshotBuffer.length
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin stats error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch stats' });
+  }
+});
+
+// Get recent questions (for admin)
+app.get('/api/admin/questions', requireAdmin, async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({ success: false, message: 'Database not connected' });
+    }
+
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const { data, error } = await supabase
+      .from('traffic_readings')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    res.json({ success: true, questions: data });
+  } catch (error) {
+    console.error('Admin questions error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch questions' });
+  }
+});
+
 app.get('/api/debug', (req, res) => {
   // Count frames by angle type
   const angleCounts = screenshotBuffer.reduce((acc, f) => {
@@ -1992,6 +2193,11 @@ app.post('/api/auth/reset/email', async (req, res) => {
     console.error('Reset email error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
+});
+
+// Admin dashboard page
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 app.get('/', (req, res) => {
