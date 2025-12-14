@@ -1250,11 +1250,16 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    const { phone, countryCode, countryResidence, password, passwordHint, name } = req.body;
+    const { phone, countryCode, countryResidence, password, email, name, securityQ1, securityA1, securityQ2, securityA2 } = req.body;
 
     // Validate required fields
-    if (!phone || !countryCode || !countryResidence || !password) {
+    if (!phone || !countryCode || !countryResidence || !password || !securityQ1 || !securityA1 || !securityQ2 || !securityA2) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    // Validate security questions are different
+    if (securityQ1 === securityQ2) {
+      return res.status(400).json({ success: false, message: 'Please select two different security questions' });
     }
 
     // Validate phone format
@@ -1297,8 +1302,12 @@ app.post('/api/auth/register', async (req, res) => {
         phone_full: phoneFull,
         country_residence: countryResidence,
         password_hash: passwordHash,
-        password_hint: passwordHint || null,
-        name: name || null
+        email: email ? email.toLowerCase() : null,
+        name: name || null,
+        security_q1: securityQ1,
+        security_a1: securityA1.toLowerCase(),
+        security_q2: securityQ2,
+        security_a2: securityA2.toLowerCase()
       })
       .select('id, phone_full, country_residence, name, created_at')
       .single();
@@ -1386,8 +1395,16 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Get password hint
-app.post('/api/auth/hint', async (req, res) => {
+// Helper function to mask email
+function maskEmail(email) {
+  if (!email) return '';
+  const [local, domain] = email.split('@');
+  const maskedLocal = local.charAt(0) + '*'.repeat(Math.max(local.length - 2, 1)) + local.slice(-1);
+  return `${maskedLocal}@${domain}`;
+}
+
+// Password Reset Step 1: Initialize (get security questions)
+app.post('/api/auth/reset/init', async (req, res) => {
   if (!supabase) {
     return res.status(503).json({ success: false, message: 'Database not available' });
   }
@@ -1396,7 +1413,7 @@ app.post('/api/auth/hint', async (req, res) => {
     const { phone, countryCode } = req.body;
 
     if (!phone || !countryCode) {
-      return res.status(400).json({ success: false, message: 'Missing phone number' });
+      return res.status(400).json({ success: false, message: 'Phone number is required' });
     }
 
     const cleanPhone = phone.replace(/\s/g, '');
@@ -1404,7 +1421,7 @@ app.post('/api/auth/hint', async (req, res) => {
 
     const { data: user, error } = await supabase
       .from('traffic_users')
-      .select('password_hint')
+      .select('id, security_q1, security_q2, email')
       .eq('phone_full', phoneFull)
       .single();
 
@@ -1412,17 +1429,148 @@ app.post('/api/auth/hint', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Phone number not found' });
     }
 
-    if (!user.password_hint) {
-      return res.json({ success: true, hint: null, message: 'No password hint set' });
-    }
-
     res.json({
       success: true,
-      hint: user.password_hint
+      userId: user.id,
+      securityQ1: user.security_q1,
+      securityQ2: user.security_q2,
+      hasEmail: !!user.email,
+      maskedEmail: user.email ? maskEmail(user.email) : null
     });
 
   } catch (err) {
-    console.error('Hint error:', err);
+    console.error('Reset init error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Password Reset Step 2: Verify security answers
+app.post('/api/auth/reset/verify', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    const { phone, countryCode, answer1, answer2 } = req.body;
+
+    if (!phone || !countryCode || !answer1 || !answer2) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const cleanPhone = phone.replace(/\s/g, '');
+    const phoneFull = countryCode + cleanPhone;
+
+    const { data: user, error } = await supabase
+      .from('traffic_users')
+      .select('id, security_a1, security_a2')
+      .eq('phone_full', phoneFull)
+      .single();
+
+    if (error || !user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Check both answers (case-insensitive)
+    const answer1Correct = user.security_a1 === answer1.toLowerCase();
+    const answer2Correct = user.security_a2 === answer2.toLowerCase();
+    
+    if (answer1Correct && answer2Correct) {
+      console.log(`✅ Security questions verified for: ${phoneFull}`);
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, message: 'One or both answers are incorrect' });
+    }
+
+  } catch (err) {
+    console.error('Reset verify error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Password Reset Step 3: Complete (set new password)
+app.post('/api/auth/reset/complete', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    const { phone, countryCode, newPassword } = req.body;
+
+    if (!phone || !countryCode || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    const cleanPhone = phone.replace(/\s/g, '');
+    const phoneFull = countryCode + cleanPhone;
+
+    const passwordHash = await hashPassword(newPassword);
+
+    const { error } = await supabase
+      .from('traffic_users')
+      .update({ password_hash: passwordHash })
+      .eq('phone_full', phoneFull);
+
+    if (error) {
+      return res.status(500).json({ success: false, message: 'Failed to update password' });
+    }
+
+    console.log(`✅ Password reset completed for: ${phoneFull}`);
+    res.json({ success: true, message: 'Password reset successfully' });
+
+  } catch (err) {
+    console.error('Reset complete error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Password Reset Fallback: Send reset request to admin
+app.post('/api/auth/reset/email', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    const { phone, countryCode } = req.body;
+
+    if (!phone || !countryCode) {
+      return res.status(400).json({ success: false, message: 'Phone number is required' });
+    }
+
+    const cleanPhone = phone.replace(/\s/g, '');
+    const phoneFull = countryCode + cleanPhone;
+
+    // Get user details
+    const { data: user, error } = await supabase
+      .from('traffic_users')
+      .select('id, name, country_residence, created_at')
+      .eq('phone_full', phoneFull)
+      .single();
+
+    if (error || !user) {
+      // Return success anyway to prevent enumeration
+      return res.json({ success: true, message: 'Reset request sent' });
+    }
+
+    // Log the request (in production, send email to admin@4dcs.co.za)
+    console.log(`📧 Password reset request for admin@4dcs.co.za:`);
+    console.log(`   Phone: ${phoneFull}`);
+    console.log(`   Name: ${user.name || 'Not provided'}`);
+    console.log(`   Country: ${user.country_residence}`);
+    console.log(`   Registered: ${user.created_at}`);
+    
+    // TODO: Send actual email to admin@4dcs.co.za with user details
+    // Use Resend, SendGrid, or similar service
+    // Email should contain: phone number, name, country, registration date
+    // Admin can then manually verify and reset the password
+
+    res.json({ success: true, message: 'Reset request sent to support' });
+
+  } catch (err) {
+    console.error('Reset email error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
