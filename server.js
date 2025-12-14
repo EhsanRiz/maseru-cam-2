@@ -370,7 +370,18 @@ Reply with ONE word only.`
 }
 
 const app = express();
-app.use(compression());  // Gzip compression for faster loading
+
+// Compression with filter to skip SSE streams
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress SSE streams
+    if (req.path === '/api/chat/stream') {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -1034,6 +1045,7 @@ app.post('/api/chat/stream', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    res.flushHeaders(); // Send headers immediately to establish connection
     
     // Prepare frames (same logic as analyzeTraffic)
     const usefulFrames = screenshotBuffer.filter(f => f.angleType !== ANGLE_TYPES.USELESS);
@@ -1065,6 +1077,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
     // Send frame timestamp first
     const latestFrame = framesToUse[framesToUse.length - 1];
+    res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'meta', frameTimestamp: latestFrame.timestamp })}\n\n`);
 
     // Build system prompt (same as analyzeTraffic)
