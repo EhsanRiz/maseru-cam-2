@@ -1,6 +1,7 @@
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import cors from 'cors';
+import compression from 'compression';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
@@ -369,6 +370,7 @@ Reply with ONE word only.`
 }
 
 const app = express();
+app.use(compression());  // Gzip compression for faster loading
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
