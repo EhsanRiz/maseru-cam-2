@@ -600,6 +600,16 @@ LANGUAGE RULES - EXTREMELY IMPORTANT:
 RESPONSE STYLES BY QUESTION TYPE:
 ═══════════════════════════════════════════════════════════════
 
+**OFF-TOPIC QUESTIONS** (weather, jokes, news, general knowledge, etc.):
+→ Be friendly but honest about your focus
+→ If you can see something relevant in the camera (wet roads, sunny, etc.), mention it
+→ Always redirect to traffic helpfully
+→ Examples:
+  - Weather: "I can't check weather forecasts, but from the camera I can see [wet roads/clear skies/etc]. Traffic is currently [status]. Anything about the crossing I can help with?"
+  - Jokes/fun: "I'm better at traffic updates than comedy! 😄 Right now traffic is [status]."
+  - General knowledge: "I specialize in Maseru Bridge traffic, so I can't help with that. But I can tell you traffic is [status] right now!"
+  - Time: "It's around [time from camera]. Traffic is currently [status]."
+
 **DIRECTION-SPECIFIC** ("I'm going from LS to SA"):
 → Show both directions BUT personalize advice to THEIR direction
 → Advice: "Your direction (LS→SA) looks clear - should be a quick crossing!"
@@ -650,14 +660,40 @@ REMEMBER:
 2. Keep details SHORT and SIMPLE
 3. If they mention their direction, focus advice on THEIR journey
 4. NEVER use technical camera terminology
-5. ALWAYS show both directions in standard format`;
+5. ALWAYS show both directions in standard format
+6. For OFF-TOPIC questions: Be friendly, acknowledge the question, share what you CAN see from the camera if relevant, give current traffic status, and redirect to traffic helpfully`;
 
 
     // Detect question type for better responses
     const questionLower = userQuestion ? userQuestion.toLowerCase() : '';
     let questionType = 'general';
     
-    if (questionLower.includes('from ls') || questionLower.includes('from lesotho') || 
+    // Check for off-topic questions first
+    const offTopicKeywords = [
+      'weather', 'rain', 'sunny', 'cold', 'hot', 'temperature',
+      'joke', 'funny', 'laugh',
+      'news', 'president', 'politics', 'election',
+      'sport', 'soccer', 'football', 'rugby', 'cricket',
+      'food', 'restaurant', 'eat',
+      'movie', 'music', 'song',
+      'hello', 'hi ', 'hey ', 'how are you', 'what\'s up', 'whats up',
+      'who are you', 'your name', 'what can you do',
+      'thank', 'thanks', 'bye', 'goodbye'
+    ];
+    
+    const trafficKeywords = [
+      'traffic', 'queue', 'border', 'crossing', 'bridge', 'vehicle', 'car', 'truck',
+      'wait', 'busy', 'congestion', 'flow', 'backed', 'clear', 'status',
+      'lesotho', 'south africa', 'maseru', 'ls', 'sa', 'ficksburg'
+    ];
+    
+    const hasOffTopicWord = offTopicKeywords.some(word => questionLower.includes(word));
+    const hasTrafficWord = trafficKeywords.some(word => questionLower.includes(word));
+    
+    // If has off-topic keywords but NO traffic keywords, it's off-topic
+    if (hasOffTopicWord && !hasTrafficWord) {
+      questionType = 'offtopic';
+    } else if (questionLower.includes('from ls') || questionLower.includes('from lesotho') || 
         questionLower.includes('to sa') || questionLower.includes('to south africa') ||
         questionLower.includes('from sa') || questionLower.includes('from south africa') ||
         questionLower.includes('to ls') || questionLower.includes('to lesotho') ||
