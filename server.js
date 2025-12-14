@@ -1717,6 +1717,81 @@ app.get('/api/reactions/stats', async (req, res) => {
 });
 
 // =============================================
+// FEEDBACK API
+// =============================================
+
+// Store user feedback
+app.post('/api/feedback', async (req, res) => {
+  try {
+    const { likes, improvements, comment, userId, timestamp } = req.body;
+
+    // Log feedback
+    console.log('📝 Feedback received:');
+    console.log(`   Likes: ${likes.join(', ') || 'none'}`);
+    console.log(`   Improvements: ${improvements.join(', ') || 'none'}`);
+    console.log(`   Comment: ${comment || 'none'}`);
+    console.log(`   User: ${userId || 'anonymous'}`);
+
+    // Store in Supabase if available
+    if (supabase) {
+      await supabase.from('user_feedback').insert({
+        user_id: userId,
+        likes: likes,
+        improvements: improvements,
+        comment: comment,
+        created_at: timestamp
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Feedback error:', err);
+    res.json({ success: true }); // Don't fail
+  }
+});
+
+// Get feedback summary (for admin)
+app.get('/api/feedback/stats', async (req, res) => {
+  if (!supabase) {
+    return res.json({ success: false, message: 'Database not available' });
+  }
+
+  try {
+    const { data: feedback } = await supabase
+      .from('user_feedback')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    // Aggregate likes and improvements
+    const likesCount = {};
+    const improvementsCount = {};
+
+    feedback?.forEach(f => {
+      f.likes?.forEach(like => {
+        likesCount[like] = (likesCount[like] || 0) + 1;
+      });
+      f.improvements?.forEach(imp => {
+        improvementsCount[imp] = (improvementsCount[imp] || 0) + 1;
+      });
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        totalResponses: feedback?.length || 0,
+        likes: likesCount,
+        improvements: improvementsCount,
+        recentComments: feedback?.filter(f => f.comment).slice(0, 10) || []
+      }
+    });
+  } catch (err) {
+    console.error('Feedback stats error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// =============================================
 // USER ACTIVITY TRACKING API
 // =============================================
 
