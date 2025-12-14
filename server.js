@@ -43,6 +43,83 @@ let lastAnalysisTime = 0;
 let isCapturing = false;
 let isClassifying = false;
 
+// =============================================
+// RESPONSE CACHE SYSTEM
+// =============================================
+// Cache common question responses to serve instantly
+const responseCache = {
+  status: null,      // "how's traffic", "current status"
+  good_time: null,   // "good time to cross", "should I go"
+  queue: null,       // "how long is the queue"
+  ls_to_sa: null,    // "going from LS to SA"
+  sa_to_ls: null,    // "coming from SA to LS"
+};
+
+const CACHE_TTL = 120000; // 2 minutes in milliseconds
+
+// Categorize a question to determine cache key
+function categorizeQuestion(question) {
+  const q = question.toLowerCase().trim();
+  
+  // Direction-specific questions
+  if (q.match(/from\s*(ls|lesotho)|to\s*(sa|south\s*africa)|ls\s*(to|→)/i) && 
+      !q.match(/from\s*(sa|south\s*africa)/i)) {
+    return 'ls_to_sa';
+  }
+  if (q.match(/from\s*(sa|south\s*africa)|to\s*(ls|lesotho)|sa\s*(to|→)/i) && 
+      !q.match(/from\s*(ls|lesotho)/i)) {
+    return 'sa_to_ls';
+  }
+  
+  // Good time questions
+  if (q.match(/good\s*time|should\s*i\s*(go|cross)|best\s*time|right\s*time|okay\s*to\s*cross|safe\s*to\s*cross/i)) {
+    return 'good_time';
+  }
+  
+  // Queue questions
+  if (q.match(/queue|line|wait|waiting|backed|backup|long/i) && 
+      !q.match(/how.*(traffic|busy|status)/i)) {
+    return 'queue';
+  }
+  
+  // General status questions (most common)
+  if (q.match(/status|traffic|busy|current|now|right\s*now|at\s*the\s*moment|how.*(is|are)|what.*(is|like)/i)) {
+    return 'status';
+  }
+  
+  // No cache for off-topic or unique questions
+  return null;
+}
+
+// Check if cached response is still valid
+function getCachedResponse(category) {
+  if (!category || !responseCache[category]) return null;
+  
+  const cached = responseCache[category];
+  const age = Date.now() - cached.timestamp;
+  
+  if (age < CACHE_TTL) {
+    console.log(`✅ Cache HIT for "${category}" (${Math.round(age/1000)}s old)`);
+    return cached;
+  }
+  
+  console.log(`⏰ Cache EXPIRED for "${category}" (${Math.round(age/1000)}s old)`);
+  return null;
+}
+
+// Store response in cache
+function cacheResponse(category, response, frameTimestamp) {
+  if (!category) return;
+  
+  responseCache[category] = {
+    response: response,
+    frameTimestamp: frameTimestamp,
+    timestamp: Date.now()
+  };
+  
+  console.log(`💾 Cached response for "${category}"`);
+}
+
 // Preserved frames - one for each angle, never evicted
 let preservedFrames = {
   bridge: null,
@@ -1029,6 +1106,21 @@ app.post('/api/chat/stream', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide a message' });
     }
 
+    // Check cache for common questions
+    const questionCategory = categorizeQuestion(message);
+    const cached = getCachedResponse(questionCategory);
+    
+    if (cached) {
+      // Return cached response as instant JSON (no streaming needed)
+      return res.json({
+        success: true,
+        message: cached.response,
+        frameTimestamp: cached.frameTimestamp,
+        cached: true,
+        cacheAge: Math.round((Date.now() - cached.timestamp) / 1000)
+      });
+    }
+
     // Capture frame first
     await captureFrame();
     
@@ -1246,6 +1338,10 @@ Respond appropriately. Be helpful and conversational.`;
     res.write(`data: ${JSON.stringify({ type: 'done', fullText: fullText })}\n\n`);
     res.write('data: [DONE]\n\n');
     
+    // Cache the response for future similar questions
+    const latestFrameTimestamp = framesToUse[framesToUse.length - 1]?.timestamp;
+    cacheResponse(questionCategory, fullText, latestFrameTimestamp);
+    
     // Log to database (async, don't wait)
     logTrafficReading(
       { message: fullText },
@@ -1358,10 +1454,28 @@ app.get('/api/debug', (req, res) => {
     return acc;
   }, {});
   
+  // Get cache status
+  const now = Date.now();
+  const cacheStatus = {};
+  for (const [category, cached] of Object.entries(responseCache)) {
+    if (cached) {
+      const age = Math.round((now - cached.timestamp) / 1000);
+      const isValid = age < (CACHE_TTL / 1000);
+      cacheStatus[category] = {
+        ageSeconds: age,
+        valid: isValid,
+        expiresIn: isValid ? Math.round((CACHE_TTL / 1000) - age) : 0
+      };
+    } else {
+      cacheStatus[category] = null;
+    }
+  }
+  
   res.json({
     streamUrl: config.streamUrl,
     bufferSize: screenshotBuffer.length,
     angleCounts: angleCounts,
+    responseCache: cacheStatus,
     frames: screenshotBuffer.map(f => ({
       timestamp: new Date(f.timestamp).toISOString(),
       angleType: f.angleType,
