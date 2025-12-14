@@ -17,13 +17,11 @@
       --red: #ef4444;
       --yellow: #f59e0b;
       --blue: #3b82f6;
+      --purple: #8b5cf6;
+      --orange: #f97316;
     }
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -32,7 +30,6 @@
       min-height: 100vh;
     }
 
-    /* Login Screen */
     .login-screen {
       display: flex;
       align-items: center;
@@ -53,9 +50,6 @@
     .login-box h1 {
       font-size: 1.5rem;
       margin-bottom: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
     }
 
     .login-box p {
@@ -90,12 +84,9 @@
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
     }
 
-    .login-box button:hover {
-      background: var(--accent-hover);
-    }
+    .login-box button:hover { background: var(--accent-hover); }
 
     .login-error {
       color: var(--red);
@@ -104,7 +95,6 @@
       display: none;
     }
 
-    /* Dashboard */
     .dashboard {
       display: none;
       padding: 1rem;
@@ -123,31 +113,53 @@
 
     .dashboard-header h1 {
       font-size: 1.5rem;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .period-select {
+      padding: 0.5rem 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+
+    .period-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .logout-btn, .refresh-btn {
+      padding: 0.5rem 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
       display: flex;
       align-items: center;
       gap: 0.5rem;
+      font-size: 0.875rem;
     }
 
-    .logout-btn {
-      padding: 0.5rem 1rem;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
+    .logout-btn:hover { border-color: var(--red); color: var(--red); }
+    .refresh-btn:hover { border-color: var(--accent); }
+    .refresh-btn.loading svg { animation: spin 1s linear infinite; }
 
-    .logout-btn:hover {
-      border-color: var(--red);
-      color: var(--red);
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
       margin-bottom: 1.5rem;
     }
 
@@ -155,76 +167,133 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 1.25rem;
+      padding: 1rem;
     }
 
     .stat-card .label {
       color: var(--text-muted);
-      font-size: 0.75rem;
+      font-size: 0.65rem;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.4rem;
     }
 
     .stat-card .value {
-      font-size: 2rem;
+      font-size: 1.5rem;
       font-weight: 700;
       color: var(--accent);
     }
 
     .stat-card .subtext {
       color: var(--text-muted);
-      font-size: 0.75rem;
-      margin-top: 0.25rem;
+      font-size: 0.65rem;
+      margin-top: 0.2rem;
     }
 
-    /* Charts Section */
+    .stat-card.highlight {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%);
+    }
+
     .charts-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 1rem;
       margin-bottom: 1.5rem;
     }
 
     @media (max-width: 500px) {
-      .charts-grid {
-        grid-template-columns: 1fr;
-      }
+      .charts-grid { grid-template-columns: 1fr; }
     }
 
     .chart-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 1.25rem;
+      padding: 1rem;
     }
 
     .chart-card h3 {
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
     }
 
-    /* Hourly Chart */
+    .status-distribution {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 500px) {
+      .status-distribution { grid-template-columns: 1fr; }
+    }
+
+    .direction-stats h4 {
+      font-size: 0.75rem;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .status-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .status-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .status-bar-row .label {
+      width: 65px;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    .status-bar-row .bar-bg {
+      flex: 1;
+      height: 18px;
+      background: var(--bg);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .status-bar-row .bar {
+      height: 100%;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding-left: 0.4rem;
+      font-size: 0.6rem;
+      font-weight: 600;
+      color: white;
+    }
+
+    .status-bar-row .bar.light { background: var(--accent); }
+    .status-bar-row .bar.moderate { background: var(--yellow); }
+    .status-bar-row .bar.heavy { background: var(--orange); }
+    .status-bar-row .bar.severe { background: var(--red); }
+
     .hourly-chart {
       display: flex;
       align-items: flex-end;
-      gap: 4px;
-      height: 120px;
+      gap: 2px;
+      height: 80px;
     }
 
     .hour-bar {
       flex: 1;
       background: var(--accent);
-      border-radius: 4px 4px 0 0;
-      min-height: 4px;
+      border-radius: 2px 2px 0 0;
+      min-height: 2px;
       position: relative;
-      transition: background 0.2s;
+      cursor: pointer;
     }
 
-    .hour-bar:hover {
-      background: var(--accent-hover);
-    }
+    .hour-bar:hover { background: var(--accent-hover); }
 
     .hour-bar .tooltip {
       position: absolute;
@@ -233,54 +302,51 @@
       transform: translateX(-50%);
       background: var(--bg);
       border: 1px solid var(--border);
-      padding: 0.25rem 0.5rem;
+      padding: 0.2rem 0.4rem;
       border-radius: 4px;
-      font-size: 0.7rem;
+      font-size: 0.6rem;
       white-space: nowrap;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.2s;
+      z-index: 10;
     }
 
-    .hour-bar:hover .tooltip {
-      opacity: 1;
-    }
+    .hour-bar:hover .tooltip { opacity: 1; }
 
     .hour-labels {
       display: flex;
-      gap: 4px;
-      margin-top: 0.5rem;
+      gap: 2px;
+      margin-top: 0.4rem;
     }
 
     .hour-labels span {
       flex: 1;
       text-align: center;
-      font-size: 0.6rem;
+      font-size: 0.5rem;
       color: var(--text-muted);
     }
 
-    /* Daily Chart */
     .daily-chart {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 0.35rem;
     }
 
     .daily-row {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.4rem;
     }
 
     .daily-row .day {
       width: 80px;
-      font-size: 0.75rem;
+      font-size: 0.65rem;
       color: var(--text-muted);
     }
 
     .daily-row .bar-container {
       flex: 1;
-      height: 24px;
+      height: 20px;
       background: var(--bg);
       border-radius: 4px;
       overflow: hidden;
@@ -292,74 +358,96 @@
       border-radius: 4px;
       display: flex;
       align-items: center;
-      padding-left: 0.5rem;
-      font-size: 0.7rem;
+      padding-left: 0.4rem;
+      font-size: 0.6rem;
       font-weight: 600;
-      min-width: fit-content;
     }
 
-    /* Feedback Section */
-    .feedback-section {
+    .feedback-section, .recent-section, .suggestions-box {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 1.25rem;
-      margin-bottom: 1.5rem;
+      padding: 1rem;
+      margin-bottom: 1rem;
     }
 
-    .feedback-section h3 {
-      font-size: 0.875rem;
+    .feedback-section h3, .recent-section h3 {
+      font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
     }
 
     .feedback-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
+      gap: 1rem;
     }
 
     @media (max-width: 600px) {
-      .feedback-grid {
-        grid-template-columns: 1fr;
-      }
+      .feedback-grid { grid-template-columns: 1fr; }
     }
 
     .feedback-list h4 {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: var(--accent);
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.5rem;
     }
+
+    .feedback-list.improvements h4 { color: var(--yellow); }
 
     .feedback-item {
       display: flex;
       justify-content: space-between;
-      padding: 0.5rem 0;
+      padding: 0.4rem 0;
       border-bottom: 1px solid var(--border);
-      font-size: 0.8rem;
+      font-size: 0.75rem;
     }
 
-    .feedback-item:last-child {
-      border-bottom: none;
-    }
+    .feedback-item:last-child { border-bottom: none; }
 
     .feedback-item .count {
-      color: var(--accent);
+      background: var(--bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 10px;
+      font-size: 0.65rem;
       font-weight: 600;
+      color: var(--accent);
     }
 
-    /* Recent Questions */
-    .recent-section {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.25rem;
+    .feedback-list.improvements .feedback-item .count { color: var(--yellow); }
+
+    .suggestions-box {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+      border-color: var(--purple);
     }
 
-    .recent-section h3 {
-      font-size: 0.875rem;
+    .suggestions-box h3 {
+      font-size: 0.8rem;
+      color: var(--purple);
+      margin-bottom: 0.75rem;
+    }
+
+    .suggestion-item {
+      display: flex;
+      gap: 0.6rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+    }
+
+    .suggestion-item:last-child { border-bottom: none; }
+
+    .suggestion-item .icon { font-size: 1.1rem; }
+
+    .suggestion-item .title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+
+    .suggestion-item .desc {
+      font-size: 0.7rem;
       color: var(--text-muted);
-      margin-bottom: 1rem;
+      line-height: 1.4;
     }
 
     .questions-list {
@@ -368,32 +456,55 @@
     }
 
     .question-item {
-      padding: 0.75rem;
+      padding: 0.6rem;
       border-bottom: 1px solid var(--border);
-      font-size: 0.8rem;
     }
 
-    .question-item:last-child {
-      border-bottom: none;
+    .question-item:last-child { border-bottom: none; }
+
+    .question-item .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.4rem;
+      flex-wrap: wrap;
+      gap: 0.4rem;
     }
 
     .question-item .time {
       color: var(--text-muted);
-      font-size: 0.7rem;
-      margin-bottom: 0.25rem;
+      font-size: 0.65rem;
     }
 
-    .question-item .response {
-      color: var(--text-muted);
-      margin-top: 0.5rem;
+    .question-item .status-badges {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .question-item .badge {
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.55rem;
+      font-weight: 600;
+    }
+
+    .question-item .badge.light { background: rgba(16, 185, 129, 0.2); color: var(--accent); }
+    .question-item .badge.moderate { background: rgba(245, 158, 11, 0.2); color: var(--yellow); }
+    .question-item .badge.heavy { background: rgba(249, 115, 22, 0.2); color: var(--orange); }
+    .question-item .badge.severe { background: rgba(239, 68, 68, 0.2); color: var(--red); }
+
+    .question-item .summary {
       font-size: 0.75rem;
       line-height: 1.4;
-      max-height: 60px;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      color: var(--text);
     }
 
-    /* Loading State */
+    .question-item .response-time {
+      color: var(--text-muted);
+      font-size: 0.6rem;
+      margin-top: 0.25rem;
+    }
+
     .loading {
       text-align: center;
       padding: 3rem;
@@ -410,72 +521,43 @@
       animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* Cache Status */
     .cache-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 0.5rem;
-      margin-top: 0.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+      gap: 0.4rem;
     }
 
     .cache-item {
       background: var(--bg);
-      padding: 0.5rem;
+      padding: 0.4rem;
       border-radius: 6px;
-      font-size: 0.7rem;
+      font-size: 0.65rem;
+      text-align: center;
     }
 
     .cache-item .name {
       color: var(--text-muted);
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.2rem;
+      font-size: 0.6rem;
     }
 
-    .cache-item .status {
-      font-weight: 600;
-    }
+    .cache-item .status { font-weight: 600; }
+    .cache-item .status.active { color: var(--accent); }
+    .cache-item .status.expired { color: var(--yellow); }
+    .cache-item .status.empty { color: var(--text-muted); }
 
-    .cache-item .status.active {
-      color: var(--accent);
-    }
-
-    .cache-item .status.expired {
-      color: var(--yellow);
-    }
-
-    .cache-item .status.empty {
-      color: var(--text-muted);
-    }
-
-    /* Refresh Button */
-    .refresh-btn {
-      padding: 0.5rem 1rem;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
+    .info-box {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid var(--blue);
       border-radius: 8px;
-      color: var(--text);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.875rem;
-    }
-
-    .refresh-btn:hover {
-      border-color: var(--accent);
-    }
-
-    .refresh-btn.loading svg {
-      animation: spin 1s linear infinite;
+      padding: 0.6rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.75rem;
+      color: var(--blue);
     }
   </style>
 </head>
 <body>
-
-  <!-- Login Screen -->
   <div class="login-screen" id="loginScreen">
     <div class="login-box">
       <h1>🔐 Admin Login</h1>
@@ -486,11 +568,15 @@
     </div>
   </div>
 
-  <!-- Dashboard -->
   <div class="dashboard" id="dashboard">
     <div class="dashboard-header">
       <h1>📊 4D Traffic Bot Admin</h1>
-      <div style="display: flex; gap: 0.5rem;">
+      <div class="header-controls">
+        <select class="period-select" id="periodSelect" onchange="loadStats()">
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+        </select>
         <button class="refresh-btn" onclick="loadStats()" id="refreshBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 4v6h-6M1 20v-6h6"/>
@@ -501,7 +587,6 @@
         <button class="logout-btn" onclick="logout()">Logout</button>
       </div>
     </div>
-
     <div id="statsContent">
       <div class="loading">
         <div class="spinner"></div>
@@ -512,25 +597,18 @@
 
   <script>
     let adminToken = localStorage.getItem('adminToken');
-
-    // Check if already logged in
-    if (adminToken) {
-      showDashboard();
-    }
+    if (adminToken) showDashboard();
 
     async function login() {
       const password = document.getElementById('passwordInput').value;
       const errorEl = document.getElementById('loginError');
-      
       try {
         const res = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password })
         });
-        
         const data = await res.json();
-        
         if (data.success) {
           adminToken = data.token;
           localStorage.setItem('adminToken', adminToken);
@@ -546,10 +624,7 @@
     }
 
     function logout() {
-      fetch('/api/admin/logout', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${adminToken}` }
-      });
+      fetch('/api/admin/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${adminToken}` } });
       localStorage.removeItem('adminToken');
       adminToken = null;
       document.getElementById('loginScreen').style.display = 'flex';
@@ -565,28 +640,17 @@
     async function loadStats() {
       const refreshBtn = document.getElementById('refreshBtn');
       refreshBtn.classList.add('loading');
+      const period = document.getElementById('periodSelect').value;
       
       try {
         const [statsRes, questionsRes] = await Promise.all([
-          fetch('/api/admin/stats', {
-            headers: { 'Authorization': `Bearer ${adminToken}` }
-          }),
-          fetch('/api/admin/questions?limit=20', {
-            headers: { 'Authorization': `Bearer ${adminToken}` }
-          })
+          fetch(`/api/admin/stats?period=${period}`, { headers: { 'Authorization': `Bearer ${adminToken}` } }),
+          fetch(`/api/admin/questions?period=${period}&limit=30`, { headers: { 'Authorization': `Bearer ${adminToken}` } })
         ]);
-
-        if (statsRes.status === 401) {
-          logout();
-          return;
-        }
-
+        if (statsRes.status === 401) { logout(); return; }
         const statsData = await statsRes.json();
         const questionsData = await questionsRes.json();
-
-        if (statsData.success) {
-          renderStats(statsData.stats, questionsData.questions || []);
-        }
+        if (statsData.success) renderStats(statsData.stats, questionsData.questions || [], statsData.period);
       } catch (e) {
         console.error('Failed to load stats:', e);
       } finally {
@@ -594,20 +658,26 @@
       }
     }
 
-    function renderStats(stats, questions) {
+    function renderStats(stats, questions, period) {
       const content = document.getElementById('statsContent');
-      
-      // Format uptime
       const uptime = stats.server.uptime;
       const hours = Math.floor(uptime / 3600);
       const mins = Math.floor((uptime % 3600) / 60);
       const uptimeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      const periodLabels = { today: 'Today', week: 'This Week', month: 'This Month' };
+      const periodLabel = periodLabels[period] || 'Today';
+      const suggestions = generateSuggestions(stats);
 
       content.innerHTML = `
-        <!-- Stats Cards -->
+        <div class="info-box">ℹ️ Showing data for: <strong>${periodLabel}</strong> (${stats.questions.selectedPeriod} questions)</div>
+        
         <div class="stats-grid">
+          <div class="stat-card highlight">
+            <div class="label">${periodLabel}</div>
+            <div class="value">${stats.questions.selectedPeriod}</div>
+          </div>
           <div class="stat-card">
-            <div class="label">Questions Today</div>
+            <div class="label">Today</div>
             <div class="value">${stats.questions.today}</div>
           </div>
           <div class="stat-card">
@@ -619,41 +689,55 @@
             <div class="value">${stats.questions.thisMonth}</div>
           </div>
           <div class="stat-card">
-            <div class="label">Total All Time</div>
+            <div class="label">All Time</div>
             <div class="value">${stats.questions.total}</div>
           </div>
           <div class="stat-card">
-            <div class="label">Avg Response Time</div>
+            <div class="label">Avg Response</div>
             <div class="value">${stats.avgResponseTimeMs > 0 ? (stats.avgResponseTimeMs / 1000).toFixed(1) + 's' : 'N/A'}</div>
           </div>
           <div class="stat-card">
-            <div class="label">Server Uptime</div>
+            <div class="label">Uptime</div>
             <div class="value">${uptimeStr}</div>
-            <div class="subtext">${stats.server.bufferSize} frames in buffer</div>
+            <div class="subtext">${stats.server.bufferSize} frames</div>
           </div>
         </div>
 
-        <!-- Charts -->
+        <div class="chart-card" style="margin-bottom: 1rem;">
+          <h3>🚦 Traffic Status Distribution (${periodLabel})</h3>
+          <div class="status-distribution">${renderStatusDistribution(stats.statusDistribution)}</div>
+        </div>
+
         <div class="charts-grid">
           <div class="chart-card">
-            <h3>📈 Today's Activity by Hour</h3>
+            <h3>📈 Activity by Hour</h3>
             ${renderHourlyChart(stats.hourlyDistribution)}
           </div>
           <div class="chart-card">
-            <h3>📅 Last 7 Days</h3>
+            <h3>📅 Daily Trend</h3>
             ${renderDailyChart(stats.dailyDistribution)}
           </div>
         </div>
 
-        <!-- Cache Status -->
-        <div class="chart-card" style="margin-bottom: 1.5rem;">
-          <h3>💾 Response Cache Status</h3>
-          <div class="cache-grid">
-            ${renderCacheStatus(stats.cache)}
-          </div>
+        <div class="chart-card" style="margin-bottom: 1rem;">
+          <h3>💾 Response Cache</h3>
+          <div class="cache-grid">${renderCacheStatus(stats.cache)}</div>
         </div>
 
-        <!-- Feedback -->
+        ${suggestions.length > 0 ? `
+        <div class="suggestions-box">
+          <h3>💡 Insights & Suggestions</h3>
+          ${suggestions.map(s => `
+            <div class="suggestion-item">
+              <div class="icon">${s.icon}</div>
+              <div>
+                <div class="title">${s.title}</div>
+                <div class="desc">${s.desc}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>` : ''}
+
         <div class="feedback-section">
           <h3>💬 User Feedback (${stats.feedback.total} responses)</h3>
           <div class="feedback-grid">
@@ -661,172 +745,121 @@
               <h4>👍 What Users Like</h4>
               ${renderFeedbackItems(stats.feedback.likes)}
             </div>
-            <div class="feedback-list">
-              <h4>💡 Requested Improvements</h4>
+            <div class="feedback-list improvements">
+              <h4>💡 Improvements Requested</h4>
               ${renderFeedbackItems(stats.feedback.improvements)}
             </div>
           </div>
         </div>
 
-        <!-- Recent Questions -->
         <div class="recent-section">
           <h3>🕐 Recent Questions</h3>
-          <div class="questions-list">
-            ${renderQuestions(questions)}
-          </div>
+          <div class="questions-list">${renderQuestions(questions)}</div>
         </div>
       `;
     }
 
+    function renderStatusDistribution(data) {
+      const statuses = ['LIGHT', 'MODERATE', 'HEAVY', 'SEVERE'];
+      const renderDir = (d, label, flag) => {
+        const total = Object.values(d).reduce((a, b) => a + b, 0) || 1;
+        return `<div class="direction-stats"><h4>${flag} ${label}</h4><div class="status-bars">
+          ${statuses.map(s => {
+            const c = d[s] || 0;
+            const p = Math.round((c / total) * 100);
+            return `<div class="status-bar-row"><div class="label">${s}</div><div class="bar-bg"><div class="bar ${s.toLowerCase()}" style="width:${Math.max(p, c > 0 ? 8 : 0)}%">${c > 0 ? `${c} (${p}%)` : ''}</div></div></div>`;
+          }).join('')}
+        </div></div>`;
+      };
+      return renderDir(data.lsToSa, 'LS → SA', '🇱🇸') + renderDir(data.saToLs, 'SA → LS', '🇿🇦');
+    }
+
     function renderHourlyChart(data) {
-      const maxCount = Math.max(...Object.values(data), 1);
-      let bars = '';
-      let labels = '';
-      
+      const max = Math.max(...Object.values(data), 1);
+      let bars = '', labels = '';
       for (let h = 0; h < 24; h++) {
-        const count = data[h] || 0;
-        const height = (count / maxCount) * 100;
-        bars += `<div class="hour-bar" style="height: ${Math.max(height, 3)}%">
-          <div class="tooltip">${h}:00 - ${count} questions</div>
-        </div>`;
-        
-        if (h % 4 === 0) {
-          labels += `<span>${h}</span>`;
-        } else {
-          labels += `<span></span>`;
-        }
+        const c = data[h] || 0;
+        const ht = (c / max) * 100;
+        bars += `<div class="hour-bar" style="height:${Math.max(ht, 3)}%"><div class="tooltip">${h}:00 - ${c}</div></div>`;
+        labels += h % 4 === 0 ? `<span>${h}</span>` : '<span></span>';
       }
-      
-      return `
-        <div class="hourly-chart">${bars}</div>
-        <div class="hour-labels">${labels}</div>
-      `;
+      return `<div class="hourly-chart">${bars}</div><div class="hour-labels">${labels}</div>`;
     }
 
     function renderDailyChart(data) {
-      const sortedDays = Object.keys(data).sort();
-      const maxCount = Math.max(...Object.values(data), 1);
-      
-      if (sortedDays.length === 0) {
-        return '<p style="color: var(--text-muted); font-size: 0.8rem;">No data yet</p>';
-      }
-      
-      let html = '';
-      sortedDays.forEach(date => {
-        const count = data[date];
-        const width = (count / maxCount) * 100;
-        const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        
-        html += `
-          <div class="daily-row">
-            <div class="day">${dayName}</div>
-            <div class="bar-container">
-              <div class="bar" style="width: ${Math.max(width, 5)}%">${count}</div>
-            </div>
-          </div>
-        `;
-      });
-      
-      return `<div class="daily-chart">${html}</div>`;
+      const days = Object.keys(data).sort().slice(-7);
+      if (!days.length) return '<p style="color:var(--text-muted);font-size:0.75rem">No data yet</p>';
+      const max = Math.max(...Object.values(data), 1);
+      return `<div class="daily-chart">${days.map(d => {
+        const c = data[d], w = (c / max) * 100;
+        const name = new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        return `<div class="daily-row"><div class="day">${name}</div><div class="bar-container"><div class="bar" style="width:${Math.max(w, 5)}%">${c}</div></div></div>`;
+      }).join('')}</div>`;
     }
 
     function renderCacheStatus(cache) {
-      const labels = {
-        status: 'Status',
-        good_time: 'Good Time',
-        queue: 'Queue',
-        ls_to_sa: 'LS→SA',
-        sa_to_ls: 'SA→LS'
-      };
-      
-      let html = '';
-      for (const [key, value] of Object.entries(cache)) {
-        let statusClass, statusText;
-        if (!value) {
-          statusClass = 'empty';
-          statusText = 'Empty';
-        } else if (value.valid) {
-          statusClass = 'active';
-          statusText = `${value.ageSeconds}s ago`;
-        } else {
-          statusClass = 'expired';
-          statusText = 'Expired';
-        }
-        
-        html += `
-          <div class="cache-item">
-            <div class="name">${labels[key] || key}</div>
-            <div class="status ${statusClass}">${statusText}</div>
-          </div>
-        `;
-      }
-      
-      return html;
+      const labels = { status: 'Status', good_time: 'Good Time', queue: 'Queue', ls_to_sa: 'LS→SA', sa_to_ls: 'SA→LS' };
+      return Object.entries(cache).map(([k, v]) => {
+        let cls, txt;
+        if (!v) { cls = 'empty'; txt = 'Empty'; }
+        else if (v.valid) { cls = 'active'; txt = `${v.ageSeconds}s ago`; }
+        else { cls = 'expired'; txt = 'Expired'; }
+        return `<div class="cache-item"><div class="name">${labels[k] || k}</div><div class="status ${cls}">${txt}</div></div>`;
+      }).join('');
     }
 
     function renderFeedbackItems(data) {
-      const labels = {
-        easy: 'Easy to use',
-        fast: 'Fast updates',
-        accurate: 'Accurate info',
-        design: 'Clean design',
-        whatsapp: 'WhatsApp sharing',
-        offline: 'Works offline',
-        faster: 'Faster loading',
-        waittime: 'Wait time estimates',
-        languages: 'More languages',
-        notifications: 'Push notifications',
-        predictions: 'Best time predictions',
-        queue: 'Queue length in mins'
-      };
-      
-      if (Object.keys(data).length === 0) {
-        return '<p style="color: var(--text-muted); font-size: 0.8rem;">No feedback yet</p>';
-      }
-      
-      let html = '';
-      const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]);
-      
-      sorted.forEach(([key, count]) => {
-        html += `
-          <div class="feedback-item">
-            <span>${labels[key] || key}</span>
-            <span class="count">${count}</span>
-          </div>
-        `;
-      });
-      
-      return html;
+      const labels = { easy: 'Easy to use', fast: 'Fast updates', accurate: 'Accurate info', design: 'Clean design', whatsapp: 'WhatsApp sharing', offline: 'Works offline', faster: 'Faster loading', waittime: 'Wait time estimates', languages: 'More languages', notifications: 'Push notifications', predictions: 'Best time predictions', queue: 'Queue length in mins' };
+      if (!Object.keys(data).length) return '<p style="color:var(--text-muted);font-size:0.75rem">No feedback yet</p>';
+      return Object.entries(data).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<div class="feedback-item"><span>${labels[k] || k}</span><span class="count">${c}</span></div>`).join('');
     }
 
     function renderQuestions(questions) {
-      if (!questions || questions.length === 0) {
-        return '<p style="color: var(--text-muted); font-size: 0.8rem;">No questions yet</p>';
-      }
-      
-      let html = '';
-      questions.forEach(q => {
+      if (!questions?.length) return '<p style="color:var(--text-muted);font-size:0.75rem">No questions</p>';
+      return questions.map(q => {
         const time = new Date(q.timestamp).toLocaleString();
-        const response = q.ai_response || '';
-        const truncated = response.length > 150 ? response.substring(0, 150) + '...' : response;
-        
-        html += `
-          <div class="question-item">
-            <div class="time">${time}</div>
-            <div class="response">${truncated.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+        const summary = q.traffic_summary || 'No summary';
+        const ls = q.ls_to_sa_status, sa = q.sa_to_ls_status;
+        const rt = q.response_time_ms ? `${(q.response_time_ms / 1000).toFixed(1)}s` : '';
+        return `<div class="question-item">
+          <div class="header">
+            <span class="time">${time}</span>
+            <div class="status-badges">
+              ${ls ? `<span class="badge ${ls.toLowerCase()}">LS→SA: ${ls}</span>` : ''}
+              ${sa ? `<span class="badge ${sa.toLowerCase()}">SA→LS: ${sa}</span>` : ''}
+            </div>
           </div>
-        `;
-      });
-      
-      return html;
+          <div class="summary">${summary}</div>
+          ${rt ? `<div class="response-time">Response: ${rt}</div>` : ''}
+        </div>`;
+      }).join('');
     }
 
-    // Auto-refresh every 60 seconds
-    setInterval(() => {
-      if (adminToken && document.visibilityState === 'visible') {
-        loadStats();
+    function generateSuggestions(stats) {
+      const suggestions = [];
+      const peaks = Object.entries(stats.hourlyDistribution).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([h]) => `${h}:00`);
+      if (peaks.length) suggestions.push({ icon: '⏰', title: 'Peak Hours', desc: `Most traffic checks at ${peaks.join(', ')}. Great times for promotions!` });
+      
+      const lsLight = stats.statusDistribution.lsToSa.LIGHT || 0;
+      const lsTotal = Object.values(stats.statusDistribution.lsToSa).reduce((a, b) => a + b, 0);
+      if (lsTotal > 10) {
+        const pct = Math.round((lsLight / lsTotal) * 100);
+        if (pct > 70) suggestions.push({ icon: '🟢', title: 'Mostly Light Traffic', desc: `${pct}% light traffic LS→SA. Users benefit from knowing best crossing times.` });
+        else if (pct < 40) suggestions.push({ icon: '🔴', title: 'Busy Border', desc: `Only ${pct}% light traffic. Consider adding wait time estimates.` });
       }
-    }, 60000);
+      
+      const topImp = Object.entries(stats.feedback.improvements || {}).sort((a, b) => b[1] - a[1])[0];
+      if (topImp) {
+        const labels = { notifications: 'Push Notifications', waittime: 'Wait Time Estimates', languages: 'More Languages', predictions: 'Best Time Predictions' };
+        suggestions.push({ icon: '📣', title: 'Top Request', desc: `${topImp[1]} users want "${labels[topImp[0]] || topImp[0]}". Consider prioritizing!` });
+      }
+      
+      if (stats.avgResponseTimeMs > 5000) suggestions.push({ icon: '⚡', title: 'Slow Responses', desc: `Avg ${(stats.avgResponseTimeMs / 1000).toFixed(1)}s response. Consider more caching.` });
+      
+      return suggestions;
+    }
+
+    setInterval(() => { if (adminToken && document.visibilityState === 'visible') loadStats(); }, 60000);
   </script>
 </body>
 </html>
