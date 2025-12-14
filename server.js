@@ -1009,6 +1009,247 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Streaming chat endpoint for faster perceived response
+app.post('/api/chat/stream', async (req, res) => {
+  try {
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ success: false, message: 'Please provide a message' });
+    }
+
+    // Capture frame first
+    await captureFrame();
+    
+    // Check if we have frames
+    if (screenshotBuffer.length === 0) {
+      return res.json({
+        success: false,
+        message: "No camera feed available. Please try again in a moment."
+      });
+    }
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    
+    // Prepare frames (same logic as analyzeTraffic)
+    const usefulFrames = screenshotBuffer.filter(f => f.angleType !== ANGLE_TYPES.USELESS);
+    const framesByAngle = {};
+    usefulFrames.forEach(frame => {
+      if (!framesByAngle[frame.angleType]) {
+        framesByAngle[frame.angleType] = [];
+      }
+      framesByAngle[frame.angleType].push(frame);
+    });
+    
+    const framesToUse = [];
+    const anglePriority = [ANGLE_TYPES.BRIDGE, ANGLE_TYPES.PROCESSING, ANGLE_TYPES.WIDE];
+    
+    for (const angleType of anglePriority) {
+      if (framesByAngle[angleType] && framesByAngle[angleType].length > 0) {
+        const frames = framesByAngle[angleType];
+        framesToUse.push(frames[frames.length - 1]);
+      } else if (preservedFrames[angleType]) {
+        framesToUse.push(preservedFrames[angleType]);
+      }
+    }
+    
+    if (framesToUse.length === 0) {
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'No camera view available' })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      return res.end();
+    }
+
+    // Send frame timestamp first
+    const latestFrame = framesToUse[framesToUse.length - 1];
+    res.write(`data: ${JSON.stringify({ type: 'meta', frameTimestamp: latestFrame.timestamp })}\n\n`);
+
+    // Build system prompt (same as analyzeTraffic)
+    const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
+
+═══════════════════════════════════════════════════════════════
+CAMERA MAPPING (INTERNAL USE ONLY - never reveal to users):
+═══════════════════════════════════════════════════════════════
+BRIDGE VIEW: Left=LS→SA, Right=SA→LS
+CANOPY VIEW: Left(green roof)=SA→LS, Right(wall)=LS→SA  
+ENGEN VIEW: Shows LS→SA approach (backup here = SEVERE)
+
+═══════════════════════════════════════════════════════════════
+TRAFFIC LEVELS:
+═══════════════════════════════════════════════════════════════
+LIGHT: 0-3 vehicles | MODERATE: 4-10 vehicles | HEAVY: 10+ vehicles | SEVERE: Backed to Engen
+
+═══════════════════════════════════════════════════════════════
+LANGUAGE RULES - EXTREMELY IMPORTANT:
+═══════════════════════════════════════════════════════════════
+
+❌ NEVER SAY (technical jargon):
+- "left side", "right side"
+- "orange pole", "wall area", "wall side"  
+- "green roof", "shelter structures", "canopy"
+- "Lesotho approach", "SA approach"
+- "processing area", "processing yard"
+- "Image 1", "Bridge view", "Canopy view"
+
+✅ INSTEAD SAY (user-friendly):
+- "2-3 vehicles heading to SA"
+- "No queue forming"
+- "Bridge is clear"
+- "Light traffic in both directions"
+- "About 5 vehicles waiting"
+
+═══════════════════════════════════════════════════════════════
+RESPONSE STYLES BY QUESTION TYPE:
+═══════════════════════════════════════════════════════════════
+
+**OFF-TOPIC QUESTIONS** (weather, jokes, news, general knowledge, greetings, etc.):
+→ ⚠️ DO NOT use direction boxes [LS_TO_SA] or [SA_TO_LS] format!
+→ Keep response to 1-2 sentences MAX
+→ Be friendly, acknowledge their question briefly
+→ Mention what you CAN see from camera if relevant
+→ Include current status as just a word (LIGHT/MODERATE/HEAVY), not boxes
+
+**DIRECTION-SPECIFIC** ("I'm going from LS to SA"):
+→ Show both directions BUT personalize advice to THEIR direction
+
+**YES/NO QUESTIONS** ("Is there a queue at Engen?"):
+→ Answer directly, don't use direction boxes format
+
+**VISUAL QUESTIONS** ("How does the bridge look?"):
+→ Simple description, don't use direction boxes format
+
+**TIME QUESTIONS** ("What time should I cross?"):
+→ Current status + tips about best times
+
+**GENERAL/DEFAULT** ("How's traffic?", "Current status?"):
+→ Use standard format with BOTH direction boxes
+
+**BORDER INFO** ("What are the hours?"):
+→ "Border operates 6 AM to 10 PM daily. Check official sources to confirm."
+
+═══════════════════════════════════════════════════════════════
+STANDARD FORMAT (for general traffic questions):
+═══════════════════════════════════════════════════════════════
+
+**Traffic:** [One simple sentence]
+
+[LS_TO_SA]
+status: [LIGHT/MODERATE/HEAVY/SEVERE]
+detail: [Simple - e.g., "Only 2 vehicles, no queue." or "About 8 vehicles waiting."]
+[/LS_TO_SA]
+
+[SA_TO_LS]
+status: [LIGHT/MODERATE/HEAVY/SEVERE]
+detail: [Simple - e.g., "Clear with minimal traffic." or "Steady flow, short wait expected."]
+[/SA_TO_LS]
+
+**Advice:** [Practical, personalized if direction mentioned]
+
+⚠️ AI estimate from camera snapshots. Conditions change quickly.
+
+═══════════════════════════════════════════════════════════════
+REMEMBER:
+═══════════════════════════════════════════════════════════════
+1. Sound like a helpful friend, not a robot
+2. Keep details SHORT and SIMPLE
+3. If they mention their direction, focus advice on THEIR journey
+4. NEVER use technical camera terminology
+5. ALWAYS show both directions in standard format
+6. For OFF-TOPIC questions: Be friendly, acknowledge the question, share what you CAN see from the camera if relevant, give current traffic status, and redirect to traffic helpfully`;
+
+    // Detect question type
+    const questionLower = message.toLowerCase();
+    let questionType = 'general';
+    
+    const offTopicKeywords = [
+      'weather', 'rain', 'sunny', 'cold', 'hot', 'temperature',
+      'joke', 'funny', 'laugh', 'news', 'president', 'politics',
+      'hello', 'hi ', 'hey ', 'how are you', 'who are you',
+      'thank', 'thanks', 'bye', 'goodbye'
+    ];
+    
+    const trafficKeywords = [
+      'traffic', 'queue', 'border', 'crossing', 'bridge', 'vehicle', 'car',
+      'wait', 'busy', 'congestion', 'clear', 'status', 'lesotho', 'south africa'
+    ];
+    
+    const hasOffTopicWord = offTopicKeywords.some(word => questionLower.includes(word));
+    const hasTrafficWord = trafficKeywords.some(word => questionLower.includes(word));
+    
+    if (hasOffTopicWord && !hasTrafficWord) {
+      questionType = 'offtopic';
+    }
+
+    // Build content array
+    const content = [];
+    framesToUse.forEach((frame) => {
+      content.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: 'image/jpeg',
+          data: frame.screenshot.toString('base64'),
+        },
+      });
+    });
+
+    let userPrompt;
+    if (questionType === 'offtopic') {
+      userPrompt = `Question type: OFF-TOPIC
+User's question: "${message}"
+
+⚠️ IMPORTANT: This is an off-topic question. DO NOT use direction boxes [LS_TO_SA] or [SA_TO_LS].
+Give a SHORT 1-2 sentence friendly response.`;
+    } else {
+      userPrompt = `User's question: "${message}"
+
+Respond appropriately. Be helpful and conversational.`;
+    }
+
+    content.push({ type: 'text', text: userPrompt });
+
+    // Stream the response
+    const stream = await anthropic.messages.stream({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: content }],
+    });
+
+    let fullText = '';
+    
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        const text = event.delta.text;
+        fullText += text;
+        res.write(`data: ${JSON.stringify({ type: 'text', text: text })}\n\n`);
+      }
+    }
+
+    // Send done signal
+    res.write(`data: ${JSON.stringify({ type: 'done', fullText: fullText })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    
+    // Log to database (async, don't wait)
+    logTrafficReading(
+      { message: fullText },
+      framesToUse.map(f => ({ angleType: f.angleType, timestamp: f.timestamp })),
+      0
+    );
+    
+    res.end();
+    
+  } catch (error) {
+    console.error('Streaming error:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to process your question' })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    res.end();
+  }
+});
+
 app.get('/api/screenshot', async (req, res) => {
   try {
     await captureFrame();
