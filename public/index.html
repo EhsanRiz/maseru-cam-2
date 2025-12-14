@@ -5144,10 +5144,48 @@
             contentDiv.innerHTML = data.message || 'Sorry, I encountered an error.';
           }
         } else {
-          // STREAMING RESPONSE - show text as it arrives
+          // STREAMING RESPONSE - show text with typewriter effect
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
-          let buffer = ''; // Buffer for incomplete chunks
+          let buffer = ''; // Buffer for incomplete SSE chunks
+          
+          // Typewriter state
+          let typewriterQueue = ''; // Characters waiting to be typed
+          let displayedText = ''; // What's currently shown
+          let typewriterInterval = null;
+          let streamingDone = false;
+          const TYPEWRITER_SPEED = 20; // ms per character
+          
+          // Start typewriter interval
+          const startTypewriter = () => {
+            if (typewriterInterval) return;
+            
+            typewriterInterval = setInterval(() => {
+              if (typewriterQueue.length > 0) {
+                // Type next character
+                displayedText += typewriterQueue[0];
+                typewriterQueue = typewriterQueue.slice(1);
+                contentDiv.innerHTML = formatStreamingText(displayedText) + '<span class="streaming-cursor">▊</span>';
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+              } else if (streamingDone) {
+                // Queue empty and streaming done - finalize
+                clearInterval(typewriterInterval);
+                typewriterInterval = null;
+                finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+              }
+              // If queue empty but still streaming, just wait
+            }, TYPEWRITER_SPEED);
+          };
+          
+          // Flush remaining queue instantly (for when we need to finalize)
+          const flushTypewriter = () => {
+            if (typewriterInterval) {
+              clearInterval(typewriterInterval);
+              typewriterInterval = null;
+            }
+            displayedText += typewriterQueue;
+            typewriterQueue = '';
+          };
 
           while (true) {
             const { done, value } = await reader.read();
@@ -5175,13 +5213,16 @@
                     });
                   } else if (parsed.type === 'text') {
                     fullText += parsed.text;
-                    // Update content with streaming cursor
-                    contentDiv.innerHTML = formatStreamingText(fullText) + '<span class="streaming-cursor">▊</span>';
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    typewriterQueue += parsed.text; // Add to typewriter queue
+                    startTypewriter(); // Ensure typewriter is running
                   } else if (parsed.type === 'done') {
-                    // Final update - remove cursor and add full formatting
-                    finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+                    streamingDone = true;
+                    // If typewriter not running (empty queue), finalize now
+                    if (!typewriterInterval) {
+                      finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+                    }
                   } else if (parsed.type === 'error') {
+                    flushTypewriter();
                     contentDiv.innerHTML = parsed.message;
                   }
                 } catch (e) {
@@ -5199,17 +5240,26 @@
               try {
                 const parsed = JSON.parse(data);
                 if (parsed.type === 'done') {
-                  finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+                  streamingDone = true;
+                  if (!typewriterInterval) {
+                    finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+                  }
                 }
               } catch (e) {}
             }
           }
           
-          // If we never got a 'done' event, finalize anyway
-          if (!fullText && contentDiv.querySelector('.streaming-cursor')) {
-            contentDiv.innerHTML = 'No response received. Please try again.';
-          } else if (contentDiv.querySelector('.streaming-cursor')) {
-            finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+          // Mark streaming as done if we exit the loop
+          streamingDone = true;
+          
+          // If typewriter still running, let it finish naturally
+          // If not running and cursor still visible, finalize
+          if (!typewriterInterval && contentDiv.querySelector('.streaming-cursor')) {
+            if (!fullText) {
+              contentDiv.innerHTML = 'No response received. Please try again.';
+            } else {
+              finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+            }
           }
         }
 
