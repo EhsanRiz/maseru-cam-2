@@ -600,15 +600,18 @@ LANGUAGE RULES - EXTREMELY IMPORTANT:
 RESPONSE STYLES BY QUESTION TYPE:
 ═══════════════════════════════════════════════════════════════
 
-**OFF-TOPIC QUESTIONS** (weather, jokes, news, general knowledge, etc.):
-→ Be friendly but honest about your focus
-→ If you can see something relevant in the camera (wet roads, sunny, etc.), mention it
-→ Always redirect to traffic helpfully
-→ Examples:
-  - Weather: "I can't check weather forecasts, but from the camera I can see [wet roads/clear skies/etc]. Traffic is currently [status]. Anything about the crossing I can help with?"
-  - Jokes/fun: "I'm better at traffic updates than comedy! 😄 Right now traffic is [status]."
-  - General knowledge: "I specialize in Maseru Bridge traffic, so I can't help with that. But I can tell you traffic is [status] right now!"
-  - Time: "It's around [time from camera]. Traffic is currently [status]."
+**OFF-TOPIC QUESTIONS** (weather, jokes, news, general knowledge, greetings, etc.):
+→ ⚠️ DO NOT use direction boxes [LS_TO_SA] or [SA_TO_LS] format!
+→ Keep response to 1-2 sentences MAX
+→ Be friendly, acknowledge their question briefly
+→ Mention what you CAN see from camera if relevant
+→ Include current status as just a word (LIGHT/MODERATE/HEAVY), not boxes
+→ Examples (follow these exactly):
+  - "Tell me a joke" → "I'm better at traffic updates than comedy! 😄 Traffic is LIGHT right now - great time to cross!"
+  - "How's the weather?" → "Can't check forecasts, but I see wet roads in the camera. Traffic is LIGHT though!"
+  - "Hi/Hello" → "Hi there! 👋 Traffic at Maseru Bridge is LIGHT right now. How can I help with your crossing?"
+  - "Thanks/Bye" → "Safe travels! 🚗 Traffic is LIGHT if you're heading out now."
+  - "Who are you?" → "I'm your Maseru Bridge traffic assistant! I monitor the border crossing 24/7. Traffic is LIGHT right now."
 
 **DIRECTION-SPECIFIC** ("I'm going from LS to SA"):
 → Show both directions BUT personalize advice to THEIR direction
@@ -730,12 +733,22 @@ REMEMBER:
       });
     });
 
-    const userPrompt = userQuestion 
-      ? `Question type: ${questionType.toUpperCase()}
+    let userPrompt;
+    if (!userQuestion) {
+      userPrompt = `Analyze these camera snapshots from Maseru Bridge border crossing. Give a brief, structured assessment using the standard format with both direction boxes.`;
+    } else if (questionType === 'offtopic') {
+      userPrompt = `Question type: OFF-TOPIC
 User's question: "${userQuestion}"
 
-Respond appropriately for this question type. Be helpful and conversational.`
-      : `Analyze these camera snapshots from Maseru Bridge border crossing. Give a brief, structured assessment using the standard format with both direction boxes.`;
+⚠️ IMPORTANT: This is an off-topic question. DO NOT use direction boxes [LS_TO_SA] or [SA_TO_LS].
+Give a SHORT 1-2 sentence friendly response. Acknowledge their question, mention what you can see from the camera if relevant, and include current traffic status as just a word (LIGHT/MODERATE/HEAVY).
+Example format: "I'm better at traffic than jokes! 😄 Traffic is LIGHT right now - great time to cross!"`;
+    } else {
+      userPrompt = `Question type: ${questionType.toUpperCase()}
+User's question: "${userQuestion}"
+
+Respond appropriately for this question type. Be helpful and conversational.`;
+    }
 
     content.push({
       type: 'text',
