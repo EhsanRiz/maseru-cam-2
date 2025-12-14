@@ -1766,6 +1766,160 @@
       display: flex;
       gap: 0.5rem;
       margin-top: 0.4rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .reaction-buttons {
+      display: flex;
+      gap: 0.25rem;
+      margin-left: auto;
+    }
+
+    .reaction-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .reaction-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--text-muted);
+    }
+
+    .reaction-btn.selected {
+      border-color: var(--accent);
+      background: rgba(16, 185, 129, 0.15);
+    }
+
+    .reaction-btn.selected.thumbs-down {
+      border-color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    .reaction-btn .count {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .reaction-btn.selected .count {
+      color: var(--accent);
+    }
+
+    .reaction-btn.selected.thumbs-down .count {
+      color: #ef4444;
+    }
+
+    /* Offline mode banner */
+    .offline-banner {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin: 0.5rem;
+      display: none;
+    }
+
+    .offline-banner.show {
+      display: block;
+    }
+
+    .offline-banner.warning-orange {
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(249, 115, 22, 0.1));
+      border-color: rgba(249, 115, 22, 0.4);
+    }
+
+    .offline-banner.warning-red {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .offline-banner-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #f59e0b;
+    }
+
+    .offline-banner.warning-orange .offline-banner-header {
+      color: #f97316;
+    }
+
+    .offline-banner.warning-red .offline-banner-header {
+      color: #ef4444;
+    }
+
+    .offline-banner-text {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .offline-banner-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    .offline-retry-btn {
+      margin-top: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .offline-retry-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* User stats in account modal */
+    .user-stats {
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .user-stats-title {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .user-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .user-stat-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .user-stat-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .user-stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
     }
 
     /* Notification Prompt Styles */
@@ -2883,6 +3037,15 @@
               🗑️ Clear
             </button>
           </div>
+          
+          <!-- Offline Mode Banner -->
+          <div class="offline-banner" id="offlineBanner">
+            <div class="offline-banner-header" id="offlineHeader">⚠️ Offline Mode</div>
+            <div class="offline-banner-text" id="offlineText">Showing cached data. Traffic may have changed.</div>
+            <div class="offline-banner-time" id="offlineTime"></div>
+            <button class="offline-retry-btn" onclick="retryConnection()">🔄 Retry Connection</button>
+          </div>
+          
           <div class="chat-messages" id="chatMessages">
             <div class="welcome-message">
               <h2>👋 Ask about border traffic!</h2>
@@ -3462,6 +3625,32 @@
         document.getElementById('loggedInName').textContent = currentUser.name || 'Welcome!';
         document.getElementById('loggedInPhone').textContent = currentUser.phone || '';
         document.getElementById('loggedInCountry').textContent = currentUser.country || '';
+        
+        // Load user stats
+        loadAndDisplayUserStats();
+      }
+    }
+    
+    // Load and display user stats
+    async function loadAndDisplayUserStats() {
+      // Show loading state
+      document.getElementById('statChecks').textContent = '...';
+      document.getElementById('statStreak').textContent = '...';
+      document.getElementById('statFavoriteDay').textContent = '...';
+      document.getElementById('statFavoriteTime').textContent = '...';
+      
+      const stats = await loadUserStats();
+      
+      if (stats) {
+        document.getElementById('statChecks').textContent = stats.monthlyChecks || '0';
+        document.getElementById('statStreak').textContent = stats.streak || '0';
+        document.getElementById('statFavoriteDay').textContent = stats.favoriteDay || '--';
+        document.getElementById('statFavoriteTime').textContent = stats.favoriteTime || '--';
+      } else {
+        document.getElementById('statChecks').textContent = '0';
+        document.getElementById('statStreak').textContent = '0';
+        document.getElementById('statFavoriteDay').textContent = '--';
+        document.getElementById('statFavoriteTime').textContent = '--';
       }
     }
     
@@ -3967,6 +4156,238 @@
       }, 2500);
     }
     
+    // =============================================
+    // MESSAGE REACTIONS
+    // =============================================
+    
+    const REACTIONS_STORAGE_KEY = 'maseru_traffic_reactions';
+    let userReactions = {};
+    
+    // Load reactions from localStorage
+    function loadStoredReactions() {
+      try {
+        const stored = localStorage.getItem(REACTIONS_STORAGE_KEY);
+        if (stored) {
+          userReactions = JSON.parse(stored);
+        }
+      } catch (e) {
+        userReactions = {};
+      }
+    }
+    
+    // Save reactions to localStorage
+    function saveReactions() {
+      localStorage.setItem(REACTIONS_STORAGE_KEY, JSON.stringify(userReactions));
+    }
+    
+    // Handle reaction click
+    async function handleReaction(messageId, reaction, button) {
+      const existingReaction = userReactions[messageId];
+      const buttons = button.parentElement.querySelectorAll('.reaction-btn');
+      
+      // Toggle off if same reaction clicked
+      if (existingReaction === reaction) {
+        delete userReactions[messageId];
+        button.classList.remove('selected');
+        saveReactions();
+        sendReactionToServer(messageId, null, reaction);
+        return;
+      }
+      
+      // Clear other reaction
+      buttons.forEach(btn => btn.classList.remove('selected'));
+      
+      // Apply new reaction
+      userReactions[messageId] = reaction;
+      button.classList.add('selected');
+      if (reaction === 'down') {
+        button.classList.add('thumbs-down');
+      }
+      
+      saveReactions();
+      sendReactionToServer(messageId, reaction, existingReaction);
+    }
+    
+    // Send reaction to server
+    async function sendReactionToServer(messageId, reaction, previousReaction) {
+      try {
+        // Get message context
+        const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+        const messageText = messageEl ? messageEl.querySelector('.message-content')?.textContent?.substring(0, 100) : '';
+        
+        await fetch('/api/reactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messageId,
+            reaction, // 'up', 'down', or null (removed)
+            previousReaction,
+            messageSnippet: messageText,
+            userId: currentUser?.id || null,
+            timestamp: new Date().toISOString()
+          })
+        });
+      } catch (err) {
+        console.log('Failed to send reaction:', err);
+      }
+    }
+    
+    // Load reactions on start
+    loadStoredReactions();
+    
+    // =============================================
+    // USER ACTIVITY TRACKING
+    // =============================================
+    
+    const ACTIVITY_STORAGE_KEY = 'maseru_traffic_activity';
+    
+    // Track status check
+    async function trackStatusCheck() {
+      if (!currentUser) return;
+      
+      try {
+        await fetch('/api/activity/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            action: 'status_check',
+            timestamp: new Date().toISOString()
+          })
+        });
+      } catch (err) {
+        console.log('Failed to track activity:', err);
+      }
+    }
+    
+    // Load user stats
+    async function loadUserStats() {
+      if (!currentUser) return null;
+      
+      try {
+        const response = await fetch(`/api/activity/stats?userId=${currentUser.id}`);
+        const data = await response.json();
+        return data.success ? data.stats : null;
+      } catch (err) {
+        console.log('Failed to load stats:', err);
+        return null;
+      }
+    }
+    
+    // =============================================
+    // OFFLINE MODE
+    // =============================================
+    
+    const OFFLINE_CACHE_KEY = 'maseru_traffic_cache';
+    let isOnline = navigator.onLine;
+    let cachedStatus = null;
+    
+    // Load cached status
+    function loadCachedStatus() {
+      try {
+        const stored = localStorage.getItem(OFFLINE_CACHE_KEY);
+        if (stored) {
+          cachedStatus = JSON.parse(stored);
+        }
+      } catch (e) {
+        cachedStatus = null;
+      }
+    }
+    
+    // Save status to cache
+    function cacheStatus(status, timestamp) {
+      cachedStatus = { status, timestamp, cachedAt: Date.now() };
+      localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(cachedStatus));
+    }
+    
+    // Get cache age in minutes
+    function getCacheAgeMinutes() {
+      if (!cachedStatus) return Infinity;
+      return Math.floor((Date.now() - cachedStatus.cachedAt) / 60000);
+    }
+    
+    // Get offline warning level
+    function getOfflineWarningLevel() {
+      const ageMinutes = getCacheAgeMinutes();
+      if (ageMinutes < 10) return 'fresh';
+      if (ageMinutes < 30) return 'yellow';
+      if (ageMinutes < 60) return 'orange';
+      if (ageMinutes < 120) return 'red';
+      return 'expired';
+    }
+    
+    // Show offline banner
+    function showOfflineBanner() {
+      const banner = document.getElementById('offlineBanner');
+      if (!banner) return;
+      
+      const level = getOfflineWarningLevel();
+      const ageMinutes = getCacheAgeMinutes();
+      
+      banner.classList.remove('warning-orange', 'warning-red');
+      
+      if (level === 'expired' || !cachedStatus) {
+        document.getElementById('offlineHeader').innerHTML = '⚠️ Offline - No Recent Data';
+        document.getElementById('offlineText').textContent = 'Connect to the internet to get current traffic status.';
+        document.getElementById('offlineTime').textContent = '';
+        banner.classList.add('warning-red');
+      } else {
+        let headerText = '⚠️ Offline Mode';
+        let warningText = 'Showing cached data. Traffic may have changed.';
+        
+        if (level === 'orange') {
+          headerText = '⚠️ Data May Be Outdated';
+          warningText = 'This information is over 30 minutes old.';
+          banner.classList.add('warning-orange');
+        } else if (level === 'red') {
+          headerText = '⚠️ Data Is Old';
+          warningText = 'This information is over an hour old and likely outdated.';
+          banner.classList.add('warning-red');
+        }
+        
+        document.getElementById('offlineHeader').innerHTML = headerText;
+        document.getElementById('offlineText').textContent = warningText;
+        document.getElementById('offlineTime').textContent = `Last updated: ${ageMinutes} minute${ageMinutes !== 1 ? 's' : ''} ago`;
+      }
+      
+      banner.classList.add('show');
+    }
+    
+    // Hide offline banner
+    function hideOfflineBanner() {
+      const banner = document.getElementById('offlineBanner');
+      if (banner) {
+        banner.classList.remove('show');
+      }
+    }
+    
+    // Retry connection
+    function retryConnection() {
+      if (navigator.onLine) {
+        hideOfflineBanner();
+        // Trigger a fresh status check
+        document.querySelector('.quick-actions button')?.click();
+      } else {
+        showToast('Still offline. Please check your connection.');
+      }
+    }
+    
+    // Network status listeners
+    window.addEventListener('online', () => {
+      isOnline = true;
+      hideOfflineBanner();
+      showToast('Back online! 🟢');
+    });
+    
+    window.addEventListener('offline', () => {
+      isOnline = false;
+      loadCachedStatus();
+      showOfflineBanner();
+    });
+    
+    // Load cached status on start
+    loadCachedStatus();
+    
     // Load user on page load
     loadStoredUser();
 
@@ -4200,6 +4621,29 @@
       chatInput.value = '';
       chatInput.style.height = 'auto';
 
+      // Check if offline
+      if (!navigator.onLine) {
+        loadCachedStatus();
+        const level = getOfflineWarningLevel();
+        
+        if (level === 'expired' || !cachedStatus) {
+          addMessage("You're offline and I don't have recent cached data. Please connect to the internet to check current traffic.", 'bot');
+          showOfflineBanner();
+          return;
+        }
+        
+        // Show cached data with warning
+        showOfflineBanner();
+        const ageMinutes = getCacheAgeMinutes();
+        const warningPrefix = level === 'red' ? '⚠️ **Warning: This data is over an hour old.**\n\n' :
+                             level === 'orange' ? '⚠️ **Note: This data is over 30 minutes old.**\n\n' : '';
+        addMessage(warningPrefix + cachedStatus.status, 'bot', cachedStatus.timestamp);
+        return;
+      }
+
+      // Hide offline banner if we're online
+      hideOfflineBanner();
+
       isLoading = true;
       sendBtn.disabled = true;
       const typingId = showTypingIndicator();
@@ -4225,12 +4669,34 @@
             });
           }
           addMessage(data.message, 'bot', frameTime);
+          
+          // Cache this status for offline use (only for traffic status responses)
+          if (data.message.includes('[LS_TO_SA]') || data.message.includes('traffic')) {
+            cacheStatus(data.message, frameTime);
+          }
+          
+          // Track activity for logged in users
+          if (currentUser && (message.toLowerCase().includes('traffic') || message.toLowerCase().includes('busy') || message.toLowerCase().includes('queue'))) {
+            trackStatusCheck();
+          }
         } else {
           addMessage(data.message || 'Sorry, I encountered an error.', 'bot');
         }
       } catch (error) {
         removeTypingIndicator(typingId);
-        addMessage('Connection error. Please try again.', 'bot');
+        
+        // If fetch failed, we might have gone offline
+        if (!navigator.onLine) {
+          loadCachedStatus();
+          if (cachedStatus && getOfflineWarningLevel() !== 'expired') {
+            showOfflineBanner();
+            addMessage("Connection lost. Here's the last known status:\n\n" + cachedStatus.status, 'bot', cachedStatus.timestamp);
+          } else {
+            addMessage("Connection error and no recent cached data available. Please try again when online.", 'bot');
+          }
+        } else {
+          addMessage('Connection error. Please try again.', 'bot');
+        }
       } finally {
         isLoading = false;
         sendBtn.disabled = false;
@@ -4364,14 +4830,36 @@
         messageContent = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       }
       
+      // Generate unique message ID for reactions
+      const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      
+      // Add reaction buttons to all bot messages
+      let reactionButtons = '';
+      if (type === 'bot') {
+        reactionButtons = `
+          <div class="reaction-buttons">
+            <button class="reaction-btn" onclick="handleReaction('${messageId}', 'up', this)" data-reaction="up">
+              👍 <span class="count"></span>
+            </button>
+            <button class="reaction-btn" onclick="handleReaction('${messageId}', 'down', this)" data-reaction="down">
+              👎 <span class="count"></span>
+            </button>
+          </div>
+        `;
+      }
+      
       messageDiv.innerHTML = `
         <div class="message-avatar">${type === 'bot' ? '<svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>' : '👤'}</div>
         <div>
           <div class="message-content">${messageContent}</div>
           <div class="message-time">${time}</div>
-          ${shareButton}
+          <div class="message-actions">
+            ${shareButton}
+            ${reactionButtons}
+          </div>
         </div>
       `;
+      messageDiv.dataset.messageId = messageId;
       chatMessages.appendChild(messageDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
       
@@ -4887,6 +5375,29 @@ https://4dcs.co.za`;
         <h2 id="loggedInName">Welcome!</h2>
         <p class="auth-subtitle" id="loggedInPhone"></p>
         <p class="user-country" id="loggedInCountry"></p>
+        
+        <!-- User Stats Section -->
+        <div class="user-stats" id="userStatsSection">
+          <div class="user-stats-title">📊 Your Traffic Stats</div>
+          <div class="user-stats-grid">
+            <div class="user-stat-item">
+              <span class="user-stat-value" id="statChecks">--</span>
+              <span class="user-stat-label">Checks this month</span>
+            </div>
+            <div class="user-stat-item">
+              <span class="user-stat-value" id="statStreak">--</span>
+              <span class="user-stat-label">Day streak</span>
+            </div>
+            <div class="user-stat-item">
+              <span class="user-stat-value" id="statFavoriteDay">--</span>
+              <span class="user-stat-label">Most active day</span>
+            </div>
+            <div class="user-stat-item">
+              <span class="user-stat-value" id="statFavoriteTime">--</span>
+              <span class="user-stat-label">Usual time</span>
+            </div>
+          </div>
+        </div>
         
         <div class="logged-in-options">
           <button class="auth-option" onclick="showComingSoon('Saved Preferences')">
