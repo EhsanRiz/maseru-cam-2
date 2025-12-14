@@ -1499,69 +1499,109 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
       return res.json({ success: false, message: 'Database not connected' });
     }
 
+    const period = req.query.period || 'today'; // today, week, month
     const now = new Date();
+    
+    // Calculate date ranges
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
     const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    let periodStart;
+    switch (period) {
+      case 'week': periodStart = weekAgo; break;
+      case 'month': periodStart = monthAgo; break;
+      default: periodStart = todayStart;
+    }
 
-    // Get today's readings
-    const { data: todayData, count: todayCount } = await supabase
+    // Get readings for selected period
+    const { data: periodData, count: periodCount } = await supabase
+      .from('traffic_readings')
+      .select('*', { count: 'exact' })
+      .gte('timestamp', periodStart)
+      .order('timestamp', { ascending: false });
+
+    // Get counts for all periods (for summary cards)
+    const { count: todayCount } = await supabase
       .from('traffic_readings')
       .select('*', { count: 'exact' })
       .gte('timestamp', todayStart);
 
-    // Get this week's readings
     const { count: weekCount } = await supabase
       .from('traffic_readings')
       .select('*', { count: 'exact' })
       .gte('timestamp', weekAgo);
 
-    // Get this month's readings
     const { count: monthCount } = await supabase
       .from('traffic_readings')
       .select('*', { count: 'exact' })
       .gte('timestamp', monthAgo);
 
-    // Get total readings
     const { count: totalCount } = await supabase
       .from('traffic_readings')
       .select('*', { count: 'exact' });
 
-    // Get hourly distribution for today
+    // Calculate traffic status distribution for selected period
+    const statusDistribution = {
+      lsToSa: { LIGHT: 0, MODERATE: 0, HEAVY: 0, SEVERE: 0 },
+      saToLs: { LIGHT: 0, MODERATE: 0, HEAVY: 0, SEVERE: 0 }
+    };
+    
+    if (periodData) {
+      periodData.forEach(reading => {
+        if (reading.ls_to_sa_status) {
+          statusDistribution.lsToSa[reading.ls_to_sa_status] = 
+            (statusDistribution.lsToSa[reading.ls_to_sa_status] || 0) + 1;
+        }
+        if (reading.sa_to_ls_status) {
+          statusDistribution.saToLs[reading.sa_to_ls_status] = 
+            (statusDistribution.saToLs[reading.sa_to_ls_status] || 0) + 1;
+        }
+      });
+    }
+
+    // Get hourly distribution for selected period
     const hourlyData = {};
-    if (todayData) {
-      todayData.forEach(reading => {
+    if (periodData) {
+      periodData.forEach(reading => {
         const hour = new Date(reading.timestamp).getHours();
         hourlyData[hour] = (hourlyData[hour] || 0) + 1;
       });
     }
 
-    // Get daily counts for the past 7 days
-    const { data: weekData } = await supabase
-      .from('traffic_readings')
-      .select('timestamp')
-      .gte('timestamp', weekAgo)
-      .order('timestamp', { ascending: true });
-
+    // Get daily counts for chart
     const dailyData = {};
-    if (weekData) {
-      weekData.forEach(reading => {
+    if (periodData) {
+      periodData.forEach(reading => {
         const date = new Date(reading.timestamp).toISOString().split('T')[0];
         dailyData[date] = (dailyData[date] || 0) + 1;
       });
     }
 
-    // Get average response time
-    const { data: responseTimeData } = await supabase
-      .from('traffic_readings')
-      .select('response_time_ms')
-      .not('response_time_ms', 'is', null)
-      .gte('timestamp', weekAgo);
-
+    // Calculate average response time for period
     let avgResponseTime = 0;
-    if (responseTimeData && responseTimeData.length > 0) {
-      const sum = responseTimeData.reduce((acc, r) => acc + (r.response_time_ms || 0), 0);
-      avgResponseTime = Math.round(sum / responseTimeData.length);
+    if (periodData && periodData.length > 0) {
+      const validTimes = periodData.filter(r => r.response_time_ms);
+      if (validTimes.length > 0) {
+        const sum = validTimes.reduce((acc, r) => acc + r.response_time_ms, 0);
+        avgResponseTime = Math.round(sum / validTimes.length);
+      }
+    }
+
+    // Analyze question patterns (from traffic_summary)
+    const questionPatterns = {};
+    if (periodData) {
+      periodData.forEach(reading => {
+        if (reading.traffic_summary) {
+          // Categorize by keywords in summary
+          const summary = reading.traffic_summary.toLowerCase();
+          if (summary.includes('light')) questionPatterns['Status: Light'] = (questionPatterns['Status: Light'] || 0) + 1;
+          else if (summary.includes('moderate')) questionPatterns['Status: Moderate'] = (questionPatterns['Status: Moderate'] || 0) + 1;
+          else if (summary.includes('heavy')) questionPatterns['Status: Heavy'] = (questionPatterns['Status: Heavy'] || 0) + 1;
+          else if (summary.includes('severe')) questionPatterns['Status: Severe'] = (questionPatterns['Status: Severe'] || 0) + 1;
+          else questionPatterns['Other'] = (questionPatterns['Other'] || 0) + 1;
+        }
+      });
     }
 
     // Get feedback stats
@@ -1597,18 +1637,26 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
       }
     }
 
+    // Get unique days with activity (proxy for engagement)
+    const uniqueDays = Object.keys(dailyData).length;
+
     res.json({
       success: true,
+      period: period,
       stats: {
         questions: {
           today: todayCount || 0,
           thisWeek: weekCount || 0,
           thisMonth: monthCount || 0,
-          total: totalCount || 0
+          total: totalCount || 0,
+          selectedPeriod: periodCount || 0
         },
+        statusDistribution: statusDistribution,
         hourlyDistribution: hourlyData,
         dailyDistribution: dailyData,
+        questionPatterns: questionPatterns,
         avgResponseTimeMs: avgResponseTime,
+        uniqueActiveDays: uniqueDays,
         feedback: feedbackStats,
         cache: cacheStats,
         server: {
@@ -1632,10 +1680,24 @@ app.get('/api/admin/questions', requireAdmin, async (req, res) => {
     }
 
     const limit = parseInt(req.query.limit) || 50;
+    const period = req.query.period || 'today';
+    
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    let periodStart;
+    switch (period) {
+      case 'week': periodStart = weekAgo; break;
+      case 'month': periodStart = monthAgo; break;
+      default: periodStart = todayStart;
+    }
     
     const { data, error } = await supabase
       .from('traffic_readings')
-      .select('*')
+      .select('id, timestamp, traffic_summary, ls_to_sa_status, ls_to_sa_detail, sa_to_ls_status, sa_to_ls_detail, advice, response_time_ms')
+      .gte('timestamp', periodStart)
       .order('timestamp', { ascending: false })
       .limit(limit);
 
