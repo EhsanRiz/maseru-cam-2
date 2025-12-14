@@ -5115,72 +5115,102 @@
           body: JSON.stringify({ message }),
         });
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+        const contentType = response.headers.get('Content-Type') || '';
         const contentDiv = document.getElementById(`stream-content-${messageId}`);
-        let buffer = ''; // Buffer for incomplete chunks
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
+        
+        // Check if response is cached JSON (instant) or streaming SSE
+        if (contentType.includes('application/json')) {
+          // CACHED RESPONSE - instant!
+          const data = await response.json();
           
-          // Keep the last incomplete line in buffer
-          buffer = lines.pop() || '';
+          if (data.success) {
+            fullText = data.message;
+            if (data.frameTimestamp) {
+              frameTime = new Date(data.frameTimestamp).toLocaleTimeString([], { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+              });
+            }
+            
+            // Show cached indicator briefly
+            if (data.cached) {
+              console.log(`⚡ Cached response (${data.cacheAge}s old)`);
+            }
+            
+            // Finalize immediately
+            finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+          } else {
+            contentDiv.innerHTML = data.message || 'Sorry, I encountered an error.';
+          }
+        } else {
+          // STREAMING RESPONSE - show text as it arrives
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = ''; // Buffer for incomplete chunks
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-              if (data === '[DONE]' || data === '') continue;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-              try {
-                const parsed = JSON.parse(data);
-                
-                if (parsed.type === 'meta' && parsed.frameTimestamp) {
-                  frameTime = new Date(parsed.frameTimestamp).toLocaleTimeString([], { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true 
-                  });
-                } else if (parsed.type === 'text') {
-                  fullText += parsed.text;
-                  // Update content with streaming cursor
-                  contentDiv.innerHTML = formatStreamingText(fullText) + '<span class="streaming-cursor">▊</span>';
-                  chatMessages.scrollTop = chatMessages.scrollHeight;
-                } else if (parsed.type === 'done') {
-                  // Final update - remove cursor and add full formatting
-                  finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
-                } else if (parsed.type === 'error') {
-                  contentDiv.innerHTML = parsed.message;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            
+            // Keep the last incomplete line in buffer
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6).trim();
+                if (data === '[DONE]' || data === '') continue;
+
+                try {
+                  const parsed = JSON.parse(data);
+                  
+                  if (parsed.type === 'meta' && parsed.frameTimestamp) {
+                    frameTime = new Date(parsed.frameTimestamp).toLocaleTimeString([], { 
+                      hour: 'numeric', 
+                      minute: '2-digit',
+                      hour12: true 
+                    });
+                  } else if (parsed.type === 'text') {
+                    fullText += parsed.text;
+                    // Update content with streaming cursor
+                    contentDiv.innerHTML = formatStreamingText(fullText) + '<span class="streaming-cursor">▊</span>';
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                  } else if (parsed.type === 'done') {
+                    // Final update - remove cursor and add full formatting
+                    finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+                  } else if (parsed.type === 'error') {
+                    contentDiv.innerHTML = parsed.message;
+                  }
+                } catch (e) {
+                  // Ignore parse errors for incomplete chunks
+                  console.log('Parse error:', e, 'Data:', data);
                 }
-              } catch (e) {
-                // Ignore parse errors for incomplete chunks
-                console.log('Parse error:', e, 'Data:', data);
               }
             }
           }
-        }
-        
-        // Process any remaining buffer
-        if (buffer.startsWith('data: ')) {
-          const data = buffer.slice(6).trim();
-          if (data && data !== '[DONE]') {
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.type === 'done') {
-                finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
-              }
-            } catch (e) {}
+          
+          // Process any remaining buffer
+          if (buffer.startsWith('data: ')) {
+            const data = buffer.slice(6).trim();
+            if (data && data !== '[DONE]') {
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'done') {
+                  finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+                }
+              } catch (e) {}
+            }
           }
-        }
-        
-        // If we never got a 'done' event, finalize anyway
-        if (!fullText && contentDiv.querySelector('.streaming-cursor')) {
-          contentDiv.innerHTML = 'No response received. Please try again.';
-        } else if (contentDiv.querySelector('.streaming-cursor')) {
-          finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+          
+          // If we never got a 'done' event, finalize anyway
+          if (!fullText && contentDiv.querySelector('.streaming-cursor')) {
+            contentDiv.innerHTML = 'No response received. Please try again.';
+          } else if (contentDiv.querySelector('.streaming-cursor')) {
+            finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+          }
         }
 
         // Haptic feedback
