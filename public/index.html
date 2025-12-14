@@ -3695,6 +3695,125 @@
         localStorage.setItem(THEME_STORAGE_KEY, 'light');
       }
     }
+
+    // =============================================
+    // MODAL FUNCTIONS (defined early for onclick handlers)
+    // =============================================
+    
+    // Alert Settings Modal
+    function openAlertSettings() {
+      const modal = document.getElementById('alertSettings');
+      if (modal) modal.classList.add('show');
+    }
+    
+    function closeAlertSettings() {
+      const modal = document.getElementById('alertSettings');
+      if (modal) modal.classList.remove('show');
+    }
+    
+    // Feedback Modal
+    let selectedLikes = [];
+    let selectedImprovements = [];
+    
+    function openFeedback() {
+      const modal = document.getElementById('feedbackModal');
+      if (modal) {
+        modal.classList.add('show');
+        // Reset form
+        selectedLikes = [];
+        selectedImprovements = [];
+        const form = document.getElementById('feedbackForm');
+        const success = document.getElementById('feedbackSuccess');
+        const comment = document.getElementById('feedbackComment');
+        if (form) form.style.display = 'block';
+        if (success) success.style.display = 'none';
+        if (comment) comment.value = '';
+        // Reset chips
+        document.querySelectorAll('.feedback-chip').forEach(chip => {
+          chip.classList.remove('selected');
+        });
+        // Setup chip handlers
+        setupFeedbackChips();
+      }
+    }
+    
+    function closeFeedback() {
+      const modal = document.getElementById('feedbackModal');
+      if (modal) modal.classList.remove('show');
+    }
+    
+    function setupFeedbackChips() {
+      // Likes chips
+      document.querySelectorAll('#likesChips .feedback-chip').forEach(chip => {
+        chip.onclick = () => {
+          chip.classList.toggle('selected');
+          const value = chip.dataset.value;
+          if (chip.classList.contains('selected')) {
+            if (!selectedLikes.includes(value)) selectedLikes.push(value);
+          } else {
+            selectedLikes = selectedLikes.filter(v => v !== value);
+          }
+        };
+      });
+      
+      // Improvements chips
+      document.querySelectorAll('#improvementsChips .feedback-chip').forEach(chip => {
+        chip.onclick = () => {
+          chip.classList.toggle('selected');
+          const value = chip.dataset.value;
+          if (chip.classList.contains('selected')) {
+            if (!selectedImprovements.includes(value)) selectedImprovements.push(value);
+          } else {
+            selectedImprovements = selectedImprovements.filter(v => v !== value);
+          }
+        };
+      });
+    }
+    
+    async function submitFeedback() {
+      const comment = document.getElementById('feedbackComment').value.trim();
+      const submitBtn = document.getElementById('feedbackSubmitBtn');
+      
+      if (selectedLikes.length === 0 && selectedImprovements.length === 0 && !comment) {
+        alert('Please select at least one option or write a comment.');
+        return;
+      }
+      
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+      
+      try {
+        await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            likes: selectedLikes,
+            improvements: selectedImprovements,
+            comment: comment,
+            userId: typeof currentUser !== 'undefined' ? currentUser?.id : null,
+            timestamp: new Date().toISOString()
+          })
+        });
+        
+        document.getElementById('feedbackForm').style.display = 'none';
+        document.getElementById('feedbackSuccess').style.display = 'block';
+        
+        if ('vibrate' in navigator) {
+          navigator.vibrate([50, 50, 50]);
+        }
+        
+        setTimeout(() => {
+          closeFeedback();
+        }, 2000);
+        
+      } catch (error) {
+        console.log('Feedback error:', error);
+        alert('Could not send feedback. Please try again.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Feedback';
+      }
+    }
     
     // =============================================
     // MAIN APP
