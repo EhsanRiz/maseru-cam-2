@@ -258,7 +258,8 @@
       height: 18px;
       background: var(--bg);
       border-radius: 4px;
-      overflow: hidden;
+      overflow: visible;
+      position: relative;
     }
 
     .status-bar-row .bar {
@@ -267,9 +268,12 @@
       display: flex;
       align-items: center;
       padding-left: 0.4rem;
+      padding-right: 0.4rem;
       font-size: 0.6rem;
       font-weight: 600;
       color: white;
+      white-space: nowrap;
+      min-width: fit-content;
     }
 
     .status-bar-row .bar.light { background: var(--accent); }
