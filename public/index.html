@@ -5054,6 +5054,11 @@
     }
 
     function addMessage(text, type, frameTime = null) {
+      // Haptic feedback for bot responses
+      if (type === 'bot' && 'vibrate' in navigator) {
+        navigator.vibrate(50); // Short 50ms vibration
+      }
+      
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${type}`;
