@@ -1607,7 +1607,7 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     // Get feedback stats
     let feedbackStats = { total: 0, likes: {}, improvements: {} };
     const { data: feedbackData, count: feedbackCount } = await supabase
-      .from('feedback')
+      .from('user_feedback')
       .select('*', { count: 'exact' });
     
     if (feedbackData) {
