@@ -3893,6 +3893,19 @@
         if (welcome) welcome.style.display = 'none';
         welcomeShown = false;
         
+        // Clean up orphaned user messages at the end (questions without responses)
+        // This happens when user refreshes while bot is still streaming
+        while (messages.length > 0 && messages[messages.length - 1].type === 'user') {
+          messages.pop();
+        }
+        
+        // If no valid messages left, show welcome
+        if (messages.length === 0) {
+          if (welcome) welcome.style.display = 'block';
+          welcomeShown = true;
+          return false;
+        }
+        
         // Restore messages
         messages.forEach(msg => {
           let content = msg.content;
@@ -3915,6 +3928,9 @@
           `;
           chatMessages.appendChild(messageDiv);
         });
+        
+        // Update localStorage with cleaned messages
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
         
         // Scroll to bottom after DOM update - use multiple methods for reliability
         requestAnimationFrame(() => {
