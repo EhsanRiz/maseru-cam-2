@@ -1524,6 +1524,19 @@
       border-bottom-right-radius: 4px;
     }
 
+    /* Streaming cursor animation */
+    .streaming-cursor {
+      display: inline-block;
+      color: var(--accent);
+      animation: blink 0.7s infinite;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
     .frame-timestamp {
       font-size: 0.7rem;
       color: var(--accent);
@@ -3408,7 +3421,7 @@
               <!-- Replace this div with Google AdSense code or custom ad -->
               <p>📢 Prime Ad Space Available</p>
               <p>Be the first business travelers see</p>
-              <small><a href="mailto:ads@4dcs.co.za">ads@4dcs.co.za</a> • <a href="tel:+26622323442">+266 2232 3442</a></small>
+              <small><a href="/cdn-cgi/l/email-protection#2342475063174740500d404c0d5942"><span class="__cf_email__" data-cfemail="472623340773232434692428693d26">[email&#160;protected]</span></a> • <a href="tel:+26622323442">+266 2232 3442</a></small>
             </div>
           </div>
         </div>
@@ -3466,7 +3479,7 @@
           <span class="ad-label">Advertisement</span>
           <div class="ad-content">
             <!-- Replace with Google AdSense or custom ad -->
-            <p>📢 Advertise to 1000s of border travelers | <a href="mailto:ads@4dcs.co.za">ads@4dcs.co.za</a></p>
+            <p>📢 Advertise to 1000s of border travelers | <a href="/cdn-cgi/l/email-protection#ed8c899eadd9898e9ec38e82c3978c"><span class="__cf_email__" data-cfemail="0b6a6f784b3f6f687825686425716a">[email&#160;protected]</span></a></p>
           </div>
         </div>
       </div>
@@ -3654,7 +3667,7 @@
   </div>
 
 
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
     // =============================================
     // THEME TOGGLE
     // =============================================
@@ -5075,62 +5088,150 @@
 
       isLoading = true;
       sendBtn.disabled = true;
-      const typingId = showTypingIndicator();
+      
+      // Create streaming message bubble
+      const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message bot';
+      messageDiv.dataset.messageId = messageId;
+      messageDiv.innerHTML = `
+        <div class="message-avatar"><svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg></div>
+        <div>
+          <div class="message-content" id="stream-content-${messageId}"><span class="streaming-cursor">▊</span></div>
+          <div class="message-time">${time}</div>
+        </div>
+      `;
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      let fullText = '';
+      let frameTime = null;
 
       try {
-        const response = await fetch('/api/chat', {
+        const response = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message }),
         });
 
-        const data = await response.json();
-        removeTypingIndicator(typingId);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        const contentDiv = document.getElementById(`stream-content-${messageId}`);
 
-        if (data.success) {
-          // Format frame time in user's local timezone
-          let frameTime = null;
-          if (data.frameTimestamp) {
-            frameTime = new Date(data.frameTimestamp).toLocaleTimeString([], { 
-              hour: 'numeric', 
-              minute: '2-digit',
-              hour12: true 
-            });
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                
+                if (parsed.type === 'meta' && parsed.frameTimestamp) {
+                  frameTime = new Date(parsed.frameTimestamp).toLocaleTimeString([], { 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true 
+                  });
+                } else if (parsed.type === 'text') {
+                  fullText += parsed.text;
+                  // Update content with streaming cursor
+                  contentDiv.innerHTML = formatStreamingText(fullText) + '<span class="streaming-cursor">▊</span>';
+                  chatMessages.scrollTop = chatMessages.scrollHeight;
+                } else if (parsed.type === 'done') {
+                  // Final update - remove cursor and add full formatting
+                  finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time);
+                } else if (parsed.type === 'error') {
+                  contentDiv.innerHTML = parsed.message;
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete chunks
+              }
+            }
           }
-          addMessage(data.message, 'bot', frameTime);
-          
-          // Cache this status for offline use (only for traffic status responses)
-          if (data.message.includes('[LS_TO_SA]') || data.message.includes('traffic')) {
-            cacheStatus(data.message, frameTime);
-          }
-          
-          // Track activity for logged in users
-          if (currentUser && (message.toLowerCase().includes('traffic') || message.toLowerCase().includes('busy') || message.toLowerCase().includes('queue'))) {
-            trackStatusCheck();
-          }
-        } else {
-          addMessage(data.message || 'Sorry, I encountered an error.', 'bot');
         }
-      } catch (error) {
-        removeTypingIndicator(typingId);
+
+        // Haptic feedback
+        if ('vibrate' in navigator) {
+          navigator.vibrate(50);
+        }
         
-        // If fetch failed, we might have gone offline
-        if (!navigator.onLine) {
-          loadCachedStatus();
-          if (cachedStatus && getOfflineWarningLevel() !== 'expired') {
-            showOfflineBanner();
-            addMessage("Connection lost. Here's the last known status:\n\n" + cachedStatus.status, 'bot', cachedStatus.timestamp);
-          } else {
-            addMessage("Connection error and no recent cached data available. Please try again when online.", 'bot');
-          }
-        } else {
-          addMessage('Connection error. Please try again.', 'bot');
+        // Cache this status for offline use
+        if (fullText.includes('[LS_TO_SA]') || fullText.includes('traffic')) {
+          cacheStatus(fullText, frameTime);
         }
+        
+        // Track activity for logged in users
+        if (currentUser && (message.toLowerCase().includes('traffic') || message.toLowerCase().includes('busy'))) {
+          trackStatusCheck();
+        }
+
+      } catch (error) {
+        document.getElementById(`stream-content-${messageId}`).innerHTML = 'Connection error. Please try again.';
       } finally {
         isLoading = false;
         sendBtn.disabled = false;
         chatInput.focus();
+        saveChatHistory();
       }
+    }
+
+    // Format text while streaming (simplified - no direction boxes yet)
+    function formatStreamingText(text) {
+      return text
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    }
+
+    // Finalize the streamed message with full formatting
+    function finalizeStreamedMessage(messageDiv, messageId, fullText, frameTime, time) {
+      const formattedContent = frameTime ? formatBotMessage(fullText, frameTime) : 
+        fullText.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      
+      // Store for sharing
+      if (frameTime) {
+        latestTrafficStatus = { text: fullText, time: frameTime };
+      }
+      
+      const shareButton = frameTime ? `
+        <button class="share-btn" onclick="shareToWhatsApp()">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+          </svg>
+          Share on WhatsApp
+        </button>
+      ` : '';
+      
+      const reactionButtons = `
+        <div class="reaction-buttons">
+          <button class="reaction-btn" onclick="handleReaction('${messageId}', 'up', this)" data-reaction="up">
+            <span class="emoji">👍</span>
+          </button>
+          <button class="reaction-btn thumbs-down" onclick="handleReaction('${messageId}', 'down', this)" data-reaction="down">
+            <span class="emoji">👎</span>
+          </button>
+          <span class="reaction-thanks" id="thanks-${messageId}">Thanks!</span>
+        </div>
+      `;
+      
+      messageDiv.innerHTML = `
+        <div class="message-avatar"><svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg></div>
+        <div>
+          <div class="message-content">${formattedContent}</div>
+          <div class="message-time">${time}</div>
+          <div class="message-actions">
+            ${shareButton}
+            ${reactionButtons}
+          </div>
+        </div>
+      `;
     }
 
     let latestTrafficStatus = null; // Store latest status for sharing
@@ -5794,7 +5895,7 @@ https://4dcs.co.za`;
         
         <div class="fallback-email">
           <p class="fallback-label">Request a password reset via email:</p>
-          <div class="masked-email">admin@4dcs.co.za</div>
+          <div class="masked-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2243464f4b4c62164641510c414d0c5843">[email&#160;protected]</a></div>
           <button class="auth-submit" onclick="handleEmailFallback()">Send Reset Request</button>
           <div class="auth-success" id="emailSentSuccess" style="display: none;">
             <span>✓</span> Request sent! We'll email you shortly.
@@ -5939,7 +6040,7 @@ https://4dcs.co.za`;
   </div>
 
   <!-- Notification JavaScript -->
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
     // Notification state
     const NOTIF_STORAGE_KEY = 'maseru_traffic_notifications';
     let notificationPermission = 'default';
@@ -6337,22 +6438,4 @@ https://4dcs.co.za`;
         setTimeout(showNotificationPrompt, 1000);
       }
       
-      // Extract status and check for notifications
-      if (type === 'bot' && frameTime) {
-        const lsMatch = text.match(/\[LS_TO_SA\][\s\S]*?status:\s*(\w+)/i);
-        const saMatch = text.match(/\[SA_TO_LS\][\s\S]*?status:\s*(\w+)/i);
-        
-        const lsStatus = lsMatch ? lsMatch[1].toUpperCase() : null;
-        const saStatus = saMatch ? saMatch[1].toUpperCase() : null;
-        
-        if (lsStatus && saStatus) {
-          checkAndNotify(lsStatus, saStatus);
-        }
-      }
-    };
-
-    // Initialize on page load
-    initNotifications();
-  </script>
-</body>
-</html>
+      
