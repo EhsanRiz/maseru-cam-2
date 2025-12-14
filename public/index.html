@@ -324,6 +324,19 @@
       opacity: 0.5;
     }
 
+    .settings-item.signout-item {
+      color: var(--text-muted);
+    }
+
+    .settings-item.signout-item:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .settings-item.signout-item:hover svg {
+      color: #ef4444;
+    }
+
     .settings-divider {
       height: 1px;
       background: var(--border);
@@ -559,6 +572,30 @@
       display: block;
     }
 
+    .auth-success {
+      color: var(--accent);
+      font-size: 0.85rem;
+      padding: 0.75rem;
+      background: rgba(16, 185, 129, 0.15);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .auth-success span {
+      width: 20px;
+      height: 20px;
+      background: var(--accent);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+    }
+
     .auth-submit {
       width: 100%;
       padding: 0.75rem;
@@ -699,6 +736,102 @@
     .auth-logout:hover {
       border-color: #ef4444;
       color: #ef4444;
+    }
+
+    .auth-section-title {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin: 1.25rem 0 0.75rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .security-answer {
+      margin-top: 0.5rem;
+    }
+
+    .reset-attempts {
+      font-size: 0.75rem;
+      color: #f59e0b;
+      margin-bottom: 0.75rem;
+    }
+
+    .masked-email {
+      background: var(--bg-secondary);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      color: var(--accent);
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .fallback-divider {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin: 1.25rem 0;
+      position: relative;
+    }
+
+    .fallback-divider::before,
+    .fallback-divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 40%;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .fallback-divider::before { left: 0; }
+    .fallback-divider::after { right: 0; }
+
+    .fallback-label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    .fallback-email {
+      margin-bottom: 0.5rem;
+    }
+
+    .whatsapp-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.85rem;
+      background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .whatsapp-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+    }
+
+    .whatsapp-note {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 0.75rem;
+    }
+
+    .fallback-email {
+      margin-bottom: 0.5rem;
+    }
+
+    .fallback-whatsapp .auth-subtitle {
+      margin-bottom: 0.75rem;
     }
 
     /* Tooltip Styles */
@@ -2664,6 +2797,14 @@
               </svg>
               <span id="authMenuText">Sign Up / Login</span>
             </button>
+            <button class="settings-item signout-item" id="signOutMenuItem" onclick="handleLogout(); closeSettings();" style="display: none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              <span>Sign Out</span>
+            </button>
           </div>
         </div>
         <div class="status-indicator">
@@ -3250,10 +3391,14 @@
     // Update UI based on login state
     function updateAuthUI() {
       const menuText = document.getElementById('authMenuText');
+      const signOutItem = document.getElementById('signOutMenuItem');
+      
       if (currentUser) {
         menuText.textContent = currentUser.name || 'My Account';
+        signOutItem.style.display = 'flex';
       } else {
         menuText.textContent = 'Sign Up / Login';
+        signOutItem.style.display = 'none';
       }
     }
     
@@ -3277,37 +3422,40 @@
     
     // Show signup form
     function showSignupForm() {
+      hideAllAuthForms();
       document.getElementById('signupForm').style.display = 'block';
-      document.getElementById('loginForm').style.display = 'none';
-      document.getElementById('hintForm').style.display = 'none';
-      document.getElementById('loggedInView').style.display = 'none';
       clearAuthErrors();
     }
     
     // Show login form
     function showLoginForm() {
-      document.getElementById('signupForm').style.display = 'none';
+      hideAllAuthForms();
       document.getElementById('loginForm').style.display = 'block';
-      document.getElementById('hintForm').style.display = 'none';
-      document.getElementById('loggedInView').style.display = 'none';
       clearAuthErrors();
     }
     
-    // Show password hint form
-    function showPasswordHint() {
+    // Show reset password form (Step 1)
+    function showResetForm() {
+      hideAllAuthForms();
+      document.getElementById('resetForm').style.display = 'block';
+      resetPasswordState = { phone: '', countryCode: '', attempts: 0, userId: null, hasEmail: false, maskedEmail: '' };
+      clearAuthErrors();
+    }
+    
+    // Hide all auth forms helper
+    function hideAllAuthForms() {
       document.getElementById('signupForm').style.display = 'none';
       document.getElementById('loginForm').style.display = 'none';
-      document.getElementById('hintForm').style.display = 'block';
+      document.getElementById('resetForm').style.display = 'none';
+      document.getElementById('resetQuestionForm').style.display = 'none';
+      document.getElementById('resetNewPasswordForm').style.display = 'none';
+      document.getElementById('resetFallbackForm').style.display = 'none';
       document.getElementById('loggedInView').style.display = 'none';
-      document.getElementById('hintDisplay').style.display = 'none';
-      clearAuthErrors();
     }
     
     // Show logged in view
     function showLoggedInView() {
-      document.getElementById('signupForm').style.display = 'none';
-      document.getElementById('loginForm').style.display = 'none';
-      document.getElementById('hintForm').style.display = 'none';
+      hideAllAuthForms();
       document.getElementById('loggedInView').style.display = 'block';
       
       if (currentUser) {
@@ -3353,10 +3501,10 @@
       
       if (countryCode === '+266') {
         hint.textContent = 'Format: XXXX XXXX';
-        input.placeholder = '5812 3456';
+        input.placeholder = 'XXXX XXXX';
       } else {
         hint.textContent = 'Format: 0XX XXX XXXX';
-        input.placeholder = '082 123 4567';
+        input.placeholder = '0XX XXX XXXX';
       }
       input.value = '';
     }
@@ -3369,10 +3517,10 @@
       
       if (countryCode === '+266') {
         hint.textContent = 'Format: XXXX XXXX';
-        input.placeholder = '5812 3456';
+        input.placeholder = 'XXXX XXXX';
       } else {
         hint.textContent = 'Format: 0XX XXX XXXX';
-        input.placeholder = '082 123 4567';
+        input.placeholder = '0XX XXX XXXX';
       }
       input.value = '';
     }
@@ -3423,6 +3571,24 @@
       input.type = input.type === 'password' ? 'text' : 'password';
     }
     
+    // Prevent selecting same question twice
+    function updateSecurityOptions() {
+      const q1 = document.getElementById('signupSecurityQ1').value;
+      const q2 = document.getElementById('signupSecurityQ2').value;
+      
+      // If same question selected, reset the second one
+      if (q1 === q2) {
+        const q2Select = document.getElementById('signupSecurityQ2');
+        // Find a different option
+        for (let option of q2Select.options) {
+          if (option.value !== q1) {
+            q2Select.value = option.value;
+            break;
+          }
+        }
+      }
+    }
+    
     // Handle signup
     async function handleSignup() {
       clearAuthErrors();
@@ -3431,8 +3597,12 @@
       const countryCode = document.getElementById('signupCountryCode').value;
       const phone = document.getElementById('signupPhone').value;
       const name = document.getElementById('signupName').value.trim();
+      const email = document.getElementById('signupEmail').value.trim();
       const password = document.getElementById('signupPassword').value;
-      const passwordHint = document.getElementById('signupHint').value.trim();
+      const securityQ1 = document.getElementById('signupSecurityQ1').value;
+      const securityA1 = document.getElementById('signupSecurityA1').value.trim();
+      const securityQ2 = document.getElementById('signupSecurityQ2').value;
+      const securityA2 = document.getElementById('signupSecurityA2').value.trim();
       
       // Validate phone
       const cleanPhone = phone.replace(/\s/g, '');
@@ -3445,9 +3615,27 @@
         return;
       }
       
+      // Validate email format if provided
+      if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        showAuthError('signupError', 'Please enter a valid email address');
+        return;
+      }
+      
       // Validate password
       if (password.length < 6) {
         showAuthError('signupError', 'Password must be at least 6 characters');
+        return;
+      }
+      
+      // Validate security questions are different
+      if (securityQ1 === securityQ2) {
+        showAuthError('signupError', 'Please select two different security questions');
+        return;
+      }
+      
+      // Validate security answers
+      if (!securityA1 || !securityA2) {
+        showAuthError('signupError', 'Please answer both security questions');
         return;
       }
       
@@ -3465,8 +3653,12 @@
             countryCode,
             countryResidence,
             password,
-            passwordHint: passwordHint || null,
-            name: name || null
+            email: email || null,
+            name: name || null,
+            securityQ1,
+            securityA1: securityA1.toLowerCase(),
+            securityQ2,
+            securityA2: securityA2.toLowerCase()
           })
         });
         
@@ -3532,52 +3724,227 @@
       }
     }
     
-    // Get password hint
-    async function getPasswordHint() {
+    // Password reset state
+    let resetPasswordState = {
+      phone: '',
+      countryCode: '',
+      attempts: 0,
+      userId: null,
+      hasEmail: false,
+      maskedEmail: ''
+    };
+    
+    // Security question labels
+    const securityQuestionLabels = {
+      birth_city: 'What city were you born in?',
+      mother_maiden: "What is your mother's maiden name?",
+      first_pet: "What was your first pet's name?",
+      primary_school: 'What primary school did you attend?',
+      favorite_movie: 'What is your favorite movie?'
+    };
+    
+    // Handle reset Step 1: Enter phone number
+    async function handleResetStep1() {
       clearAuthErrors();
       
-      const countryCode = document.getElementById('hintCountryCode').value;
-      const phone = document.getElementById('hintPhone').value;
+      const countryCode = document.getElementById('resetCountryCode').value;
+      const phone = document.getElementById('resetPhone').value;
+      const cleanPhone = phone.replace(/\s/g, '');
       
-      if (!phone) {
-        showAuthError('hintError', 'Please enter your phone number');
+      if (!cleanPhone) {
+        showAuthError('resetError', 'Please enter your phone number');
         return;
       }
       
-      const btn = document.querySelector('#hintForm .auth-submit');
+      const btn = document.querySelector('#resetForm .auth-submit');
       btn.disabled = true;
-      btn.textContent = 'Loading...';
+      btn.textContent = 'Checking...';
       
       try {
-        const response = await fetch('/api/auth/hint', {
+        const response = await fetch('/api/auth/reset/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: cleanPhone, countryCode })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Store state
+          resetPasswordState = {
+            phone: cleanPhone,
+            countryCode,
+            attempts: 0,
+            userId: data.userId,
+            hasEmail: data.hasEmail,
+            maskedEmail: data.maskedEmail || '',
+            securityQ1: data.securityQ1,
+            securityQ2: data.securityQ2
+          };
+          
+          // Show both security questions
+          document.getElementById('resetQ1Label').textContent = 
+            securityQuestionLabels[data.securityQ1] || data.securityQ1;
+          document.getElementById('resetQ2Label').textContent = 
+            securityQuestionLabels[data.securityQ2] || data.securityQ2;
+          
+          hideAllAuthForms();
+          document.getElementById('resetQuestionForm').style.display = 'block';
+          document.getElementById('resetAttempts').textContent = '';
+          document.getElementById('resetAnswer1').value = '';
+          document.getElementById('resetAnswer2').value = '';
+        } else {
+          showAuthError('resetError', data.message || 'Phone number not found');
+        }
+      } catch (err) {
+        showAuthError('resetError', 'Connection error. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Continue';
+      }
+    }
+    
+    // Handle reset Step 2: Answer security questions
+    async function handleResetStep2() {
+      clearAuthErrors();
+      
+      const answer1 = document.getElementById('resetAnswer1').value.trim();
+      const answer2 = document.getElementById('resetAnswer2').value.trim();
+      
+      if (!answer1 || !answer2) {
+        showAuthError('resetQuestionError', 'Please answer both questions');
+        return;
+      }
+      
+      const btn = document.querySelector('#resetQuestionForm .auth-submit');
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+      
+      try {
+        const response = await fetch('/api/auth/reset/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            phone: phone.replace(/\s/g, ''),
-            countryCode
+            phone: resetPasswordState.phone,
+            countryCode: resetPasswordState.countryCode,
+            answer1: answer1.toLowerCase(),
+            answer2: answer2.toLowerCase()
           })
         });
         
         const data = await response.json();
         
         if (data.success) {
-          const hintDisplay = document.getElementById('hintDisplay');
-          const hintText = document.getElementById('hintText');
-          
-          if (data.hint) {
-            hintText.textContent = data.hint;
-            hintDisplay.style.display = 'block';
-          } else {
-            showAuthError('hintError', 'No password hint was set for this account');
-          }
+          // Correct answers - show new password form
+          hideAllAuthForms();
+          document.getElementById('resetNewPasswordForm').style.display = 'block';
         } else {
-          showAuthError('hintError', data.message || 'Could not retrieve hint');
+          resetPasswordState.attempts++;
+          
+          if (resetPasswordState.attempts >= 3) {
+            // Show fallback options
+            showResetFallback();
+          } else {
+            const remaining = 3 - resetPasswordState.attempts;
+            document.getElementById('resetAttempts').textContent = 
+              `Incorrect answers. ${remaining} attempt${remaining > 1 ? 's' : ''} remaining.`;
+            showAuthError('resetQuestionError', 'One or both answers are incorrect');
+          }
         }
       } catch (err) {
-        showAuthError('hintError', 'Connection error. Please try again.');
+        showAuthError('resetQuestionError', 'Connection error. Please try again.');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Show Hint';
+        btn.textContent = 'Verify Answers';
+        document.getElementById('resetAnswer1').value = '';
+        document.getElementById('resetAnswer2').value = '';
+      }
+    }
+    
+    // Show fallback options
+    function showResetFallback() {
+      hideAllAuthForms();
+      document.getElementById('resetFallbackForm').style.display = 'block';
+      document.getElementById('emailSentSuccess').style.display = 'none';
+    }
+    
+    // Handle email fallback - sends request to admin
+    async function handleEmailFallback() {
+      const btn = document.querySelector('#resetFallbackForm .auth-submit');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      
+      try {
+        const response = await fetch('/api/auth/reset/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: resetPasswordState.phone,
+            countryCode: resetPasswordState.countryCode
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          document.getElementById('emailSentSuccess').style.display = 'flex';
+          btn.style.display = 'none';
+        }
+      } catch (err) {
+        // Still show success to prevent enumeration
+        document.getElementById('emailSentSuccess').style.display = 'flex';
+        btn.style.display = 'none';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Reset Request';
+      }
+    }
+    
+    // Handle reset Step 3: Set new password
+    async function handleResetStep3() {
+      clearAuthErrors();
+      
+      const newPassword = document.getElementById('resetNewPassword').value;
+      const confirmPassword = document.getElementById('resetConfirmPassword').value;
+      
+      if (newPassword.length < 6) {
+        showAuthError('resetNewPasswordError', 'Password must be at least 6 characters');
+        return;
+      }
+      
+      if (newPassword !== confirmPassword) {
+        showAuthError('resetNewPasswordError', 'Passwords do not match');
+        return;
+      }
+      
+      const btn = document.querySelector('#resetNewPasswordForm .auth-submit');
+      btn.disabled = true;
+      btn.textContent = 'Resetting...';
+      
+      try {
+        const response = await fetch('/api/auth/reset/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: resetPasswordState.phone,
+            countryCode: resetPasswordState.countryCode,
+            newPassword
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showToast('Password reset successfully! 🎉');
+          showLoginForm();
+        } else {
+          showAuthError('resetNewPasswordError', data.message || 'Failed to reset password');
+        }
+      } catch (err) {
+        showAuthError('resetNewPasswordError', 'Connection error. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Reset Password';
       }
     }
     
@@ -4326,7 +4693,7 @@ https://4dcs.co.za`;
               <option value="+266">🇱🇸 +266</option>
               <option value="+27">🇿🇦 +27</option>
             </select>
-            <input type="tel" id="signupPhone" placeholder="5812 3456" oninput="formatPhoneInput(this)">
+            <input type="tel" id="signupPhone" placeholder="XXXX XXXX" oninput="formatPhoneInput(this)">
           </div>
           <small class="phone-format" id="phoneFormatHint">Format: XXXX XXXX</small>
         </div>
@@ -4337,6 +4704,11 @@ https://4dcs.co.za`;
         </div>
         
         <div class="auth-field">
+          <label>Email (optional - backup for password recovery)</label>
+          <input type="email" id="signupEmail" placeholder="you@example.com">
+        </div>
+        
+        <div class="auth-field">
           <label>Password</label>
           <div class="password-input-group">
             <input type="password" id="signupPassword" placeholder="Min 6 characters">
@@ -4344,10 +4716,30 @@ https://4dcs.co.za`;
           </div>
         </div>
         
+        <div class="auth-section-title">Security Questions (for password recovery)</div>
+        
         <div class="auth-field">
-          <label>Password Hint (optional)</label>
-          <input type="text" id="signupHint" placeholder="E.g., My dog's name + year">
-          <small>Only shown to you if you forget</small>
+          <label>Question 1</label>
+          <select id="signupSecurityQ1" onchange="updateSecurityOptions()">
+            <option value="birth_city">What city were you born in?</option>
+            <option value="mother_maiden">What is your mother's maiden name?</option>
+            <option value="first_pet">What was your first pet's name?</option>
+            <option value="primary_school">What primary school did you attend?</option>
+            <option value="favorite_movie">What is your favorite movie?</option>
+          </select>
+          <input type="text" id="signupSecurityA1" placeholder="Your answer" class="security-answer">
+        </div>
+        
+        <div class="auth-field">
+          <label>Question 2</label>
+          <select id="signupSecurityQ2" onchange="updateSecurityOptions()">
+            <option value="mother_maiden">What is your mother's maiden name?</option>
+            <option value="birth_city">What city were you born in?</option>
+            <option value="first_pet">What was your first pet's name?</option>
+            <option value="primary_school">What primary school did you attend?</option>
+            <option value="favorite_movie">What is your favorite movie?</option>
+          </select>
+          <input type="text" id="signupSecurityA2" placeholder="Your answer" class="security-answer">
         </div>
         
         <div class="auth-error" id="signupError"></div>
@@ -4369,7 +4761,7 @@ https://4dcs.co.za`;
               <option value="+266">🇱🇸 +266</option>
               <option value="+27">🇿🇦 +27</option>
             </select>
-            <input type="tel" id="loginPhone" placeholder="5812 3456" oninput="formatLoginPhoneInput(this)">
+            <input type="tel" id="loginPhone" placeholder="XXXX XXXX" oninput="formatLoginPhoneInput(this)">
           </div>
           <small class="phone-format" id="loginPhoneFormatHint">Format: XXXX XXXX</small>
         </div>
@@ -4386,34 +4778,105 @@ https://4dcs.co.za`;
         
         <button class="auth-submit" onclick="handleLogin()">Login</button>
         
-        <p class="auth-forgot"><a href="#" onclick="showPasswordHint()">Forgot password?</a></p>
+        <p class="auth-forgot"><a href="#" onclick="showResetForm()">Forgot password?</a></p>
         <p class="auth-switch">Don't have an account? <a href="#" onclick="showSignupForm()">Sign Up</a></p>
       </div>
       
-      <!-- Password Hint Display -->
-      <div class="auth-form" id="hintForm" style="display: none;">
-        <h2>Password Hint</h2>
-        <p class="auth-subtitle">Enter your phone number to see your hint</p>
+      <!-- Password Reset Form - Step 1: Enter Phone -->
+      <div class="auth-form" id="resetForm" style="display: none;">
+        <h2>Reset Password</h2>
+        <p class="auth-subtitle">Enter your phone number to continue</p>
         
         <div class="auth-field">
           <label>Phone Number</label>
           <div class="phone-input-group">
-            <select id="hintCountryCode">
+            <select id="resetCountryCode">
               <option value="+266">🇱🇸 +266</option>
               <option value="+27">🇿🇦 +27</option>
             </select>
-            <input type="tel" id="hintPhone" placeholder="5812 3456">
+            <input type="tel" id="resetPhone" placeholder="XXXX XXXX">
           </div>
         </div>
         
-        <div class="hint-display" id="hintDisplay" style="display: none;">
-          <label>Your hint:</label>
-          <p id="hintText"></p>
+        <div class="auth-error" id="resetError"></div>
+        
+        <button class="auth-submit" onclick="handleResetStep1()">Continue</button>
+        
+        <p class="auth-switch"><a href="#" onclick="showLoginForm()">Back to Login</a></p>
+      </div>
+      
+      <!-- Password Reset Form - Step 2: Security Questions -->
+      <div class="auth-form" id="resetQuestionForm" style="display: none;">
+        <h2>Security Questions</h2>
+        <p class="auth-subtitle">Answer both questions to reset your password</p>
+        
+        <div class="auth-field">
+          <label id="resetQ1Label">Question 1</label>
+          <input type="text" id="resetAnswer1" placeholder="Your answer">
         </div>
         
-        <div class="auth-error" id="hintError"></div>
+        <div class="auth-field">
+          <label id="resetQ2Label">Question 2</label>
+          <input type="text" id="resetAnswer2" placeholder="Your answer">
+        </div>
         
-        <button class="auth-submit" onclick="getPasswordHint()">Show Hint</button>
+        <div class="reset-attempts" id="resetAttempts"></div>
+        
+        <div class="auth-error" id="resetQuestionError"></div>
+        
+        <button class="auth-submit" onclick="handleResetStep2()">Verify Answers</button>
+        
+        <p class="auth-switch"><a href="#" onclick="showResetForm()">Use different phone</a></p>
+      </div>
+      
+      <!-- Password Reset Form - Step 3: New Password -->
+      <div class="auth-form" id="resetNewPasswordForm" style="display: none;">
+        <h2>Create New Password</h2>
+        <p class="auth-subtitle">Enter your new password</p>
+        
+        <div class="auth-field">
+          <label>New Password</label>
+          <div class="password-input-group">
+            <input type="password" id="resetNewPassword" placeholder="Min 6 characters">
+            <button type="button" class="toggle-password" onclick="togglePassword('resetNewPassword')">👁</button>
+          </div>
+        </div>
+        
+        <div class="auth-field">
+          <label>Confirm Password</label>
+          <div class="password-input-group">
+            <input type="password" id="resetConfirmPassword" placeholder="Confirm password">
+            <button type="button" class="toggle-password" onclick="togglePassword('resetConfirmPassword')">👁</button>
+          </div>
+        </div>
+        
+        <div class="auth-error" id="resetNewPasswordError"></div>
+        
+        <button class="auth-submit" onclick="handleResetStep3()">Reset Password</button>
+      </div>
+      
+      <!-- Password Reset Form - Fallback (after 3 failed attempts) -->
+      <div class="auth-form" id="resetFallbackForm" style="display: none;">
+        <h2>Need Help?</h2>
+        <p class="auth-subtitle">Can't remember your security answers? No problem!</p>
+        
+        <div class="fallback-email">
+          <p class="fallback-label">Request a password reset via email:</p>
+          <div class="masked-email">admin@4dcs.co.za</div>
+          <button class="auth-submit" onclick="handleEmailFallback()">Send Reset Request</button>
+          <div class="auth-success" id="emailSentSuccess" style="display: none;">
+            <span>✓</span> Request sent! We'll email you shortly.
+          </div>
+          <div class="fallback-divider">or</div>
+        </div>
+        
+        <div class="fallback-whatsapp">
+          <p class="fallback-label">Contact us directly on WhatsApp:</p>
+          <a href="https://wa.me/26657299369" target="_blank" class="whatsapp-btn">
+            <span>💬</span> WhatsApp +266 5729 9369
+          </a>
+          <p class="whatsapp-note">We'll verify your identity and help reset your password.</p>
+        </div>
         
         <p class="auth-switch"><a href="#" onclick="showLoginForm()">Back to Login</a></p>
       </div>
