@@ -658,7 +658,7 @@ async function analyzeTraffic(userQuestion = null) {
 ═══════════════════════════════════════════════════════════════
 CAMERA MAPPING (INTERNAL USE ONLY - never reveal to users):
 ═══════════════════════════════════════════════════════════════
-BRIDGE VIEW: Left=LS→SA, Right=SA→LS
+BRIDGE VIEW: Left=SA→LS, Right=LS→SA
 CANOPY VIEW: Left(green roof)=SA→LS, Right(wall)=LS→SA  
 ENGEN VIEW: Shows LS→SA approach (backup here = SEVERE)
 
@@ -1178,7 +1178,7 @@ app.post('/api/chat/stream', async (req, res) => {
 ═══════════════════════════════════════════════════════════════
 CAMERA MAPPING (INTERNAL USE ONLY - never reveal to users):
 ═══════════════════════════════════════════════════════════════
-BRIDGE VIEW: Left=LS→SA, Right=SA→LS
+BRIDGE VIEW: Left=SA→LS, Right=LS→SA
 CANOPY VIEW: Left(green roof)=SA→LS, Right(wall)=LS→SA  
 ENGEN VIEW: Shows LS→SA approach (backup here = SEVERE)
 
