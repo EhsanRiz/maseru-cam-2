@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard | 4D Traffic Bot</title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-card: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Login Screen */
+    .login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+
+    .login-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .login-box h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .login-box p {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .login-box input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .login-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .login-box button {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .login-box button:hover {
+      background: var(--accent-hover);
+    }
+
+    .login-error {
+      color: var(--red);
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    /* Dashboard */
+    .dashboard {
+      display: none;
+      padding: 1rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .dashboard-header h1 {
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .logout-btn {
+      padding: 0.5rem 1rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .logout-btn:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+
+    .stat-card .label {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-card .value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-card .subtext {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Charts Section */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 500px) {
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+
+    .chart-card h3 {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    /* Hourly Chart */
+    .hourly-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 120px;
+    }
+
+    .hour-bar {
+      flex: 1;
+      background: var(--accent);
+      border-radius: 4px 4px 0 0;
+      min-height: 4px;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .hour-bar:hover {
+      background: var(--accent-hover);
+    }
+
+    .hour-bar .tooltip {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .hour-bar:hover .tooltip {
+      opacity: 1;
+    }
+
+    .hour-labels {
+      display: flex;
+      gap: 4px;
+      margin-top: 0.5rem;
+    }
+
+    .hour-labels span {
+      flex: 1;
+      text-align: center;
+      font-size: 0.6rem;
+      color: var(--text-muted);
+    }
+
+    /* Daily Chart */
+    .daily-chart {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .daily-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .daily-row .day {
+      width: 80px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .daily-row .bar-container {
+      flex: 1;
+      height: 24px;
+      background: var(--bg);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .daily-row .bar {
+      height: 100%;
+      background: var(--blue);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding-left: 0.5rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      min-width: fit-content;
+    }
+
+    /* Feedback Section */
+    .feedback-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .feedback-section h3 {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .feedback-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 600px) {
+      .feedback-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .feedback-list h4 {
+      font-size: 0.75rem;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .feedback-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+    }
+
+    .feedback-item:last-child {
+      border-bottom: none;
+    }
+
+    .feedback-item .count {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Recent Questions */
+    .recent-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+
+    .recent-section h3 {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .questions-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .question-item {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+    }
+
+    .question-item:last-child {
+      border-bottom: none;
+    }
+
+    .question-item .time {
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .question-item .response {
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      line-height: 1.4;
+      max-height: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Loading State */
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Cache Status */
+    .cache-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .cache-item {
+      background: var(--bg);
+      padding: 0.5rem;
+      border-radius: 6px;
+      font-size: 0.7rem;
+    }
+
+    .cache-item .name {
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .cache-item .status {
+      font-weight: 600;
+    }
+
+    .cache-item .status.active {
+      color: var(--accent);
+    }
+
+    .cache-item .status.expired {
+      color: var(--yellow);
+    }
+
+    .cache-item .status.empty {
+      color: var(--text-muted);
+    }
+
+    /* Refresh Button */
+    .refresh-btn {
+      padding: 0.5rem 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .refresh-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .refresh-btn.loading svg {
+      animation: spin 1s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login Screen -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-box">
+      <h1>🔐 Admin Login</h1>
+      <p>4D Traffic Bot Dashboard</p>
+      <div class="login-error" id="loginError">Invalid password. Please try again.</div>
+      <input type="password" id="passwordInput" placeholder="Enter admin password" onkeypress="if(event.key==='Enter')login()">
+      <button onclick="login()">Login</button>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard" id="dashboard">
+    <div class="dashboard-header">
+      <h1>📊 4D Traffic Bot Admin</h1>
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="refresh-btn" onclick="loadStats()" id="refreshBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Refresh
+        </button>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div id="statsContent">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 1rem;">Loading stats...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let adminToken = localStorage.getItem('adminToken');
+
+    // Check if already logged in
+    if (adminToken) {
+      showDashboard();
+    }
+
+    async function login() {
+      const password = document.getElementById('passwordInput').value;
+      const errorEl = document.getElementById('loginError');
+      
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          adminToken = data.token;
+          localStorage.setItem('adminToken', adminToken);
+          errorEl.style.display = 'none';
+          showDashboard();
+        } else {
+          errorEl.style.display = 'block';
+        }
+      } catch (e) {
+        errorEl.textContent = 'Connection error. Please try again.';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    function logout() {
+      fetch('/api/admin/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      localStorage.removeItem('adminToken');
+      adminToken = null;
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('dashboard').style.display = 'none';
+    }
+
+    function showDashboard() {
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      loadStats();
+    }
+
+    async function loadStats() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      refreshBtn.classList.add('loading');
+      
+      try {
+        const [statsRes, questionsRes] = await Promise.all([
+          fetch('/api/admin/stats', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+          }),
+          fetch('/api/admin/questions?limit=20', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+          })
+        ]);
+
+        if (statsRes.status === 401) {
+          logout();
+          return;
+        }
+
+        const statsData = await statsRes.json();
+        const questionsData = await questionsRes.json();
+
+        if (statsData.success) {
+          renderStats(statsData.stats, questionsData.questions || []);
+        }
+      } catch (e) {
+        console.error('Failed to load stats:', e);
+      } finally {
+        refreshBtn.classList.remove('loading');
+      }
+    }
+
+    function renderStats(stats, questions) {
+      const content = document.getElementById('statsContent');
+      
+      // Format uptime
+      const uptime = stats.server.uptime;
+      const hours = Math.floor(uptime / 3600);
+      const mins = Math.floor((uptime % 3600) / 60);
+      const uptimeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+
+      content.innerHTML = `
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="label">Questions Today</div>
+            <div class="value">${stats.questions.today}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">This Week</div>
+            <div class="value">${stats.questions.thisWeek}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">This Month</div>
+            <div class="value">${stats.questions.thisMonth}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Total All Time</div>
+            <div class="value">${stats.questions.total}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Avg Response Time</div>
+            <div class="value">${stats.avgResponseTimeMs > 0 ? (stats.avgResponseTimeMs / 1000).toFixed(1) + 's' : 'N/A'}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Server Uptime</div>
+            <div class="value">${uptimeStr}</div>
+            <div class="subtext">${stats.server.bufferSize} frames in buffer</div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>📈 Today's Activity by Hour</h3>
+            ${renderHourlyChart(stats.hourlyDistribution)}
+          </div>
+          <div class="chart-card">
+            <h3>📅 Last 7 Days</h3>
+            ${renderDailyChart(stats.dailyDistribution)}
+          </div>
+        </div>
+
+        <!-- Cache Status -->
+        <div class="chart-card" style="margin-bottom: 1.5rem;">
+          <h3>💾 Response Cache Status</h3>
+          <div class="cache-grid">
+            ${renderCacheStatus(stats.cache)}
+          </div>
+        </div>
+
+        <!-- Feedback -->
+        <div class="feedback-section">
+          <h3>💬 User Feedback (${stats.feedback.total} responses)</h3>
+          <div class="feedback-grid">
+            <div class="feedback-list">
+              <h4>👍 What Users Like</h4>
+              ${renderFeedbackItems(stats.feedback.likes)}
+            </div>
+            <div class="feedback-list">
+              <h4>💡 Requested Improvements</h4>
+              ${renderFeedbackItems(stats.feedback.improvements)}
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Questions -->
+        <div class="recent-section">
+          <h3>🕐 Recent Questions</h3>
+          <div class="questions-list">
+            ${renderQuestions(questions)}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderHourlyChart(data) {
+      const maxCount = Math.max(...Object.values(data), 1);
+      let bars = '';
+      let labels = '';
+      
+      for (let h = 0; h < 24; h++) {
+        const count = data[h] || 0;
+        const height = (count / maxCount) * 100;
+        bars += `<div class="hour-bar" style="height: ${Math.max(height, 3)}%">
+          <div class="tooltip">${h}:00 - ${count} questions</div>
+        </div>`;
+        
+        if (h % 4 === 0) {
+          labels += `<span>${h}</span>`;
+        } else {
+          labels += `<span></span>`;
+        }
+      }
+      
+      return `
+        <div class="hourly-chart">${bars}</div>
+        <div class="hour-labels">${labels}</div>
+      `;
+    }
+
+    function renderDailyChart(data) {
+      const sortedDays = Object.keys(data).sort();
+      const maxCount = Math.max(...Object.values(data), 1);
+      
+      if (sortedDays.length === 0) {
+        return '<p style="color: var(--text-muted); font-size: 0.8rem;">No data yet</p>';
+      }
+      
+      let html = '';
+      sortedDays.forEach(date => {
+        const count = data[date];
+        const width = (count / maxCount) * 100;
+        const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        
+        html += `
+          <div class="daily-row">
+            <div class="day">${dayName}</div>
+            <div class="bar-container">
+              <div class="bar" style="width: ${Math.max(width, 5)}%">${count}</div>
+            </div>
+          </div>
+        `;
+      });
+      
+      return `<div class="daily-chart">${html}</div>`;
+    }
+
+    function renderCacheStatus(cache) {
+      const labels = {
+        status: 'Status',
+        good_time: 'Good Time',
+        queue: 'Queue',
+        ls_to_sa: 'LS→SA',
+        sa_to_ls: 'SA→LS'
+      };
+      
+      let html = '';
+      for (const [key, value] of Object.entries(cache)) {
+        let statusClass, statusText;
+        if (!value) {
+          statusClass = 'empty';
+          statusText = 'Empty';
+        } else if (value.valid) {
+          statusClass = 'active';
+          statusText = `${value.ageSeconds}s ago`;
+        } else {
+          statusClass = 'expired';
+          statusText = 'Expired';
+        }
+        
+        html += `
+          <div class="cache-item">
+            <div class="name">${labels[key] || key}</div>
+            <div class="status ${statusClass}">${statusText}</div>
+          </div>
+        `;
+      }
+      
+      return html;
+    }
+
+    function renderFeedbackItems(data) {
+      const labels = {
+        easy: 'Easy to use',
+        fast: 'Fast updates',
+        accurate: 'Accurate info',
+        design: 'Clean design',
+        whatsapp: 'WhatsApp sharing',
+        offline: 'Works offline',
+        faster: 'Faster loading',
+        waittime: 'Wait time estimates',
+        languages: 'More languages',
+        notifications: 'Push notifications',
+        predictions: 'Best time predictions',
+        queue: 'Queue length in mins'
+      };
+      
+      if (Object.keys(data).length === 0) {
+        return '<p style="color: var(--text-muted); font-size: 0.8rem;">No feedback yet</p>';
+      }
+      
+      let html = '';
+      const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]);
+      
+      sorted.forEach(([key, count]) => {
+        html += `
+          <div class="feedback-item">
+            <span>${labels[key] || key}</span>
+            <span class="count">${count}</span>
+          </div>
+        `;
+      });
+      
+      return html;
+    }
+
+    function renderQuestions(questions) {
+      if (!questions || questions.length === 0) {
+        return '<p style="color: var(--text-muted); font-size: 0.8rem;">No questions yet</p>';
+      }
+      
+      let html = '';
+      questions.forEach(q => {
+        const time = new Date(q.timestamp).toLocaleString();
+        const response = q.ai_response || '';
+        const truncated = response.length > 150 ? response.substring(0, 150) + '...' : response;
+        
+        html += `
+          <div class="question-item">
+            <div class="time">${time}</div>
+            <div class="response">${truncated.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          </div>
+        `;
+      });
+      
+      return html;
+    }
+
+    // Auto-refresh every 60 seconds
+    setInterval(() => {
+      if (adminToken && document.visibilityState === 'visible') {
+        loadStats();
+      }
+    }, 60000);
+  </script>
+</body>
+</html>
