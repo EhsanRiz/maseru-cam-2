@@ -2089,6 +2089,75 @@
       background: rgba(255, 255, 255, 0.15);
     }
 
+    /* Camera Alert Banner */
+    .camera-alert-banner {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1));
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin: 0.5rem;
+      display: none;
+    }
+
+    .camera-alert-banner.show {
+      display: block;
+    }
+
+    .camera-alert-banner.camera-stuck {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    .camera-alert-banner.camera-down {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .camera-alert-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #3b82f6;
+    }
+
+    .camera-alert-banner.camera-stuck .camera-alert-header {
+      color: #f59e0b;
+    }
+
+    .camera-alert-banner.camera-down .camera-alert-header {
+      color: #ef4444;
+    }
+
+    .camera-alert-text {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .camera-alert-dismiss {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.25rem;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+
+    .camera-alert-dismiss:hover {
+      opacity: 1;
+    }
+
+    .camera-alert-banner {
+      position: relative;
+    }
+
     /* User stats in account modal */
     .user-stats {
       background: var(--bg-secondary);
@@ -3375,6 +3444,13 @@
     </div>
 
     <div class="main-content">
+      <!-- Camera Status Warning Banner -->
+      <div class="camera-warning-banner" id="cameraWarningBanner" style="display: none;">
+        <span class="warning-icon">⚠️</span>
+        <span class="warning-text" id="cameraWarningText"></span>
+        <button class="warning-dismiss" onclick="dismissCameraWarning()">×</button>
+      </div>
+      
       <div class="camera-section">
         <div class="camera-preview">
           <div class="loading" id="cameraLoading">Loading camera feeds...</div>
@@ -3441,6 +3517,13 @@
             <div class="offline-banner-text" id="offlineText">Showing cached data. Traffic may have changed.</div>
             <div class="offline-banner-time" id="offlineTime"></div>
             <button class="offline-retry-btn" onclick="retryConnection()">🔄 Retry Connection</button>
+          </div>
+          
+          <!-- Camera Alert Banner -->
+          <div class="camera-alert-banner" id="cameraAlertBanner">
+            <button class="camera-alert-dismiss" onclick="dismissCameraAlert()" title="Dismiss">✕</button>
+            <div class="camera-alert-header" id="cameraAlertHeader">📷 Camera Notice</div>
+            <div class="camera-alert-text" id="cameraAlertText">Camera status information</div>
           </div>
           
           <div class="chat-messages" id="chatMessages">
@@ -4962,6 +5045,83 @@
       }
     }
     
+    // =============================================
+    // CAMERA ALERT FUNCTIONS
+    // =============================================
+    let cameraAlertDismissed = false;
+    let lastCameraStatus = 'operational';
+    
+    function showCameraAlert(status, message) {
+      // Don't show if user dismissed and status hasn't changed
+      if (cameraAlertDismissed && status === lastCameraStatus) {
+        return;
+      }
+      
+      // If status changed, reset dismissed flag
+      if (status !== lastCameraStatus) {
+        cameraAlertDismissed = false;
+        lastCameraStatus = status;
+      }
+      
+      // Don't show for operational status
+      if (status === 'operational' || !message) {
+        hideCameraAlert();
+        return;
+      }
+      
+      const banner = document.getElementById('cameraAlertBanner');
+      const header = document.getElementById('cameraAlertHeader');
+      const text = document.getElementById('cameraAlertText');
+      
+      if (!banner) return;
+      
+      // Set appropriate styling based on status
+      banner.classList.remove('camera-stuck', 'camera-down');
+      
+      if (status === 'down') {
+        banner.classList.add('camera-down');
+        header.textContent = '🔴 Camera Unavailable';
+      } else if (status === 'stuck_on_angle') {
+        banner.classList.add('camera-stuck');
+        header.textContent = '📷 Limited View';
+      }
+      
+      text.textContent = message;
+      banner.classList.add('show');
+    }
+    
+    function hideCameraAlert() {
+      const banner = document.getElementById('cameraAlertBanner');
+      if (banner) {
+        banner.classList.remove('show');
+      }
+    }
+    
+    function dismissCameraAlert() {
+      cameraAlertDismissed = true;
+      hideCameraAlert();
+    }
+    
+    // Check camera status on load and periodically
+    async function checkCameraStatus() {
+      try {
+        const response = await fetch('/api/camera-status');
+        const data = await response.json();
+        if (data.success && data.message) {
+          showCameraAlert(data.status, data.message);
+        } else {
+          hideCameraAlert();
+        }
+      } catch (e) {
+        // Ignore errors - camera status is optional
+      }
+    }
+    
+    // Check camera status every 2 minutes
+    setInterval(checkCameraStatus, 120000);
+    // Initial check after 5 seconds (let page load first)
+    setTimeout(checkCameraStatus, 5000);
+    
     // Network status listeners
     window.addEventListener('online', () => {
       isOnline = true;
@@ -5281,6 +5441,13 @@
               });
             }
             
+            // Check for camera status alert
+            if (data.cameraStatus && data.cameraAlert) {
+              showCameraAlert(data.cameraStatus, data.cameraAlert);
+            } else if (data.cameraStatus === 'operational') {
+              hideCameraAlert();
+            }
+            
             // Show cached indicator briefly
             if (data.cached) {
               console.log(`⚡ Cached response (${data.cacheAge}s old)`);
@@ -5353,12 +5520,20 @@
                 try {
                   const parsed = JSON.parse(data);
                   
-                  if (parsed.type === 'meta' && parsed.frameTimestamp) {
-                    frameTime = new Date(parsed.frameTimestamp).toLocaleTimeString([], { 
-                      hour: 'numeric', 
-                      minute: '2-digit',
-                      hour12: true 
-                    });
+                  if (parsed.type === 'meta') {
+                    if (parsed.frameTimestamp) {
+                      frameTime = new Date(parsed.frameTimestamp).toLocaleTimeString([], { 
+                        hour: 'numeric', 
+                        minute: '2-digit',
+                        hour12: true 
+                      });
+                    }
+                    // Check for camera status alert
+                    if (parsed.cameraStatus && parsed.cameraAlert) {
+                      showCameraAlert(parsed.cameraStatus, parsed.cameraAlert);
+                    } else if (parsed.cameraStatus === 'operational') {
+                      hideCameraAlert();
+                    }
                   } else if (parsed.type === 'text') {
                     fullText += parsed.text;
                     typewriterQueue += parsed.text; // Add to typewriter queue
