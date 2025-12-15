@@ -83,6 +83,98 @@ let lastAnalysisTime = 0;
 let isCapturing = false;
 let isClassifying = false;
 
+// =============================================
+// CAMERA STATUS TRACKING
+// =============================================
+// Detects: camera down, stuck on one angle
+const cameraStatus = {
+  consecutiveFailures: 0,
+  angleHistory: [],              // Last N classifications
+  lastSuccessfulCapture: null,
+  status: 'operational',         // 'operational', 'stuck_on_angle', 'down'
+  stuckAngle: null,
+  
+  // Thresholds
+  FAILURE_THRESHOLD: 3,          // 3 failures = camera down
+  STUCK_THRESHOLD: 10,           // 10 same angles in a row = stuck
+  HISTORY_SIZE: 15,              // Track last 15 classifications
+};
+
+function updateCameraStatus() {
+  // Check for camera down
+  if (cameraStatus.consecutiveFailures >= cameraStatus.FAILURE_THRESHOLD) {
+    cameraStatus.status = 'down';
+    cameraStatus.stuckAngle = null;
+    console.log('🔴 Camera status: DOWN');
+    return;
+  }
+  
+  // Check for stuck angle (only if we have enough history)
+  if (cameraStatus.angleHistory.length >= cameraStatus.STUCK_THRESHOLD) {
+    const recentAngles = cameraStatus.angleHistory.slice(-cameraStatus.STUCK_THRESHOLD);
+    const uniqueAngles = [...new Set(recentAngles.filter(a => a !== 'useless'))];
+    
+    if (uniqueAngles.length === 1) {
+      cameraStatus.status = 'stuck_on_angle';
+      cameraStatus.stuckAngle = uniqueAngles[0];
+      console.log(`📷 Camera status: STUCK on ${cameraStatus.stuckAngle}`);
+      return;
+    }
+  }
+  
+  // Otherwise operational
+  cameraStatus.status = 'operational';
+  cameraStatus.stuckAngle = null;
+}
+
+function recordCaptureSuccess(angleType) {
+  cameraStatus.consecutiveFailures = 0;
+  cameraStatus.lastSuccessfulCapture = Date.now();
+  
+  // Add to angle history (skip useless frames for stuck detection)
+  cameraStatus.angleHistory.push(angleType);
+  if (cameraStatus.angleHistory.length > cameraStatus.HISTORY_SIZE) {
+    cameraStatus.angleHistory.shift();
+  }
+  
+  updateCameraStatus();
+}
+
+function recordCaptureFailure() {
+  cameraStatus.consecutiveFailures++;
+  console.log(`⚠️ Capture failure #${cameraStatus.consecutiveFailures}`);
+  updateCameraStatus();
+}
+
+function getCameraStatusInfo() {
+  const info = {
+    status: cameraStatus.status,
+    stuckAngle: cameraStatus.stuckAngle,
+    lastSuccessfulCapture: cameraStatus.lastSuccessfulCapture,
+    consecutiveFailures: cameraStatus.consecutiveFailures,
+  };
+  
+  // Generate user-friendly message
+  if (cameraStatus.status === 'down') {
+    const downTime = cameraStatus.lastSuccessfulCapture 
+      ? Math.round((Date.now() - cameraStatus.lastSuccessfulCapture) / 60000)
+      : null;
+    info.message = `🔴 Camera feed unavailable${downTime ? ` for ${downTime} minutes` : ''}. Please check back later or contact border control for current conditions.`;
+  } else if (cameraStatus.status === 'stuck_on_angle') {
+    const angleNames = {
+      'bridge': 'bridge view',
+      'processing': 'processing area',
+      'wide': 'wide/Engen view'
+    };
+    const angleName = angleNames[cameraStatus.stuckAngle] || cameraStatus.stuckAngle;
+    info.message = `📷 Camera currently showing ${angleName} only. Other areas may not be visible.`;
+  } else {
+    info.message = null; // No alert needed
+  }
+  
+  return info;
+}
+
 // Maximum age for frames to be considered valid (10 minutes)
 const MAX_FRAME_AGE_MS = 10 * 60 * 1000;
 
@@ -586,14 +678,19 @@ async function captureFrame() {
             return acc;
           }, {});
           
+          // Record successful capture for camera status tracking
+          recordCaptureSuccess(angleType);
+          
           console.log(`✅ Frame captured (${angleType}), buffer: ${JSON.stringify(counts)}`);
           resolve(imageBuffer);
         } catch (err) {
           console.error('❌ Failed to read captured frame:', err.message);
+          recordCaptureFailure();
           resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
         }
       } else {
         console.error(`❌ ffmpeg failed with code ${code}`);
+        recordCaptureFailure();
         resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
       }
     });
@@ -601,6 +698,7 @@ async function captureFrame() {
     ffmpeg.on('error', (err) => {
       isCapturing = false;
       console.error('❌ ffmpeg error:', err.message);
+      recordCaptureFailure();
       resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
     });
 
@@ -746,27 +844,64 @@ async function analyzeTraffic(userQuestion = null) {
     // =============================================
     // Claude generates friendly text - it does NOT infer direction
     
+    // Extract breakdown if available
+    const breakdown = detectorCounts?.breakdown || {};
+    const lsToSaBreakdown = breakdown.LS_to_SA || { cars: 0, trucks: 0, buses: 0 };
+    const saToLsBreakdown = breakdown.SA_to_LS || { cars: 0, trucks: 0, buses: 0 };
+    
     const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
       ? `
 VEHICLE COUNTS (from automated detection - these are ACCURATE):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
+  Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
+  
 • SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles - ${saToLsStatus}
+  Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
+
 • Total detected: ${detectorCounts.total}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ⚠️ IMPORTANT: Use these EXACT counts. Do NOT try to count vehicles yourself.
 The counts above are determined by automated detection and are authoritative.
+
+📌 TRUCK CONTEXT: Trucks take longer to process at border. If trucks are present:
+- Mention truck presence in your response
+- If cars are behind trucks, note they may experience slight delays
+- Example: "3 cars waiting behind a truck being processed"
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment.
 Use the camera images to estimate traffic in each direction.
 `;
 
+    // Generate camera status warning for prompt
+    const cameraStatusWarning = (() => {
+      const camStatus = getCameraStatusInfo();
+      if (camStatus.status === 'down') {
+        return `
+🔴 CAMERA STATUS ALERT:
+The camera feed is currently unavailable. Let the user know that you cannot provide real-time updates, but offer historical patterns or suggest they check back later.
+`;
+      } else if (camStatus.status === 'stuck_on_angle') {
+        const angleDescriptions = {
+          'bridge': 'the bridge approach',
+          'processing': 'the processing area', 
+          'wide': 'the wide Engen area view'
+        };
+        const desc = angleDescriptions[camStatus.stuckAngle] || camStatus.stuckAngle;
+        return `
+📷 CAMERA STATUS NOTE:
+The camera is currently only showing ${desc}. Other views are not available. Mention this limitation if relevant to the user's question.
+`;
+      }
+      return '';
+    })();
+
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
 ${countsInfo}
-
+${cameraStatusWarning}
 ═══════════════════════════════════════════════════════════════
 TRAFFIC LEVELS:
 ═══════════════════════════════════════════════════════════════
@@ -972,6 +1107,9 @@ Respond appropriately for this question type. Be helpful and conversational.`;
     // Calculate response time
     const responseTime = Date.now() - now;
 
+    // Get camera status
+    const camStatus = getCameraStatusInfo();
+
     const analysis = {
       success: true,
       message: response.content[0].text,
@@ -979,6 +1117,8 @@ Respond appropriately for this question type. Be helpful and conversational.`;
       frameTimestamp: latestFrame.timestamp,
       framesAnalyzed: framesToUse.length,
       cached: false,
+      cameraStatus: camStatus.status,
+      cameraAlert: camStatus.message,
     };
 
     // Cache only automatic analyses
@@ -1013,6 +1153,17 @@ app.get('/api/status', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to get traffic status' });
   }
+});
+
+// Camera status endpoint - Check if camera is operational
+app.get('/api/camera-status', (req, res) => {
+  const status = getCameraStatusInfo();
+  res.json({
+    success: true,
+    ...status,
+    angleHistory: cameraStatus.angleHistory.slice(-10), // Last 10 angles for debugging
+    bufferSize: screenshotBuffer.length,
+  });
 });
 
 // Insights API - Get traffic analytics from Supabase
@@ -1276,10 +1427,18 @@ app.post('/api/chat/stream', async (req, res) => {
       return res.end();
     }
 
-    // Send frame timestamp first
+    // Get camera status
+    const camStatus = getCameraStatusInfo();
+
+    // Send frame timestamp and camera status first
     const latestFrame = framesToUse[framesToUse.length - 1];
     res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
-    res.write(`data: ${JSON.stringify({ type: 'meta', frameTimestamp: latestFrame.timestamp })}\n\n`);
+    res.write(`data: ${JSON.stringify({ 
+      type: 'meta', 
+      frameTimestamp: latestFrame.timestamp,
+      cameraStatus: camStatus.status,
+      cameraAlert: camStatus.message
+    })}\n\n`);
 
     // =============================================
     // STEP 1: Call YOLO detector for vehicle counts
@@ -1312,27 +1471,63 @@ app.post('/api/chat/stream', async (req, res) => {
       else saToLsStatus = 'HEAVY';
     }
 
+    // Extract breakdown if available
+    const breakdown = detectorCounts?.breakdown || {};
+    const lsToSaBreakdown = breakdown.LS_to_SA || { cars: 0, trucks: 0, buses: 0 };
+    const saToLsBreakdown = breakdown.SA_to_LS || { cars: 0, trucks: 0, buses: 0 };
+
     // Build counts info for prompt
     const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
       ? `
 VEHICLE COUNTS (from automated detection - these are ACCURATE):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
+  Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
+  
 • SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles - ${saToLsStatus}
+  Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
+
 • Total detected: ${detectorCounts.total}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ⚠️ IMPORTANT: Use these EXACT counts. Do NOT try to count vehicles yourself.
+
+📌 TRUCK CONTEXT: Trucks take longer to process at border. If trucks are present:
+- Mention truck presence in your response
+- If cars are behind trucks, note they may experience slight delays
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment.
 `;
 
+    // Generate camera status warning for prompt (streaming)
+    const cameraStatusWarning = (() => {
+      const camStatus = getCameraStatusInfo();
+      if (camStatus.status === 'down') {
+        return `
+🔴 CAMERA STATUS ALERT:
+The camera feed is currently unavailable. Let the user know that you cannot provide real-time updates.
+`;
+      } else if (camStatus.status === 'stuck_on_angle') {
+        const angleDescriptions = {
+          'bridge': 'the bridge approach',
+          'processing': 'the processing area', 
+          'wide': 'the wide Engen area view'
+        };
+        const desc = angleDescriptions[camStatus.stuckAngle] || camStatus.stuckAngle;
+        return `
+📷 CAMERA STATUS NOTE:
+The camera is currently only showing ${desc}. Other views are not available.
+`;
+      }
+      return '';
+    })();
+
     // Build system prompt with detector counts
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
 ${countsInfo}
-
+${cameraStatusWarning}
 ═══════════════════════════════════════════════════════════════
 TRAFFIC LEVELS:
 ═══════════════════════════════════════════════════════════════
@@ -1920,6 +2115,8 @@ app.get('/api/debug', (req, res) => {
     bufferSize: screenshotBuffer.length,
     angleCounts: angleCounts,
     responseCache: cacheStatus,
+    cameraStatus: getCameraStatusInfo(),
+    angleHistory: cameraStatus.angleHistory.slice(-15),
     frames: screenshotBuffer.map(f => ({
       timestamp: new Date(f.timestamp).toISOString(),
       angleType: f.angleType,
