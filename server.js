@@ -21,6 +21,7 @@ const config = {
   analysisFrames: 3,            // Use 3 frames for analysis
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
+  detectorUrl: process.env.DETECTOR_URL || 'https://traffic-detector-jzbg.onrender.com',
 };
 
 const anthropic = new Anthropic({
@@ -36,12 +37,61 @@ if (config.supabaseUrl && config.supabaseServiceKey) {
   console.log('⚠️ Supabase credentials not found - running without persistence');
 }
 
+// =============================================
+// VEHICLE DETECTOR SERVICE (YOLO + Geometry)
+// =============================================
+// Calls external Python service for deterministic lane-based detection
+// Direction is computed by geometry, NOT language inference
+
+async function detectVehicles(imageBase64, cameraView = 'bridge') {
+  try {
+    const response = await fetch(`${config.detectorUrl}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image: imageBase64,
+        camera_view: cameraView
+      }),
+      timeout: 30000
+    });
+    
+    if (!response.ok) {
+      console.error(`❌ Detector service error: ${response.status}`);
+      return null;
+    }
+    
+    const result = await response.json();
+    console.log(`🎯 Detector: SA→LS: ${result.SA_to_LS}, LS→SA: ${result.LS_to_SA}, Total: ${result.total}`);
+    return result;
+  } catch (error) {
+    console.error('❌ Detector service failed:', error.message);
+    return null;
+  }
+}
+
+// Map camera view to angle type
+const ANGLE_TO_VIEW = {
+  'bridge': 'bridge',
+  'processing': 'canopy',
+  'wide': 'engen'
+};
+
 // Buffer to store multiple screenshots with timestamps and angle classification
 let screenshotBuffer = [];
 let latestAnalysis = null;
 let lastAnalysisTime = 0;
 let isCapturing = false;
 let isClassifying = false;
+
+// Maximum age for frames to be considered valid (10 minutes)
+const MAX_FRAME_AGE_MS = 10 * 60 * 1000;
+
+// Helper function to check if a frame is still fresh
+function isFrameFresh(frame) {
+  if (!frame || !frame.timestamp) return false;
+  const frameAge = Date.now() - new Date(frame.timestamp).getTime();
+  return frameAge <= MAX_FRAME_AGE_MS;
+}
 
 // =============================================
 // RESPONSE CACHE SYSTEM
@@ -619,8 +669,8 @@ async function analyzeTraffic(userQuestion = null) {
         const frames = framesByAngle[angleType];
         framesToUse.push(frames[frames.length - 1]);
         anglesUsed.push(angleType);
-      } else if (preservedFrames[angleType]) {
-        // Use preserved frame as fallback
+      } else if (preservedFrames[angleType] && isFrameFresh(preservedFrames[angleType])) {
+        // Use preserved frame as fallback ONLY if it's fresh
         framesToUse.push(preservedFrames[angleType]);
         anglesUsed.push(angleType + ' (preserved)');
       }
@@ -652,44 +702,78 @@ async function analyzeTraffic(userQuestion = null) {
 
     console.log(`🔍 Analyzing ${framesToUse.length} frames from angles: ${anglesUsed.join(', ')}`);
 
-    // Create combined prompt for multiple angles
+    // =============================================
+    // STEP 1: Call YOLO detector for vehicle counts
+    // =============================================
+    // Direction is determined by GEOMETRY, not language inference
+    let detectorCounts = null;
+    
+    // Find the bridge frame and call detector
+    const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
+    if (bridgeFrame) {
+      detectorCounts = await detectVehicles(
+        bridgeFrame.screenshot.toString('base64'),
+        'bridge'
+      );
+    }
+    
+    // Determine traffic levels from detector counts
+    let lsToSaStatus = 'LIGHT';
+    let saToLsStatus = 'LIGHT';
+    let lsToSaCount = 0;
+    let saToLsCount = 0;
+    
+    if (detectorCounts && !detectorCounts.direction_uncertain) {
+      lsToSaCount = detectorCounts.LS_to_SA;
+      saToLsCount = detectorCounts.SA_to_LS;
+      
+      // Determine status levels
+      if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
+      else if (lsToSaCount <= 10) lsToSaStatus = 'MODERATE';
+      else lsToSaStatus = 'HEAVY';
+      
+      if (saToLsCount <= 3) saToLsStatus = 'LIGHT';
+      else if (saToLsCount <= 10) saToLsStatus = 'MODERATE';
+      else saToLsStatus = 'HEAVY';
+      
+      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (${lsToSaCount}), SA→LS: ${saToLsStatus} (${saToLsCount})`);
+    } else if (detectorCounts?.direction_uncertain) {
+      console.log(`⚠️ Direction uncertain - too many unassigned vehicles`);
+    }
+
+    // =============================================
+    // STEP 2: Build prompt with KNOWN counts
+    // =============================================
+    // Claude generates friendly text - it does NOT infer direction
+    
+    const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
+      ? `
+VEHICLE COUNTS (from automated detection - these are ACCURATE):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
+• SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles - ${saToLsStatus}
+• Total detected: ${detectorCounts.total}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ IMPORTANT: Use these EXACT counts. Do NOT try to count vehicles yourself.
+The counts above are determined by automated detection and are authoritative.
+`
+      : `
+⚠️ Automated vehicle detection unavailable. Use your visual assessment.
+Use the camera images to estimate traffic in each direction.
+`;
+
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
-═══════════════════════════════════════════════════════════════
-CAMERA MAPPING - CRITICAL FOR ACCURATE DIRECTION IDENTIFICATION:
-═══════════════════════════════════════════════════════════════
-
-**BRIDGE VIEW** (shows orange/red pillar on one side):
-The bridge has TWO lanes. Use the ORANGE/RED PILLAR as your reference:
-
-• LANE NEAR THE ORANGE POLE = SA→LS
-  Vehicles COMING FROM South Africa, entering Lesotho
-  
-• LANE AWAY FROM THE ORANGE POLE = LS→SA  
-  Vehicles LEAVING Lesotho, heading to South Africa
-
-Note: There may be TWO rows of vehicles on each side. Count ALL vehicles in each direction.
-
-**CANOPY VIEW** (shows covered processing area with green roof):
-• LEFT SIDE (under/near green roof shelters) = SA→LS
-  - Trucks often parked here for document processing - this is NORMAL, not congestion
-  - Only count as congestion if cars are visibly QUEUED or BLOCKED
-  
-• RIGHT SIDE (open road area) = LS→SA
-  - Cars pass through gap between parked trucks heading to the bridge
-  - Count these vehicles for LS→SA traffic
-
-**ENGEN/WIDE VIEW** (shows petrol station or approach road):
-• This shows the LS→SA approach road
-• Backup visible here = SEVERE traffic leaving Lesotho
+${countsInfo}
 
 ═══════════════════════════════════════════════════════════════
-TRAFFIC ASSESSMENT RULES:
+TRAFFIC LEVELS:
 ═══════════════════════════════════════════════════════════════
-• Count MOVING vehicles and QUEUED vehicles
-• Parked trucks at processing area = NORMAL (not congestion)
-• Only report congestion if vehicles are BLOCKED or in a QUEUE
-• LIGHT: 0-3 vehicles | MODERATE: 4-10 vehicles | HEAVY: 10+ vehicles | SEVERE: Backed to Engen
+• LIGHT: 0-3 vehicles
+• MODERATE: 4-10 vehicles  
+• HEAVY: 10+ vehicles
+• SEVERE: Backed up to Engen/approach road
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -702,6 +786,7 @@ LANGUAGE RULES - EXTREMELY IMPORTANT:
 - "Lesotho approach", "SA approach"
 - "processing area", "processing yard"
 - "Image 1", "Bridge view", "Canopy view"
+- "automated detection", "detector", "YOLO"
 
 ✅ INSTEAD SAY (user-friendly):
 - "2-3 vehicles heading to SA"
@@ -1180,7 +1265,7 @@ app.post('/api/chat/stream', async (req, res) => {
       if (framesByAngle[angleType] && framesByAngle[angleType].length > 0) {
         const frames = framesByAngle[angleType];
         framesToUse.push(frames[frames.length - 1]);
-      } else if (preservedFrames[angleType]) {
+      } else if (preservedFrames[angleType] && isFrameFresh(preservedFrames[angleType])) {
         framesToUse.push(preservedFrames[angleType]);
       }
     }
@@ -1196,44 +1281,65 @@ app.post('/api/chat/stream', async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'meta', frameTimestamp: latestFrame.timestamp })}\n\n`);
 
-    // Build system prompt (same as analyzeTraffic)
+    // =============================================
+    // STEP 1: Call YOLO detector for vehicle counts
+    // =============================================
+    let detectorCounts = null;
+    const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
+    if (bridgeFrame) {
+      detectorCounts = await detectVehicles(
+        bridgeFrame.screenshot.toString('base64'),
+        'bridge'
+      );
+    }
+    
+    // Determine traffic levels from detector counts
+    let lsToSaStatus = 'LIGHT';
+    let saToLsStatus = 'LIGHT';
+    let lsToSaCount = 0;
+    let saToLsCount = 0;
+    
+    if (detectorCounts && !detectorCounts.direction_uncertain) {
+      lsToSaCount = detectorCounts.LS_to_SA;
+      saToLsCount = detectorCounts.SA_to_LS;
+      
+      if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
+      else if (lsToSaCount <= 10) lsToSaStatus = 'MODERATE';
+      else lsToSaStatus = 'HEAVY';
+      
+      if (saToLsCount <= 3) saToLsStatus = 'LIGHT';
+      else if (saToLsCount <= 10) saToLsStatus = 'MODERATE';
+      else saToLsStatus = 'HEAVY';
+    }
+
+    // Build counts info for prompt
+    const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
+      ? `
+VEHICLE COUNTS (from automated detection - these are ACCURATE):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
+• SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles - ${saToLsStatus}
+• Total detected: ${detectorCounts.total}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ IMPORTANT: Use these EXACT counts. Do NOT try to count vehicles yourself.
+`
+      : `
+⚠️ Automated vehicle detection unavailable. Use your visual assessment.
+`;
+
+    // Build system prompt with detector counts
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
-═══════════════════════════════════════════════════════════════
-CAMERA MAPPING - CRITICAL FOR ACCURATE DIRECTION IDENTIFICATION:
-═══════════════════════════════════════════════════════════════
-
-**BRIDGE VIEW** (shows orange/red pillar on one side):
-The bridge has TWO lanes. Use the ORANGE/RED PILLAR as your reference:
-
-• LANE NEAR THE ORANGE POLE = SA→LS
-  Vehicles COMING FROM South Africa, entering Lesotho
-  
-• LANE AWAY FROM THE ORANGE POLE = LS→SA  
-  Vehicles LEAVING Lesotho, heading to South Africa
-
-Note: There may be TWO rows of vehicles on each side. Count ALL vehicles in each direction.
-
-**CANOPY VIEW** (shows covered processing area with green roof):
-• LEFT SIDE (under/near green roof shelters) = SA→LS
-  - Trucks often parked here for document processing - this is NORMAL, not congestion
-  - Only count as congestion if cars are visibly QUEUED or BLOCKED
-  
-• RIGHT SIDE (open road area) = LS→SA
-  - Cars pass through gap between parked trucks heading to the bridge
-  - Count these vehicles for LS→SA traffic
-
-**ENGEN/WIDE VIEW** (shows petrol station or approach road):
-• This shows the LS→SA approach road
-• Backup visible here = SEVERE traffic leaving Lesotho
+${countsInfo}
 
 ═══════════════════════════════════════════════════════════════
-TRAFFIC ASSESSMENT RULES:
+TRAFFIC LEVELS:
 ═══════════════════════════════════════════════════════════════
-• Count MOVING vehicles and QUEUED vehicles
-• Parked trucks at processing area = NORMAL (not congestion)
-• Only report congestion if vehicles are BLOCKED or in a QUEUE
-• LIGHT: 0-3 vehicles | MODERATE: 4-10 vehicles | HEAVY: 10+ vehicles | SEVERE: Backed to Engen
+• LIGHT: 0-3 vehicles
+• MODERATE: 4-10 vehicles  
+• HEAVY: 10+ vehicles
+• SEVERE: Backed up to Engen/approach road
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -1246,6 +1352,7 @@ LANGUAGE RULES - EXTREMELY IMPORTANT:
 - "Lesotho approach", "SA approach"
 - "processing area", "processing yard"
 - "Image 1", "Bridge view", "Canopy view"
+- "automated detection", "detector", "YOLO"
 
 ✅ INSTEAD SAY (user-friendly):
 - "2-3 vehicles heading to SA"
@@ -1443,6 +1550,9 @@ app.get('/api/frames', async (req, res) => {
       // Skip useless frames and already captured angles
       if (angleType === 'useless' || framesByAngle[angleType]) continue;
       
+      // Skip stale frames
+      if (!isFrameFresh(frame)) continue;
+      
       const label = angleLabels[angleType];
       if (label) {
         framesByAngle[angleType] = {
@@ -1454,10 +1564,10 @@ app.get('/api/frames', async (req, res) => {
       }
     }
     
-    // Fill in any missing angles from preserved frames
+    // Fill in any missing angles from preserved frames (only if fresh)
     const order = ['bridge', 'processing', 'wide'];
     for (const angleType of order) {
-      if (!framesByAngle[angleType] && preservedFrames[angleType]) {
+      if (!framesByAngle[angleType] && preservedFrames[angleType] && isFrameFresh(preservedFrames[angleType])) {
         const frame = preservedFrames[angleType];
         const label = angleLabels[angleType];
         if (label) {
@@ -1476,10 +1586,33 @@ app.get('/api/frames', async (req, res) => {
       .filter(type => framesByAngle[type])
       .map(type => framesByAngle[type]);
     
+    // Determine camera status
+    let cameraStatus = 'normal';
+    let statusMessage = null;
+    const availableAngles = frames.map(f => f.label);
+    
+    if (frames.length === 0) {
+      // No fresh frames at all - camera is offline
+      cameraStatus = 'offline';
+      statusMessage = '⚠️ Camera feed unavailable. Please try again later.';
+    } else if (frames.length === 1) {
+      // Only one angle available - camera stuck
+      cameraStatus = 'limited';
+      statusMessage = `📹 Camera showing ${availableAngles[0]} view only. Analysis based on limited view.`;
+    } else if (frames.length === 2) {
+      // Two angles available
+      cameraStatus = 'limited';
+      const missing = order.filter(a => !framesByAngle[a]).map(a => angleLabels[a]);
+      statusMessage = `📹 ${missing[0]} view unavailable. Analysis based on ${availableAngles.join(' & ')}.`;
+    }
+    
     res.json({
       success: true,
       frames: frames,
-      totalInBuffer: screenshotBuffer.length
+      totalInBuffer: screenshotBuffer.length,
+      cameraStatus: cameraStatus,
+      statusMessage: statusMessage,
+      availableAngles: availableAngles
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to get frames' });
