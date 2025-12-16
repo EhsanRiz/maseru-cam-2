@@ -2611,6 +2611,180 @@
       margin-bottom: 0.5rem;
     }
 
+    /* Report Confirmation Step */
+    .report-confirmation {
+      padding: 0.5rem 0;
+    }
+
+    .confirmation-checkpoint {
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 0.75rem;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .confirmation-details {
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .confirmation-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .confirmation-row:last-child {
+      border-bottom: none;
+    }
+
+    .confirmation-label {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .confirmation-value {
+      font-weight: 500;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+    }
+
+    .confirmation-buttons {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .queue-report-back-btn {
+      flex: 0.4;
+      padding: 0.85rem;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .queue-report-back-btn:hover {
+      background: var(--border);
+    }
+
+    .confirmation-buttons .queue-report-submit {
+      flex: 0.6;
+    }
+
+    .success-update-text {
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin-top: 0.5rem;
+    }
+
+    /* New Report Notification Banner */
+    .new-report-notification {
+      position: fixed;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 1rem;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      z-index: 999;
+      display: none;
+      animation: slideDown 0.3s ease;
+    }
+
+    .new-report-notification.show {
+      display: block;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+
+    .notification-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .notification-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .notification-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .notification-close:hover {
+      color: var(--text-primary);
+    }
+
+    .notification-content {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    .notification-checkpoint {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .notification-details {
+      color: var(--text-muted);
+    }
+
+    .notification-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .notification-action {
+      width: 100%;
+      padding: 0.6rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .notification-action:hover {
+      background: var(--accent-hover);
+    }
+
     /* User stats in account modal */
     .user-stats {
       background: var(--bg-secondary);
@@ -4176,6 +4350,22 @@
   </div>
 
   <!-- Queue Report Modal -->
+  <!-- New Report Notification Banner -->
+  <div class="new-report-notification" id="newReportNotification">
+    <div class="notification-header">
+      <span class="notification-title">📊 Recent Report</span>
+      <button class="notification-close" onclick="dismissReportNotification()">×</button>
+    </div>
+    <div class="notification-content">
+      <div class="notification-checkpoint" id="notificationCheckpoint">🇱🇸 Leaving Lesotho</div>
+      <div class="notification-details" id="notificationDetails">Medium queue • Slow speed • 2 windows</div>
+      <div class="notification-time" id="notificationTime">5 minutes ago</div>
+    </div>
+    <button class="notification-action" onclick="getLatestUpdateFromNotification()">
+      🔄 Get Latest Update
+    </button>
+  </div>
+
   <div class="queue-report-modal" id="queueReportModal">
     <div class="queue-report-content">
       <div class="queue-report-header">
@@ -4320,7 +4510,42 @@
             <textarea class="queue-report-textarea" id="reportComment" placeholder="Any additional details..." maxlength="200"></textarea>
           </div>
           
-          <button class="queue-report-submit" id="submitReportBtn" onclick="submitQueueReport()">Submit Report</button>
+          <button class="queue-report-submit" id="reviewReportBtn" onclick="showReportConfirmation()">Review Report</button>
+        </div>
+        
+        <!-- Step 4: Confirmation -->
+        <div class="queue-report-step" id="queueReportStep4">
+          <div class="report-confirmation">
+            <div class="confirmation-checkpoint" id="confirmCheckpoint">🇱🇸 Leaving Lesotho</div>
+            
+            <div class="confirmation-details">
+              <div class="confirmation-row">
+                <span class="confirmation-label">Queue:</span>
+                <span class="confirmation-value" id="confirmQueue">-</span>
+              </div>
+              <div class="confirmation-row">
+                <span class="confirmation-label">Speed:</span>
+                <span class="confirmation-value" id="confirmSpeed">-</span>
+              </div>
+              <div class="confirmation-row">
+                <span class="confirmation-label">Windows Open:</span>
+                <span class="confirmation-value" id="confirmWindows">-</span>
+              </div>
+              <div class="confirmation-row">
+                <span class="confirmation-label">Your Wait:</span>
+                <span class="confirmation-value" id="confirmWait">-</span>
+              </div>
+              <div class="confirmation-row" id="confirmCommentRow" style="display: none;">
+                <span class="confirmation-label">Comment:</span>
+                <span class="confirmation-value" id="confirmComment">-</span>
+              </div>
+            </div>
+            
+            <div class="confirmation-buttons">
+              <button class="queue-report-back-btn" onclick="goBackFromConfirmation()">← Back</button>
+              <button class="queue-report-submit" id="submitReportBtn" onclick="submitQueueReport()">✓ Confirm & Submit</button>
+            </div>
+          </div>
         </div>
         
         <!-- Success View -->
@@ -4329,6 +4554,7 @@
             <div class="success-icon">✅</div>
             <h4>Thank You!</h4>
             <p>Your report helps other travelers plan their crossing.</p>
+            <p class="success-update-text">Fetching latest traffic update...</p>
             <button class="queue-report-submit" onclick="closeQueueReport()" style="margin-top: 1rem;">Close</button>
           </div>
         </div>
@@ -4795,6 +5021,11 @@
         if (stored) {
           currentUser = JSON.parse(stored);
           updateAuthUI();
+          
+          // Check for new reports after a short delay (let page render first)
+          setTimeout(() => {
+            checkForNewReports();
+          }, 2000);
         }
       } catch (e) {
         console.error('Error loading stored user:', e);
@@ -6096,6 +6327,8 @@
         document.getElementById('queueReportStep3').classList.remove('active');
         document.getElementById('queueReportStep2').classList.add('active');
         updateDirectionLabels();
+      } else if (queueReportStep === 4) {
+        goBackFromConfirmation();
       }
     }
 
@@ -6158,8 +6391,34 @@
       element.classList.add('selected');
     }
 
-    async function submitQueueReport() {
-      // Validate required fields
+    // Labels for display
+    const queueLengthLabels = {
+      'empty': 'Empty',
+      'short': 'Short (1-10 people)',
+      'medium': 'Medium (10-25 people)',
+      'long': 'Long (25-50 people)',
+      'very_long': 'Very Long (50+ people)'
+    };
+    
+    const waitTimeLabels = {
+      'less_than_5': 'Less than 5 min',
+      '5_to_10': '5-10 minutes',
+      '10_to_20': '10-20 minutes',
+      '20_to_30': '20-30 minutes',
+      '30_to_45': '30-45 minutes',
+      '45_to_60': '45-60 minutes',
+      'more_than_60': 'More than 1 hour'
+    };
+    
+    const speedLabels = {
+      'very_slow': 'Very Slow',
+      'slow': 'Slow',
+      'moderate': 'Moderate',
+      'fast': 'Fast'
+    };
+
+    function showReportConfirmation() {
+      // Validate required fields first
       const waitTime = document.getElementById('waitTimeSelect').value;
       const comment = document.getElementById('reportComment').value;
       
@@ -6183,6 +6442,47 @@
         return;
       }
       
+      // Build checkpoint name
+      const sideName = queueReportData.side === 'lesotho' ? 'Lesotho' : 'South Africa';
+      const flag = queueReportData.side === 'lesotho' ? '🇱🇸' : '🇿🇦';
+      const directionText = queueReportData.direction === 'leaving' ? 'Leaving' : 'Entering';
+      
+      // Populate confirmation view
+      document.getElementById('confirmCheckpoint').textContent = `${flag} ${directionText} ${sideName}`;
+      document.getElementById('confirmQueue').textContent = queueLengthLabels[queueReportData.queue_length];
+      document.getElementById('confirmSpeed').textContent = speedLabels[queueReportData.processing_speed];
+      document.getElementById('confirmWindows').textContent = queueReportData.windows_open === '5' ? '5+' : queueReportData.windows_open;
+      document.getElementById('confirmWait').textContent = waitTimeLabels[queueReportData.wait_time];
+      
+      // Show comment if provided
+      const commentRow = document.getElementById('confirmCommentRow');
+      if (queueReportData.comment) {
+        document.getElementById('confirmComment').textContent = `"${queueReportData.comment}"`;
+        commentRow.style.display = 'flex';
+      } else {
+        commentRow.style.display = 'none';
+      }
+      
+      // Move to Step 4
+      queueReportStep = 4;
+      document.getElementById('queueReportStep3').classList.remove('active');
+      document.getElementById('queueReportStep4').classList.add('active');
+      document.getElementById('queueReportTitle').textContent = '📊 Confirm Your Report';
+    }
+
+    function goBackFromConfirmation() {
+      queueReportStep = 3;
+      document.getElementById('queueReportStep4').classList.remove('active');
+      document.getElementById('queueReportStep3').classList.add('active');
+      
+      // Restore title
+      const sideName = queueReportData.side === 'lesotho' ? 'Lesotho' : 'South Africa';
+      const flag = queueReportData.side === 'lesotho' ? '🇱🇸' : '🇿🇦';
+      const directionText = queueReportData.direction === 'leaving' ? 'Leaving' : 'Entering';
+      document.getElementById('queueReportTitle').textContent = `${flag} ${directionText} ${sideName}`;
+    }
+
+    async function submitQueueReport() {
       const submitBtn = document.getElementById('submitReportBtn');
       submitBtn.disabled = true;
       submitBtn.textContent = 'Submitting...';
@@ -6201,10 +6501,18 @@
         
         if (result.success) {
           // Show success
-          document.getElementById('queueReportStep3').classList.remove('active');
+          document.getElementById('queueReportStep4').classList.remove('active');
           document.getElementById('queueReportSuccess').classList.add('active');
           document.getElementById('queueReportBack').classList.remove('show');
           document.getElementById('queueReportTitle').textContent = '📊 Report Submitted';
+          
+          // Store this report ID as seen
+          if (result.report && result.report.id) {
+            localStorage.setItem('lastSeenReportId', result.report.id);
+          }
+          
+          // Trigger fresh traffic assessment
+          triggerTrafficUpdateAfterReport();
         } else {
           showToast(result.message || 'Failed to submit report');
         }
@@ -6213,8 +6521,138 @@
         showToast('Failed to submit report. Please try again.');
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit Report';
+        submitBtn.textContent = '✓ Confirm & Submit';
       }
+    }
+
+    // Trigger traffic update after submitting report
+    async function triggerTrafficUpdateAfterReport() {
+      const updateText = document.querySelector('.success-update-text');
+      if (updateText) {
+        updateText.textContent = 'Fetching latest traffic update...';
+      }
+      
+      try {
+        // Send a message to get fresh traffic analysis
+        const message = 'What is the current traffic status?';
+        
+        // Add user message to chat (hidden - just trigger the analysis)
+        // Actually, let's just refresh in background and update the text
+        
+        const response = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            message: 'Quick status check after user report submission',
+            skipHistory: true 
+          })
+        });
+        
+        if (updateText) {
+          updateText.textContent = '✓ Traffic data refreshed!';
+        }
+      } catch (err) {
+        console.error('Error refreshing traffic:', err);
+        if (updateText) {
+          updateText.textContent = 'Report saved successfully!';
+        }
+      }
+    }
+
+    // =============================================
+    // NEW REPORT NOTIFICATION SYSTEM
+    // =============================================
+    const LAST_SEEN_REPORT_KEY = 'lastSeenReportId';
+    let notificationTimeout = null;
+
+    async function checkForNewReports() {
+      // Only show notifications to logged-in users
+      if (!currentUser) return;
+      
+      try {
+        const response = await fetch('/api/reports');
+        const data = await response.json();
+        
+        if (!data.success || data.reports.length === 0) return;
+        
+        // Get the most recent report
+        const latestReport = data.reports[0];
+        const lastSeenId = localStorage.getItem(LAST_SEEN_REPORT_KEY);
+        
+        // Only show if this is a new report (not our own, and not already seen)
+        if (latestReport.id !== lastSeenId && latestReport.minutes_ago <= 30) {
+          showReportNotification(latestReport);
+        }
+      } catch (err) {
+        console.error('Error checking for new reports:', err);
+      }
+    }
+
+    function showReportNotification(report) {
+      const checkpointNames = {
+        'leaving_ls': '🇱🇸 Leaving Lesotho',
+        'entering_sa': '🇿🇦 Entering South Africa',
+        'leaving_sa': '🇿🇦 Leaving South Africa',
+        'entering_ls': '🇱🇸 Entering Lesotho'
+      };
+      
+      const queueLabels = {
+        'empty': 'Empty',
+        'short': 'Short queue',
+        'medium': 'Medium queue',
+        'long': 'Long queue',
+        'very_long': 'Very long queue'
+      };
+      
+      const speedLabelsShort = {
+        'very_slow': 'Very slow',
+        'slow': 'Slow',
+        'moderate': 'Moderate',
+        'fast': 'Fast'
+      };
+      
+      document.getElementById('notificationCheckpoint').textContent = checkpointNames[report.checkpoint] || report.checkpoint;
+      document.getElementById('notificationDetails').textContent = 
+        `${queueLabels[report.queue_length]} • ${speedLabelsShort[report.processing_speed]} speed • ${report.windows_open} window${report.windows_open > 1 ? 's' : ''}`;
+      document.getElementById('notificationTime').textContent = `${report.minutes_ago} minute${report.minutes_ago !== 1 ? 's' : ''} ago`;
+      
+      // Store report ID for dismissal
+      document.getElementById('newReportNotification').dataset.reportId = report.id;
+      
+      // Show notification
+      document.getElementById('newReportNotification').classList.add('show');
+      
+      // Auto-dismiss after 15 seconds
+      if (notificationTimeout) clearTimeout(notificationTimeout);
+      notificationTimeout = setTimeout(() => {
+        dismissReportNotification();
+      }, 15000);
+    }
+
+    function dismissReportNotification() {
+      const notification = document.getElementById('newReportNotification');
+      const reportId = notification.dataset.reportId;
+      
+      // Mark as seen
+      if (reportId) {
+        localStorage.setItem(LAST_SEEN_REPORT_KEY, reportId);
+      }
+      
+      notification.classList.remove('show');
+      
+      if (notificationTimeout) {
+        clearTimeout(notificationTimeout);
+        notificationTimeout = null;
+      }
+    }
+
+    function getLatestUpdateFromNotification() {
+      // Dismiss notification
+      dismissReportNotification();
+      
+      // Send message to get latest update
+      chatInput.value = 'What is the current traffic status?';
+      sendMessage();
     }
 
     // View reports functions
