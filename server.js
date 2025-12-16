@@ -898,12 +898,16 @@ The camera is currently only showing ${desc}. Other views are not available. Men
       return '';
     })();
 
+    // Get queue reports from users
+    const queueReportsPrompt = await formatQueueReportsForPrompt();
+
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
 ${countsInfo}
 ${cameraStatusWarning}
+${queueReportsPrompt}
 ═══════════════════════════════════════════════════════════════
-TRAFFIC LEVELS:
+TRAFFIC LEVELS (for vehicles on bridge/road):
 ═══════════════════════════════════════════════════════════════
 • LIGHT: 0-3 vehicles
 • MODERATE: 4-10 vehicles  
@@ -922,6 +926,7 @@ LANGUAGE RULES - EXTREMELY IMPORTANT:
 - "processing area", "processing yard"
 - "Image 1", "Bridge view", "Canopy view"
 - "automated detection", "detector", "YOLO"
+- "user reports say" (just state the info naturally)
 
 ✅ INSTEAD SAY (user-friendly):
 - "2-3 vehicles heading to SA"
@@ -929,6 +934,7 @@ LANGUAGE RULES - EXTREMELY IMPORTANT:
 - "Bridge is clear"
 - "Light traffic in both directions"
 - "About 5 vehicles waiting"
+- "Based on a recent report from X minutes ago..."
 
 ═══════════════════════════════════════════════════════════════
 RESPONSE STYLES BY QUESTION TYPE:
@@ -1523,13 +1529,17 @@ The camera is currently only showing ${desc}. Other views are not available.
       return '';
     })();
 
+    // Get queue reports from users
+    const queueReportsPrompt = await formatQueueReportsForPrompt();
+
     // Build system prompt with detector counts
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
 ${countsInfo}
 ${cameraStatusWarning}
+${queueReportsPrompt}
 ═══════════════════════════════════════════════════════════════
-TRAFFIC LEVELS:
+TRAFFIC LEVELS (for vehicles on bridge/road):
 ═══════════════════════════════════════════════════════════════
 • LIGHT: 0-3 vehicles
 • MODERATE: 4-10 vehicles  
@@ -1548,6 +1558,7 @@ LANGUAGE RULES - EXTREMELY IMPORTANT:
 - "processing area", "processing yard"
 - "Image 1", "Bridge view", "Canopy view"
 - "automated detection", "detector", "YOLO"
+- "user reports say" (just state the info naturally)
 
 ✅ INSTEAD SAY (user-friendly):
 - "2-3 vehicles heading to SA"
@@ -1555,6 +1566,7 @@ LANGUAGE RULES - EXTREMELY IMPORTANT:
 - "Bridge is clear"
 - "Light traffic in both directions"
 - "About 5 vehicles waiting"
+- "Based on a recent report from X minutes ago..."
 
 ═══════════════════════════════════════════════════════════════
 RESPONSE STYLES BY QUESTION TYPE:
@@ -2160,6 +2172,249 @@ app.get('/api/history', async (req, res) => {
     });
   } catch (err) {
     res.json({ success: false, message: err.message, readings: [] });
+  }
+});
+
+// =============================================
+// QUEUE REPORTS API (Crowdsourced)
+// =============================================
+
+// Helper: Get active queue reports
+async function getActiveQueueReports() {
+  if (!supabase) return [];
+  
+  try {
+    const { data, error } = await supabase
+      .from('queue_reports')
+      .select('*')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching queue reports:', error);
+      return [];
+    }
+    
+    // Get latest report for each checkpoint
+    const latestByCheckpoint = {};
+    for (const report of (data || [])) {
+      if (!latestByCheckpoint[report.checkpoint]) {
+        latestByCheckpoint[report.checkpoint] = report;
+      }
+    }
+    
+    return Object.values(latestByCheckpoint);
+  } catch (err) {
+    console.error('Error in getActiveQueueReports:', err);
+    return [];
+  }
+}
+
+// Helper: Format queue reports for Claude's prompt
+async function formatQueueReportsForPrompt() {
+  const reports = await getActiveQueueReports();
+  
+  if (reports.length === 0) {
+    return '';
+  }
+  
+  const checkpointNames = {
+    'leaving_ls': '🇱🇸 Leaving Lesotho',
+    'entering_sa': '🇿🇦 Entering South Africa',
+    'leaving_sa': '🇿🇦 Leaving South Africa',
+    'entering_ls': '🇱🇸 Entering Lesotho'
+  };
+  
+  const queueLengthLabels = {
+    'empty': 'Empty',
+    'short': 'Short (1-10 people)',
+    'medium': 'Medium (10-25 people)',
+    'long': 'Long (25-50 people)',
+    'very_long': 'Very Long (50+ people)'
+  };
+  
+  const waitTimeLabels = {
+    'less_than_5': '<5 min',
+    '5_to_10': '5-10 min',
+    '10_to_20': '10-20 min',
+    '20_to_30': '20-30 min',
+    '30_to_45': '30-45 min',
+    '45_to_60': '45-60 min',
+    'more_than_60': '>1 hour'
+  };
+  
+  let promptText = `
+═══════════════════════════════════════════════════════════════
+USER REPORTS (crowdsourced from travelers in queues):
+═══════════════════════════════════════════════════════════════
+`;
+  
+  const allCheckpoints = ['leaving_ls', 'entering_sa', 'leaving_sa', 'entering_ls'];
+  
+  for (const checkpoint of allCheckpoints) {
+    const report = reports.find(r => r.checkpoint === checkpoint);
+    const name = checkpointNames[checkpoint];
+    
+    if (report) {
+      const minutesAgo = Math.round((Date.now() - new Date(report.created_at).getTime()) / 60000);
+      const queueLabel = queueLengthLabels[report.queue_length];
+      const waitLabel = waitTimeLabels[report.wait_time];
+      const speedLabel = report.processing_speed.replace('_', ' ');
+      
+      promptText += `• ${name} (${minutesAgo} min ago): ${queueLabel}, ${speedLabel} speed, ${report.windows_open} window${report.windows_open > 1 ? 's' : ''}, waited ${waitLabel}`;
+      if (report.comment) {
+        promptText += ` — "${report.comment}"`;
+      }
+      promptText += '\n';
+    } else {
+      promptText += `• ${name}: No recent report\n`;
+    }
+  }
+  
+  promptText += `
+Use these reports to give travelers a complete picture. Always mention how old the report is.
+Combine camera data (bridge/vehicle counts) with user reports (passport control queues) for best advice.
+`;
+  
+  return promptText;
+}
+
+// GET /api/reports - Get active queue reports
+app.get('/api/reports', async (req, res) => {
+  try {
+    const reports = await getActiveQueueReports();
+    
+    // Add minutes_ago to each report
+    const reportsWithAge = reports.map(r => ({
+      ...r,
+      minutes_ago: Math.round((Date.now() - new Date(r.created_at).getTime()) / 60000)
+    }));
+    
+    res.json({
+      success: true,
+      reports: reportsWithAge,
+      count: reportsWithAge.length
+    });
+  } catch (err) {
+    res.json({ success: false, message: err.message, reports: [] });
+  }
+});
+
+// POST /api/reports - Submit a queue report (requires login)
+app.post('/api/reports', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Database not connected' });
+  }
+  
+  // Check authentication
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Login required to submit reports' });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  
+  try {
+    // Verify user token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired session. Please login again.' });
+    }
+    
+    const { side, direction, queue_length, processing_speed, windows_open, wait_time, comment } = req.body;
+    
+    // Validate required fields
+    if (!side || !direction || !queue_length || !processing_speed || !windows_open || !wait_time) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+    
+    // Validate values
+    const validSides = ['lesotho', 'south_africa'];
+    const validDirections = ['leaving', 'entering'];
+    const validQueueLengths = ['empty', 'short', 'medium', 'long', 'very_long'];
+    const validSpeeds = ['very_slow', 'slow', 'moderate', 'fast'];
+    const validWaitTimes = ['less_than_5', '5_to_10', '10_to_20', '20_to_30', '30_to_45', '45_to_60', 'more_than_60'];
+    
+    if (!validSides.includes(side)) {
+      return res.status(400).json({ success: false, message: 'Invalid side' });
+    }
+    if (!validDirections.includes(direction)) {
+      return res.status(400).json({ success: false, message: 'Invalid direction' });
+    }
+    if (!validQueueLengths.includes(queue_length)) {
+      return res.status(400).json({ success: false, message: 'Invalid queue length' });
+    }
+    if (!validSpeeds.includes(processing_speed)) {
+      return res.status(400).json({ success: false, message: 'Invalid processing speed' });
+    }
+    if (!validWaitTimes.includes(wait_time)) {
+      return res.status(400).json({ success: false, message: 'Invalid wait time' });
+    }
+    
+    const windowsNum = parseInt(windows_open);
+    if (isNaN(windowsNum) || windowsNum < 1 || windowsNum > 6) {
+      return res.status(400).json({ success: false, message: 'Windows open must be 1-6' });
+    }
+    
+    // Determine checkpoint
+    const checkpoint = `${direction}_${side === 'lesotho' ? 'ls' : 'sa'}`;
+    
+    // Check rate limit (1 report per checkpoint per 10 minutes)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: recentReport } = await supabase
+      .from('queue_reports')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .eq('checkpoint', checkpoint)
+      .gt('created_at', tenMinutesAgo)
+      .limit(1);
+    
+    if (recentReport && recentReport.length > 0) {
+      const lastReportTime = new Date(recentReport[0].created_at);
+      const waitSeconds = Math.ceil((10 * 60 * 1000 - (Date.now() - lastReportTime.getTime())) / 1000);
+      const waitMinutes = Math.ceil(waitSeconds / 60);
+      return res.status(429).json({ 
+        success: false, 
+        message: `You reported on this checkpoint recently. Please wait ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''} before submitting again.`
+      });
+    }
+    
+    // Insert report
+    const { data: newReport, error: insertError } = await supabase
+      .from('queue_reports')
+      .insert({
+        user_id: user.id,
+        side,
+        direction,
+        queue_length,
+        processing_speed,
+        windows_open: windowsNum,
+        wait_time,
+        comment: comment?.slice(0, 200) || null,
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      })
+      .select()
+      .single();
+    
+    if (insertError) {
+      console.error('Error inserting report:', insertError);
+      return res.status(500).json({ success: false, message: 'Failed to submit report' });
+    }
+    
+    console.log(`📊 New queue report: ${checkpoint} - ${queue_length}, ${processing_speed} speed, ${windowsNum} windows`);
+    
+    res.json({
+      success: true,
+      message: 'Report submitted successfully! Thank you for helping other travelers.',
+      report: {
+        ...newReport,
+        minutes_ago: 0
+      }
+    });
+  } catch (err) {
+    console.error('Error submitting report:', err);
+    res.status(500).json({ success: false, message: 'Failed to submit report' });
   }
 });
 
