@@ -2158,6 +2158,48 @@
       position: relative;
     }
 
+    /* Hide banner on mobile - show inline instead */
+    @media (max-width: 768px) {
+      .camera-alert-banner {
+        display: none !important;
+      }
+    }
+
+    /* Inline camera alert (for mobile, shown in chat) */
+    .inline-camera-alert {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.08));
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .inline-camera-alert.camera-down {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.08));
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .inline-camera-alert-icon {
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .inline-camera-alert-text {
+      color: var(--text-muted);
+      line-height: 1.3;
+    }
+
+    /* Only show inline alert on mobile */
+    @media (min-width: 769px) {
+      .inline-camera-alert {
+        display: none !important;
+      }
+    }
+
     /* User stats in account modal */
     .user-stats {
       background: var(--bg-secondary);
@@ -5649,15 +5691,47 @@
         </div>
       `;
       
+      // Generate inline camera alert for mobile (only if there's an alert)
+      const inlineCameraAlert = getInlineCameraAlert();
+      
       messageDiv.innerHTML = `
         <div class="message-avatar"><svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg></div>
         <div>
           <div class="message-content">${formattedContent}</div>
+          ${inlineCameraAlert}
           <div class="message-time">${time}</div>
           <div class="message-actions">
             ${shareButton}
             ${reactionButtons}
           </div>
+        </div>
+      `;
+    }
+    
+    // Generate inline camera alert HTML for mobile
+    function getInlineCameraAlert() {
+      // Only show if there's an active camera issue
+      if (lastCameraStatus === 'operational' || !lastCameraStatus) {
+        return '';
+      }
+      
+      const isDown = lastCameraStatus === 'down';
+      const icon = isDown ? '🔴' : '📷';
+      const statusClass = isDown ? 'camera-down' : '';
+      
+      let text = '';
+      if (isDown) {
+        text = 'Camera feed unavailable';
+      } else if (lastCameraStatus === 'stuck_on_angle') {
+        text = 'Limited view: Bridge only';
+      }
+      
+      if (!text) return '';
+      
+      return `
+        <div class="inline-camera-alert ${statusClass}">
+          <span class="inline-camera-alert-icon">${icon}</span>
+          <span class="inline-camera-alert-text">${text}</span>
         </div>
       `;
     }
