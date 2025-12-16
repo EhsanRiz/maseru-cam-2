@@ -589,6 +589,29 @@
       color: var(--text-primary);
     }
 
+    /* Login context banner - shown when user is prompted to login for a specific action */
+    .login-context-banner {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.08));
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .login-context-icon {
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .login-context-text {
+      font-size: 0.85rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
     .auth-form h2 {
       font-size: 1.3rem;
       margin-bottom: 0.25rem;
@@ -4194,7 +4217,7 @@
         <div class="queue-report-step" id="queueReportLoginRequired">
           <div class="queue-report-login-prompt">
             <p>Please login to submit queue reports</p>
-            <button class="queue-report-login-btn" onclick="closeQueueReport(); openAccount();">Login / Sign Up</button>
+            <button class="queue-report-login-btn" onclick="closeQueueReport(); showLoginForm();">Login / Sign Up</button>
           </div>
         </div>
         
@@ -4850,6 +4873,7 @@
     function closeAuthModal() {
       document.getElementById('authModal').classList.remove('show');
       clearAuthErrors();
+      clearLoginContext(); // Clear any pending action context
     }
     
     // Show signup form
@@ -4857,6 +4881,7 @@
       hideAllAuthForms();
       document.getElementById('signupForm').style.display = 'block';
       clearAuthErrors();
+      clearLoginContext(); // Clear context when switching to signup
     }
     
     // Show login form
@@ -4864,6 +4889,13 @@
       hideAllAuthForms();
       document.getElementById('loginForm').style.display = 'block';
       clearAuthErrors();
+      // Don't clear context here - it may have been set by showLoginWithContext
+    }
+    
+    // Called when user clicks login directly (not from a contextual prompt)
+    function showLoginFormDirect() {
+      clearLoginContext();
+      showLoginForm();
     }
     
     // Show reset password form (Step 1)
@@ -5126,6 +5158,21 @@
           saveUser(data.user);
           showLoggedInView();
           showToast('Account created successfully! 🎉');
+          
+          // Check if there's a pending action after signup
+          if (pendingActionAfterLogin) {
+            const action = pendingActionAfterLogin;
+            clearLoginContext();
+            closeAuthModal();
+            
+            // Execute the pending action
+            setTimeout(() => {
+              if (action === 'openQueueReport') {
+                openQueueReportModal();
+              }
+              // Add more actions here as needed
+            }, 300);
+          }
         } else {
           showAuthError('signupError', data.message || 'Registration failed');
         }
@@ -5171,6 +5218,21 @@
           saveUser(data.user);
           showLoggedInView();
           showToast('Welcome back! 👋');
+          
+          // Check if there's a pending action after login
+          if (pendingActionAfterLogin) {
+            const action = pendingActionAfterLogin;
+            clearLoginContext();
+            closeAuthModal();
+            
+            // Execute the pending action
+            setTimeout(() => {
+              if (action === 'openQueueReport') {
+                openQueueReportModal();
+              }
+              // Add more actions here as needed
+            }, 300);
+          }
         } else {
           showAuthError('loginError', data.message || 'Login failed');
         }
@@ -5972,8 +6034,50 @@
       comment: null
     };
     let queueReportStep = 1;
+    let pendingActionAfterLogin = null; // Track what to do after login
+
+    // Show login form with context message
+    function showLoginWithContext(icon, message, pendingAction) {
+      pendingActionAfterLogin = pendingAction;
+      
+      // Show context banner
+      const banner = document.getElementById('loginContextBanner');
+      const iconEl = document.getElementById('loginContextIcon');
+      const textEl = document.getElementById('loginContextText');
+      
+      if (banner && iconEl && textEl) {
+        iconEl.textContent = icon;
+        textEl.textContent = message;
+        banner.style.display = 'flex';
+      }
+      
+      // Open auth modal and show login form
+      document.getElementById('authModal').classList.add('show');
+      showLoginForm();
+    }
+
+    // Clear login context when showing login normally
+    function clearLoginContext() {
+      const banner = document.getElementById('loginContextBanner');
+      if (banner) {
+        banner.style.display = 'none';
+      }
+      pendingActionAfterLogin = null;
+    }
 
     function openQueueReport() {
+      // Check if user is logged in FIRST
+      if (!currentUser) {
+        // Redirect to login with context
+        showLoginWithContext('📊', 'Login to submit queue reports', 'openQueueReport');
+        return;
+      }
+      
+      // User is logged in - show the report modal
+      openQueueReportModal();
+    }
+
+    function openQueueReportModal() {
       // Reset state
       queueReportData = {
         side: null,
@@ -5998,12 +6102,8 @@
       document.getElementById('waitTimeSelect').value = '';
       document.getElementById('reportComment').value = '';
       
-      // Check if user is logged in
-      if (!currentUser) {
-        document.getElementById('queueReportLoginRequired').classList.add('active');
-      } else {
-        document.getElementById('queueReportStep1').classList.add('active');
-      }
+      // Go directly to step 1 (user is already logged in)
+      document.getElementById('queueReportStep1').classList.add('active');
       
       document.getElementById('queueReportModal').classList.add('show');
     }
@@ -7130,6 +7230,12 @@ https://4dcs.co.za`;
       
       <!-- Login Form -->
       <div class="auth-form" id="loginForm" style="display: none;">
+        <!-- Context banner for login prompts -->
+        <div class="login-context-banner" id="loginContextBanner" style="display: none;">
+          <span class="login-context-icon" id="loginContextIcon">📊</span>
+          <span class="login-context-text" id="loginContextText">Login to submit queue reports</span>
+        </div>
+        
         <h2>Welcome Back</h2>
         <p class="auth-subtitle">Login to your account</p>
         
