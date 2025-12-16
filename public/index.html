@@ -2200,6 +2200,394 @@
       }
     }
 
+    /* =============================================
+       QUEUE REPORT MODAL
+       ============================================= */
+    .queue-report-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+
+    .queue-report-modal.show {
+      display: flex;
+    }
+
+    .queue-report-content {
+      background: var(--bg-card);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 400px;
+      max-height: 85vh;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+    }
+
+    .queue-report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+      z-index: 1;
+    }
+
+    .queue-report-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .queue-report-back {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0.25rem;
+      display: none;
+    }
+
+    .queue-report-back.show {
+      display: block;
+    }
+
+    .queue-report-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .queue-report-close:hover {
+      color: var(--text-primary);
+    }
+
+    .queue-report-body {
+      padding: 1rem;
+    }
+
+    .queue-report-step {
+      display: none;
+    }
+
+    .queue-report-step.active {
+      display: block;
+    }
+
+    .queue-report-question {
+      font-size: 0.95rem;
+      font-weight: 500;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .side-options, .direction-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .side-option, .direction-option {
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1rem;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .side-option:hover, .direction-option:hover {
+      border-color: var(--accent);
+      background: rgba(34, 197, 94, 0.1);
+    }
+
+    .side-option.selected, .direction-option.selected {
+      border-color: var(--accent);
+      background: rgba(34, 197, 94, 0.15);
+    }
+
+    .side-option .flag, .direction-option .icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .side-option .label, .direction-option .label {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .queue-report-field {
+      margin-bottom: 1.25rem;
+    }
+
+    .queue-report-field label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    .queue-report-field label .required {
+      color: #ef4444;
+      margin-left: 0.25rem;
+    }
+
+    .radio-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 0.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .radio-option:hover {
+      border-color: var(--accent);
+    }
+
+    .radio-option.selected {
+      border-color: var(--accent);
+      background: rgba(34, 197, 94, 0.1);
+    }
+
+    .radio-option input[type="radio"] {
+      display: none;
+    }
+
+    .radio-option .radio-circle {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .radio-option.selected .radio-circle {
+      border-color: var(--accent);
+    }
+
+    .radio-option.selected .radio-circle::after {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+    }
+
+    .radio-option .radio-label {
+      font-size: 0.85rem;
+      color: var(--text-primary);
+    }
+
+    .horizontal-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .horizontal-options .radio-option {
+      flex: 1;
+      min-width: 60px;
+      justify-content: center;
+      padding: 0.5rem;
+    }
+
+    .horizontal-options .radio-option .radio-circle {
+      display: none;
+    }
+
+    .queue-report-select {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .queue-report-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .queue-report-textarea {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      resize: vertical;
+      min-height: 60px;
+      font-family: inherit;
+    }
+
+    .queue-report-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .queue-report-textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .queue-report-submit {
+      width: 100%;
+      padding: 0.85rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 0.5rem;
+    }
+
+    .queue-report-submit:hover {
+      background: var(--accent-hover);
+    }
+
+    .queue-report-submit:disabled {
+      background: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    .queue-report-login-prompt {
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+
+    .queue-report-login-prompt p {
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+    }
+
+    .queue-report-login-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .queue-report-success {
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+
+    .queue-report-success .success-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .queue-report-success h4 {
+      margin: 0 0 0.5rem 0;
+      color: var(--accent);
+    }
+
+    .queue-report-success p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* View Reports Modal */
+    .view-reports-section {
+      padding: 1rem;
+    }
+
+    .report-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .report-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .report-card-checkpoint {
+      font-weight: 500;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .report-card-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .report-card-details {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .report-card-comment {
+      font-size: 0.8rem;
+      font-style: italic;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .no-reports {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--text-muted);
+    }
+
+    .no-reports-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+
     /* User stats in account modal */
     .user-stats {
       background: var(--bg-secondary);
@@ -3579,6 +3967,7 @@
             <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')" data-tooltip="Check current traffic" data-tooltip-pos="top">🚗 Current?</button>
             <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')" data-tooltip="Get crossing advice" data-tooltip-pos="top">⏰ Good time?</button>
             <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')" data-tooltip="Estimate queue length" data-tooltip-pos="top">📏 Queue?</button>
+            <button class="quick-action" onclick="openQueueReport()" data-tooltip="Report queue status" data-tooltip-pos="top">📊 Report</button>
             <button class="quick-action" onclick="openFAQ()" data-tooltip="Common questions" data-tooltip-pos="top">❓ FAQ</button>
           </div>
 
@@ -3787,6 +4176,177 @@
         <button class="faq-item" onclick="askFAQ('Are there any trucks in the queue?')">
           🚛 Any trucks in the queue?
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Queue Report Modal -->
+  <div class="queue-report-modal" id="queueReportModal">
+    <div class="queue-report-content">
+      <div class="queue-report-header">
+        <button class="queue-report-back" id="queueReportBack" onclick="queueReportGoBack()">←</button>
+        <h3 id="queueReportTitle">📊 Report Queue Status</h3>
+        <button class="queue-report-close" onclick="closeQueueReport()">×</button>
+      </div>
+      
+      <div class="queue-report-body">
+        <!-- Login Required View -->
+        <div class="queue-report-step" id="queueReportLoginRequired">
+          <div class="queue-report-login-prompt">
+            <p>Please login to submit queue reports</p>
+            <button class="queue-report-login-btn" onclick="closeQueueReport(); openAccount();">Login / Sign Up</button>
+          </div>
+        </div>
+        
+        <!-- Step 1: Select Side -->
+        <div class="queue-report-step" id="queueReportStep1">
+          <p class="queue-report-question">Which side of the border are you on?</p>
+          <div class="side-options">
+            <div class="side-option" onclick="selectSide('lesotho')">
+              <div class="flag">🇱🇸</div>
+              <div class="label">Lesotho Side</div>
+            </div>
+            <div class="side-option" onclick="selectSide('south_africa')">
+              <div class="flag">🇿🇦</div>
+              <div class="label">South Africa Side</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Step 2: Select Direction -->
+        <div class="queue-report-step" id="queueReportStep2">
+          <p class="queue-report-question" id="directionQuestion">Are you...</p>
+          <div class="direction-options">
+            <div class="direction-option" onclick="selectDirection('leaving')">
+              <div class="icon">👋</div>
+              <div class="label" id="leavingLabel">Leaving</div>
+            </div>
+            <div class="direction-option" onclick="selectDirection('entering')">
+              <div class="icon">🚪</div>
+              <div class="label" id="enteringLabel">Entering</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Step 3: Report Details -->
+        <div class="queue-report-step" id="queueReportStep3">
+          <p class="queue-report-question" id="reportingFor">Reporting for: ...</p>
+          
+          <div class="queue-report-field">
+            <label>Queue Length <span class="required">*</span></label>
+            <div class="radio-options" id="queueLengthOptions">
+              <label class="radio-option" onclick="selectOption('queue_length', 'empty', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Empty</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('queue_length', 'short', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Short (1-10 people)</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('queue_length', 'medium', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Medium (10-25 people)</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('queue_length', 'long', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Long (25-50 people)</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('queue_length', 'very_long', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Very Long (50+ people)</span>
+              </label>
+            </div>
+          </div>
+          
+          <div class="queue-report-field">
+            <label>Processing Speed <span class="required">*</span></label>
+            <div class="radio-options horizontal-options" id="speedOptions">
+              <label class="radio-option" onclick="selectOption('processing_speed', 'very_slow', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Very Slow</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('processing_speed', 'slow', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Slow</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('processing_speed', 'moderate', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Moderate</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('processing_speed', 'fast', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">Fast</span>
+              </label>
+            </div>
+          </div>
+          
+          <div class="queue-report-field">
+            <label>Windows Open <span class="required">*</span></label>
+            <div class="radio-options horizontal-options" id="windowsOptions">
+              <label class="radio-option" onclick="selectOption('windows_open', '1', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">1</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('windows_open', '2', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">2</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('windows_open', '3', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">3</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('windows_open', '4', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">4</span>
+              </label>
+              <label class="radio-option" onclick="selectOption('windows_open', '5', this)">
+                <span class="radio-circle"></span>
+                <span class="radio-label">5+</span>
+              </label>
+            </div>
+          </div>
+          
+          <div class="queue-report-field">
+            <label>How Long Did You Wait? <span class="required">*</span></label>
+            <select class="queue-report-select" id="waitTimeSelect">
+              <option value="">Select wait time...</option>
+              <option value="less_than_5">Less than 5 minutes</option>
+              <option value="5_to_10">5-10 minutes</option>
+              <option value="10_to_20">10-20 minutes</option>
+              <option value="20_to_30">20-30 minutes</option>
+              <option value="30_to_45">30-45 minutes</option>
+              <option value="45_to_60">45-60 minutes</option>
+              <option value="more_than_60">More than 1 hour</option>
+            </select>
+          </div>
+          
+          <div class="queue-report-field">
+            <label>Comment (optional)</label>
+            <textarea class="queue-report-textarea" id="reportComment" placeholder="Any additional details..." maxlength="200"></textarea>
+          </div>
+          
+          <button class="queue-report-submit" id="submitReportBtn" onclick="submitQueueReport()">Submit Report</button>
+        </div>
+        
+        <!-- Success View -->
+        <div class="queue-report-step" id="queueReportSuccess">
+          <div class="queue-report-success">
+            <div class="success-icon">✅</div>
+            <h4>Thank You!</h4>
+            <p>Your report helps other travelers plan their crossing.</p>
+            <button class="queue-report-submit" onclick="closeQueueReport()" style="margin-top: 1rem;">Close</button>
+          </div>
+        </div>
+        
+        <!-- View Reports Section -->
+        <div class="queue-report-step" id="queueReportViewReports">
+          <div class="view-reports-section" id="reportsContainer">
+            <div class="no-reports">
+              <div class="no-reports-icon">📭</div>
+              <p>Loading reports...</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -5396,6 +5956,290 @@
     document.getElementById('faqModal').addEventListener('click', function(e) {
       if (e.target === this) {
         closeFAQ();
+      }
+    });
+
+    // =============================================
+    // QUEUE REPORT MODAL FUNCTIONS
+    // =============================================
+    let queueReportData = {
+      side: null,
+      direction: null,
+      queue_length: null,
+      processing_speed: null,
+      windows_open: null,
+      wait_time: null,
+      comment: null
+    };
+    let queueReportStep = 1;
+
+    function openQueueReport() {
+      // Reset state
+      queueReportData = {
+        side: null,
+        direction: null,
+        queue_length: null,
+        processing_speed: null,
+        windows_open: null,
+        wait_time: null,
+        comment: null
+      };
+      queueReportStep = 1;
+      
+      // Hide all steps
+      document.querySelectorAll('.queue-report-step').forEach(s => s.classList.remove('active'));
+      document.getElementById('queueReportBack').classList.remove('show');
+      document.getElementById('queueReportTitle').textContent = '📊 Report Queue Status';
+      
+      // Clear selections
+      document.querySelectorAll('.side-option, .direction-option, .radio-option').forEach(el => {
+        el.classList.remove('selected');
+      });
+      document.getElementById('waitTimeSelect').value = '';
+      document.getElementById('reportComment').value = '';
+      
+      // Check if user is logged in
+      if (!currentUser) {
+        document.getElementById('queueReportLoginRequired').classList.add('active');
+      } else {
+        document.getElementById('queueReportStep1').classList.add('active');
+      }
+      
+      document.getElementById('queueReportModal').classList.add('show');
+    }
+
+    function closeQueueReport() {
+      document.getElementById('queueReportModal').classList.remove('show');
+    }
+
+    function queueReportGoBack() {
+      if (queueReportStep === 2) {
+        queueReportStep = 1;
+        document.getElementById('queueReportStep2').classList.remove('active');
+        document.getElementById('queueReportStep1').classList.add('active');
+        document.getElementById('queueReportBack').classList.remove('show');
+        document.getElementById('queueReportTitle').textContent = '📊 Report Queue Status';
+      } else if (queueReportStep === 3) {
+        queueReportStep = 2;
+        document.getElementById('queueReportStep3').classList.remove('active');
+        document.getElementById('queueReportStep2').classList.add('active');
+        updateDirectionLabels();
+      }
+    }
+
+    function selectSide(side) {
+      queueReportData.side = side;
+      queueReportStep = 2;
+      
+      // Update UI
+      document.querySelectorAll('.side-option').forEach(el => el.classList.remove('selected'));
+      event.currentTarget.classList.add('selected');
+      
+      // Move to step 2
+      setTimeout(() => {
+        document.getElementById('queueReportStep1').classList.remove('active');
+        document.getElementById('queueReportStep2').classList.add('active');
+        document.getElementById('queueReportBack').classList.add('show');
+        updateDirectionLabels();
+      }, 150);
+    }
+
+    function updateDirectionLabels() {
+      const sideName = queueReportData.side === 'lesotho' ? 'Lesotho' : 'South Africa';
+      const flag = queueReportData.side === 'lesotho' ? '🇱🇸' : '🇿🇦';
+      
+      document.getElementById('directionQuestion').textContent = `You're on the ${sideName} side. Are you...`;
+      document.getElementById('leavingLabel').textContent = `Leaving ${sideName}`;
+      document.getElementById('enteringLabel').textContent = `Entering ${sideName}`;
+      document.getElementById('queueReportTitle').textContent = `${flag} ${sideName} Side`;
+    }
+
+    function selectDirection(direction) {
+      queueReportData.direction = direction;
+      queueReportStep = 3;
+      
+      // Update UI
+      document.querySelectorAll('.direction-option').forEach(el => el.classList.remove('selected'));
+      event.currentTarget.classList.add('selected');
+      
+      // Update title and reporting label
+      const sideName = queueReportData.side === 'lesotho' ? 'Lesotho' : 'South Africa';
+      const flag = queueReportData.side === 'lesotho' ? '🇱🇸' : '🇿🇦';
+      const directionText = direction === 'leaving' ? 'Leaving' : 'Entering';
+      
+      document.getElementById('queueReportTitle').textContent = `${flag} ${directionText} ${sideName}`;
+      document.getElementById('reportingFor').textContent = `Reporting for: ${flag} ${directionText} ${sideName}`;
+      
+      // Move to step 3
+      setTimeout(() => {
+        document.getElementById('queueReportStep2').classList.remove('active');
+        document.getElementById('queueReportStep3').classList.add('active');
+      }, 150);
+    }
+
+    function selectOption(field, value, element) {
+      queueReportData[field] = value;
+      
+      // Update visual selection within the same group
+      const parent = element.parentElement;
+      parent.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+    }
+
+    async function submitQueueReport() {
+      // Validate required fields
+      const waitTime = document.getElementById('waitTimeSelect').value;
+      const comment = document.getElementById('reportComment').value;
+      
+      queueReportData.wait_time = waitTime;
+      queueReportData.comment = comment || null;
+      
+      if (!queueReportData.queue_length) {
+        showToast('Please select queue length');
+        return;
+      }
+      if (!queueReportData.processing_speed) {
+        showToast('Please select processing speed');
+        return;
+      }
+      if (!queueReportData.windows_open) {
+        showToast('Please select windows open');
+        return;
+      }
+      if (!queueReportData.wait_time) {
+        showToast('Please select your wait time');
+        return;
+      }
+      
+      const submitBtn = document.getElementById('submitReportBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+      
+      try {
+        const response = await fetch('/api/reports', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentUser.access_token}`
+          },
+          body: JSON.stringify(queueReportData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Show success
+          document.getElementById('queueReportStep3').classList.remove('active');
+          document.getElementById('queueReportSuccess').classList.add('active');
+          document.getElementById('queueReportBack').classList.remove('show');
+          document.getElementById('queueReportTitle').textContent = '📊 Report Submitted';
+        } else {
+          showToast(result.message || 'Failed to submit report');
+        }
+      } catch (err) {
+        console.error('Error submitting report:', err);
+        showToast('Failed to submit report. Please try again.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Report';
+      }
+    }
+
+    // View reports functions
+    async function loadQueueReports() {
+      try {
+        const response = await fetch('/api/reports');
+        const data = await response.json();
+        
+        const container = document.getElementById('reportsContainer');
+        
+        if (!data.success || data.reports.length === 0) {
+          container.innerHTML = `
+            <div class="no-reports">
+              <div class="no-reports-icon">📭</div>
+              <p>No recent reports</p>
+              <p style="font-size: 0.8rem; margin-top: 0.5rem;">Be the first to report queue status!</p>
+            </div>
+          `;
+          return;
+        }
+        
+        const checkpointNames = {
+          'leaving_ls': '🇱🇸 Leaving Lesotho',
+          'entering_sa': '🇿🇦 Entering South Africa',
+          'leaving_sa': '🇿🇦 Leaving South Africa',
+          'entering_ls': '🇱🇸 Entering Lesotho'
+        };
+        
+        const queueLabels = {
+          'empty': 'Empty',
+          'short': 'Short (1-10 people)',
+          'medium': 'Medium (10-25 people)',
+          'long': 'Long (25-50 people)',
+          'very_long': 'Very Long (50+ people)'
+        };
+        
+        const waitLabels = {
+          'less_than_5': '<5 min',
+          '5_to_10': '5-10 min',
+          '10_to_20': '10-20 min',
+          '20_to_30': '20-30 min',
+          '30_to_45': '30-45 min',
+          '45_to_60': '45-60 min',
+          'more_than_60': '>1 hour'
+        };
+        
+        let html = '';
+        for (const report of data.reports) {
+          const name = checkpointNames[report.checkpoint] || report.checkpoint;
+          const queueLabel = queueLabels[report.queue_length];
+          const waitLabel = waitLabels[report.wait_time];
+          const speedLabel = report.processing_speed.replace('_', ' ');
+          
+          html += `
+            <div class="report-card">
+              <div class="report-card-header">
+                <span class="report-card-checkpoint">${name}</span>
+                <span class="report-card-time">⏱️ ${report.minutes_ago} min ago</span>
+              </div>
+              <div class="report-card-details">
+                Queue: <strong>${queueLabel}</strong> • 
+                Speed: <strong>${speedLabel}</strong><br>
+                ${report.windows_open} window${report.windows_open > 1 ? 's' : ''} open • 
+                Waited: ${waitLabel}
+              </div>
+              ${report.comment ? `<div class="report-card-comment">"${report.comment}"</div>` : ''}
+            </div>
+          `;
+        }
+        
+        container.innerHTML = html;
+      } catch (err) {
+        console.error('Error loading reports:', err);
+        document.getElementById('reportsContainer').innerHTML = `
+          <div class="no-reports">
+            <div class="no-reports-icon">❌</div>
+            <p>Failed to load reports</p>
+          </div>
+        `;
+      }
+    }
+
+    function openViewReports() {
+      // Reset and show reports view
+      document.querySelectorAll('.queue-report-step').forEach(s => s.classList.remove('active'));
+      document.getElementById('queueReportBack').classList.remove('show');
+      document.getElementById('queueReportTitle').textContent = '📊 Live Queue Reports';
+      document.getElementById('queueReportViewReports').classList.add('active');
+      document.getElementById('queueReportModal').classList.add('show');
+      
+      loadQueueReports();
+    }
+
+    // Close queue report modal when clicking outside
+    document.getElementById('queueReportModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeQueueReport();
       }
     });
 
