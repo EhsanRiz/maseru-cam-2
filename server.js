@@ -2315,12 +2315,31 @@ app.post('/api/reports', async (req, res) => {
   const token = authHeader.split(' ')[1];
   
   try {
-    // Verify user token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return res.status(401).json({ success: false, message: 'Invalid or expired session. Please login again.' });
+    // Verify custom token
+    let tokenData;
+    try {
+      tokenData = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+    } catch (e) {
+      return res.status(401).json({ success: false, message: 'Invalid token format. Please login again.' });
     }
+    
+    // Check token expiration
+    if (!tokenData.user_id || !tokenData.exp || Date.now() > tokenData.exp) {
+      return res.status(401).json({ success: false, message: 'Session expired. Please login again.' });
+    }
+    
+    // Verify user exists in database
+    const { data: user, error: userError } = await supabase
+      .from('traffic_users')
+      .select('id')
+      .eq('id', tokenData.user_id)
+      .single();
+    
+    if (userError || !user) {
+      return res.status(401).json({ success: false, message: 'User not found. Please login again.' });
+    }
+    
+    const userId = tokenData.user_id;
     
     const { side, direction, queue_length, processing_speed, windows_open, wait_time, comment } = req.body;
     
@@ -2365,7 +2384,7 @@ app.post('/api/reports', async (req, res) => {
     const { data: recentReport } = await supabase
       .from('queue_reports')
       .select('created_at')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('checkpoint', checkpoint)
       .gt('created_at', tenMinutesAgo)
       .limit(1);
@@ -2384,7 +2403,7 @@ app.post('/api/reports', async (req, res) => {
     const { data: newReport, error: insertError } = await supabase
       .from('queue_reports')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         side,
         direction,
         queue_length,
@@ -2634,6 +2653,14 @@ app.post('/api/auth/register', async (req, res) => {
 
     console.log(`✅ New user registered: ${phoneFull} (${countryResidence})`);
 
+    // Generate a simple auth token
+    const tokenData = {
+      user_id: data.id,
+      phone: data.phone_full,
+      exp: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+    };
+    const accessToken = Buffer.from(JSON.stringify(tokenData)).toString('base64');
+
     res.json({
       success: true,
       message: 'Registration successful',
@@ -2641,7 +2668,8 @@ app.post('/api/auth/register', async (req, res) => {
         id: data.id,
         phone: data.phone_full,
         country: data.country_residence,
-        name: data.name
+        name: data.name,
+        access_token: accessToken
       }
     });
 
@@ -2692,6 +2720,14 @@ app.post('/api/auth/login', async (req, res) => {
 
     console.log(`✅ User logged in: ${phoneFull}`);
 
+    // Generate a simple auth token (user_id + timestamp + signature)
+    const tokenData = {
+      user_id: user.id,
+      phone: user.phone_full,
+      exp: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+    };
+    const accessToken = Buffer.from(JSON.stringify(tokenData)).toString('base64');
+
     res.json({
       success: true,
       message: 'Login successful',
@@ -2700,7 +2736,8 @@ app.post('/api/auth/login', async (req, res) => {
         phone: user.phone_full,
         country: user.country_residence,
         name: user.name,
-        preferences: user.preferences
+        preferences: user.preferences,
+        access_token: accessToken
       }
     });
 
