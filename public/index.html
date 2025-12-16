@@ -3780,40 +3780,13 @@
         <p>Maseru Bridge</p>
       </div>
       <div class="header-controls">
-        <div class="report-wrapper">
-          <button class="report-btn" id="reportBtn" onclick="toggleReport()" data-tooltip="Report traffic info">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2v10l4 2"></path>
-              <circle cx="12" cy="12" r="10"></circle>
-            </svg>
-            <span>Report</span>
-          </button>
-          <div class="report-menu" id="reportMenu">
-            <button class="report-item" onclick="showComingSoon('Report Wait Time'); closeReport();">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2v10l4 2"></path>
-                <circle cx="12" cy="12" r="10"></circle>
-              </svg>
-              <div class="report-item-text">
-                <span>Report Wait Time</span>
-                <small>Share your crossing time</small>
-              </div>
-              <span class="soon-badge">Soon</span>
-            </button>
-            <button class="report-item" onclick="showComingSoon('Report Incident'); closeReport();">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                <line x1="12" y1="9" x2="12" y2="13"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
-              <div class="report-item-text">
-                <span>Report Incident</span>
-                <small>Alert others about issues</small>
-              </div>
-              <span class="soon-badge">Soon</span>
-            </button>
-          </div>
-        </div>
+        <!-- Queue Report Button -->
+        <button class="report-btn" onclick="openQueueReport()" data-tooltip="Report queue status">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+          </svg>
+          <span>Report</span>
+        </button>
         <!-- Theme Toggle -->
         <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" data-tooltip="Toggle theme">
           <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -3990,7 +3963,6 @@
             <button class="quick-action" onclick="sendQuickMessage('How busy is the border right now?')" data-tooltip="Check current traffic" data-tooltip-pos="top">🚗 Current?</button>
             <button class="quick-action" onclick="sendQuickMessage('Is it a good time to cross?')" data-tooltip="Get crossing advice" data-tooltip-pos="top">⏰ Good time?</button>
             <button class="quick-action" onclick="sendQuickMessage('How long is the queue?')" data-tooltip="Estimate queue length" data-tooltip-pos="top">📏 Queue?</button>
-            <button class="quick-action" onclick="openQueueReport()" data-tooltip="Report queue status" data-tooltip-pos="top">📊 Report</button>
             <button class="quick-action" onclick="openFAQ()" data-tooltip="Common questions" data-tooltip-pos="top">❓ FAQ</button>
           </div>
 
