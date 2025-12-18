@@ -581,16 +581,37 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Classify this Maseru Border camera image. Reply with ONLY one word:
+            text: `Classify this Maseru Border camera image into ONE category. Look for these KEY features:
 
-- USELESS: Trees/bushes filling most of the frame, mountain view, vegetation, darkness, sky, or road barely visible through foliage. If trees dominate the image, it's USELESS.
-- BRIDGE: Clear view of bridge over river with prominent ORANGE/RED vertical pillar on right side, vehicles crossing bridge lanes, river visible below
-- PROCESSING: Shows GREEN CURVED ROOF canopy/shelter structure, trucks parked or queuing in yard area, this is the border processing zone with the distinctive wavy green roof
-- WIDE: Clear view of Engen petrol station sign OR Chiefs Fast Foods sign OR road with vehicles, WITHOUT trees blocking the view
+BRIDGE: 
+- MUST have a prominent ORANGE/RED vertical pillar visible (usually on right side)
+- Shows a bridge structure over a river
+- Road lanes crossing the bridge
 
-IMPORTANT: Check for USELESS first! If trees/vegetation dominate the foreground, answer USELESS even if you can see some road in the distance.
+WIDE (Engen view):
+- Shows a WIDE/OPEN road area with multiple lanes
+- Often shows Engen petrol station OR buildings in background
+- Road stretches into the distance
+- NO green curved roof structure visible
+- This is the approach road TO the border
 
-Reply with ONE word only.`
+PROCESSING (Canopy view):
+- MUST have a distinctive GREEN CURVED/WAVY ROOF structure visible
+- Shows an enclosed yard area UNDER or NEAR the green canopy
+- Trucks parked close together in a contained area
+- The green roof is the KEY identifier - if no green roof, it's NOT processing
+
+USELESS:
+- Mostly trees, bushes, vegetation, or mountain
+- Very dark/black image
+- Camera pointing at sky or ground
+
+CRITICAL: 
+- If you see vehicles on an OPEN ROAD without a green roof = WIDE
+- If you see a GREEN CURVED ROOF structure = PROCESSING
+- If you see an ORANGE PILLAR and bridge = BRIDGE
+
+Reply with exactly ONE word: BRIDGE, WIDE, PROCESSING, or USELESS`
           }
         ],
       }],
