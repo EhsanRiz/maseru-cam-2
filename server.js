@@ -15,10 +15,10 @@ const config = {
   port: process.env.PORT || 3000,
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridge.stream_all/playlist.m3u8',
-  captureInterval: 180000,       // Capture every 3 minutes
-  cacheTimeout: 180000,         // Cache analysis for 3 minutes
-  maxBufferSize: 12,            // Keep last 12 frames (6 minutes of history)
-  analysisFrames: 3,            // Use 3 frames for analysis
+  captureInterval: 90000,        // Capture every 90 seconds (was 3 min) to catch more angles
+  cacheTimeout: 120000,          // Cache analysis for 2 minutes
+  maxBufferSize: 20,             // Keep last 20 frames (more history)
+  analysisFrames: 3,             // Use 3 frames for analysis
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
   detectorUrl: process.env.DETECTOR_URL || 'https://traffic-detector-jzbg.onrender.com',
@@ -288,6 +288,8 @@ async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
   try {
     const fileName = `${angleType}/${timestamp}.jpg`;
     
+    console.log(`📤 Uploading ${angleType} frame to Supabase...`);
+    
     const { data, error } = await supabase.storage
       .from('frames')
       .upload(fileName, imageBuffer, {
@@ -305,6 +307,7 @@ async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
       .from('frames')
       .getPublicUrl(fileName);
     
+    console.log(`✅ Uploaded ${angleType} frame to Supabase: ${fileName}`);
     return urlData?.publicUrl || fileName;
   } catch (err) {
     console.error('❌ Storage upload failed:', err.message);
@@ -535,6 +538,27 @@ async function getTypicalTraffic() {
 // END SUPABASE HELPER FUNCTIONS
 // =============================================
 
+// =============================================
+// BLUR DETECTION
+// =============================================
+// Detect motion blur by checking image file size
+// Blurry/motion-blur images compress much smaller than sharp images
+
+function isImageBlurry(imageBuffer) {
+  const sizeKB = imageBuffer.length / 1024;
+  
+  // Sharp 800px wide JPEGs from this camera are typically 50-120KB
+  // Blurry/motion-blur frames are typically 20-35KB
+  const BLUR_THRESHOLD_KB = 40;
+  
+  if (sizeKB < BLUR_THRESHOLD_KB) {
+    console.log(`🌫️ Frame likely blurry (${sizeKB.toFixed(1)}KB < ${BLUR_THRESHOLD_KB}KB threshold) - SKIPPING`);
+    return true;
+  }
+  
+  return false;
+}
+
 // Classify frame angle using AI
 async function classifyFrameAngle(imageBuffer) {
   if (isClassifying) return ANGLE_TYPES.USELESS;
@@ -642,6 +666,14 @@ async function captureFrame() {
         try {
           const imageBuffer = fs.readFileSync(outputPath);
           const timestamp = Date.now();
+          
+          // Check for motion blur BEFORE classification
+          if (isImageBlurry(imageBuffer)) {
+            // Skip blurry frames entirely - don't waste API call on classification
+            console.log('⏭️ Skipping blurry frame');
+            resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
+            return;
+          }
           
           // Classify the frame angle
           const angleType = await classifyFrameAngle(imageBuffer);
@@ -851,28 +883,48 @@ async function analyzeTraffic(userQuestion = null) {
     
     const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
       ? `
-VEHICLE COUNTS (from automated detection - these are ACCURATE):
+VEHICLE COUNTS FROM BRIDGE VIEW (automated detection):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
+• LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles on bridge
   Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
   
-• SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles - ${saToLsStatus}
+• SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles on bridge
   Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
-
-• Total detected: ${detectorCounts.total}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚠️ IMPORTANT: Use these EXACT counts. Do NOT try to count vehicles yourself.
-The counts above are determined by automated detection and are authoritative.
+⚠️ IMPORTANT - CHECK ALL CAMERA VIEWS:
+The counts above are ONLY from the bridge. You MUST also look at:
+1. PROCESSING/CANOPY view (green curved roof area) - Are trucks queuing there?
+2. WIDE/ENGEN view (road to border) - Is traffic backed up on the approach road?
 
-📌 TRUCK CONTEXT: Trucks take longer to process at border. If trucks are present:
-- Mention truck presence in your response
-- If cars are behind trucks, note they may experience slight delays
-- Example: "3 cars waiting behind a truck being processed"
+🔺 UPGRADE RULE: If you see significant queues in the canopy area OR vehicles backed up 
+on the approach road, you MUST UPGRADE the traffic status accordingly:
+- Trucks queuing at canopy = at least MODERATE
+- Traffic backed up toward Engen = HEAVY or SEVERE
+- Many trucks in processing yard = add to your assessment
+
+The bridge counts are a starting point, but your FINAL assessment must consider ALL views.
 `
       : `
-⚠️ Automated vehicle detection unavailable. Use your visual assessment.
-Use the camera images to estimate traffic in each direction.
+⚠️ Automated vehicle detection unavailable. Use your visual assessment of ALL camera views.
+Check the bridge, processing/canopy area, and approach road for queues.
+`;
+
+    // Also add visual assessment reminder
+    const visualAssessmentReminder = `
+═══════════════════════════════════════════════════════════════
+CRITICAL: ASSESS ALL CAMERA ANGLES
+═══════════════════════════════════════════════════════════════
+You are receiving multiple camera views. Look at EACH one:
+
+📷 BRIDGE VIEW: Vehicles actually crossing the bridge
+📷 CANOPY/PROCESSING VIEW: Trucks waiting in the yard (green roof area)  
+📷 WIDE/ENGEN VIEW: Approach road - shows queues backing up
+
+Your traffic assessment MUST reflect what you see in ALL views combined.
+If the bridge looks clear but you see 5+ trucks at the canopy or cars 
+queued on the approach road, traffic is NOT light!
+═══════════════════════════════════════════════════════════════
 `;
 
     // Generate camera status warning for prompt
@@ -903,16 +955,17 @@ The camera is currently only showing ${desc}. Other views are not available. Men
 
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
+${visualAssessmentReminder}
 ${countsInfo}
 ${cameraStatusWarning}
 ${queueReportsPrompt}
 ═══════════════════════════════════════════════════════════════
-TRAFFIC LEVELS (for vehicles on bridge/road):
+TRAFFIC LEVELS (consider ALL camera views combined):
 ═══════════════════════════════════════════════════════════════
-• LIGHT: 0-3 vehicles
-• MODERATE: 4-10 vehicles  
-• HEAVY: 10+ vehicles
-• SEVERE: Backed up to Engen/approach road
+• LIGHT: 0-3 vehicles total, no queues anywhere
+• MODERATE: 4-10 vehicles OR trucks queuing at processing area  
+• HEAVY: 10+ vehicles OR traffic backed up on approach road
+• SEVERE: Backed up to Engen/approach road with long waits
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -1532,19 +1585,37 @@ The camera is currently only showing ${desc}. Other views are not available.
     // Get queue reports from users
     const queueReportsPrompt = await formatQueueReportsForPrompt();
 
+    // Visual assessment reminder for multi-view analysis
+    const visualAssessmentReminder = `
+═══════════════════════════════════════════════════════════════
+CRITICAL: ASSESS ALL CAMERA ANGLES
+═══════════════════════════════════════════════════════════════
+You are receiving multiple camera views. Look at EACH one:
+
+📷 BRIDGE VIEW: Vehicles actually crossing the bridge
+📷 CANOPY/PROCESSING VIEW: Trucks waiting in the yard (green roof area)  
+📷 WIDE/ENGEN VIEW: Approach road - shows queues backing up
+
+Your traffic assessment MUST reflect what you see in ALL views combined.
+If the bridge looks clear but you see 5+ trucks at the canopy or cars 
+queued on the approach road, traffic is NOT light!
+═══════════════════════════════════════════════════════════════
+`;
+
     // Build system prompt with detector counts
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
+${visualAssessmentReminder}
 ${countsInfo}
 ${cameraStatusWarning}
 ${queueReportsPrompt}
 ═══════════════════════════════════════════════════════════════
-TRAFFIC LEVELS (for vehicles on bridge/road):
+TRAFFIC LEVELS (consider ALL camera views combined):
 ═══════════════════════════════════════════════════════════════
-• LIGHT: 0-3 vehicles
-• MODERATE: 4-10 vehicles  
-• HEAVY: 10+ vehicles
-• SEVERE: Backed up to Engen/approach road
+• LIGHT: 0-3 vehicles total, no queues anywhere
+• MODERATE: 4-10 vehicles OR trucks queuing at processing area  
+• HEAVY: 10+ vehicles OR traffic backed up on approach road
+• SEVERE: Backed up to Engen/approach road with long waits
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -3018,14 +3089,177 @@ app.get('/', (req, res) => {
 
 // Background capture
 async function startBackgroundCapture() {
-  console.log('🔄 Starting background capture...');
+  console.log('🔄 Starting background capture with angle-change detection...');
   
+  // Initial capture
   await captureFrame();
   
+  // Rapid sampling every 20 seconds, but only save when angle changes
   setInterval(async () => {
-    await captureFrame();
-  }, config.captureInterval);
+    await smartCapture();
+  }, 20000); // Check every 20 seconds
 }
+
+// Track last captured angle to detect camera movement
+let lastCapturedAngle = null;
+let lastAngleChangeTime = 0;
+let consecutiveSameAngle = 0;
+
+// Smart capture: Only save frame if camera angle changed OR it's been too long
+async function smartCapture() {
+  if (isCapturing) {
+    console.log('⏳ Capture already in progress');
+    return;
+  }
+
+  isCapturing = true;
+  const outputPath = '/tmp/frame.jpg';
+
+  return new Promise((resolve) => {
+    const ffmpeg = spawn('ffmpeg', [
+      '-y',
+      '-i', config.streamUrl,
+      '-vframes', '1',
+      '-q:v', '2',
+      '-vf', 'scale=800:-1',
+      outputPath
+    ], {
+      timeout: 30000,
+    });
+
+    let stderr = '';
+    
+    ffmpeg.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    ffmpeg.on('close', async (code) => {
+      isCapturing = false;
+      
+      if (code === 0 && fs.existsSync(outputPath)) {
+        try {
+          const imageBuffer = fs.readFileSync(outputPath);
+          const timestamp = Date.now();
+          
+          // Check for motion blur BEFORE classification
+          if (isImageBlurry(imageBuffer)) {
+            // Skip blurry frames entirely - camera is probably still moving
+            resolve(null);
+            return;
+          }
+          
+          // Classify the frame angle
+          const angleType = await classifyFrameAngle(imageBuffer);
+          
+          const timeSinceLastChange = timestamp - lastAngleChangeTime;
+          const isNewAngle = angleType !== lastCapturedAngle && angleType !== 'useless';
+          const tooLongSameAngle = timeSinceLastChange > 180000; // 3 minutes without change
+          
+          // Decide whether to save this frame
+          let shouldSave = false;
+          let reason = '';
+          
+          if (isNewAngle) {
+            // Camera moved to a new angle - SAVE!
+            shouldSave = true;
+            reason = 'angle changed';
+            consecutiveSameAngle = 0;
+            lastAngleChangeTime = timestamp;
+          } else if (tooLongSameAngle && angleType !== 'useless') {
+            // Been too long, save anyway to keep frame fresh
+            shouldSave = true;
+            reason = 'refresh (same angle)';
+            consecutiveSameAngle++;
+          } else if (angleType === 'useless') {
+            // Useless frame - check but don't increment
+            reason = 'useless (skipped)';
+            shouldSave = false;
+          } else {
+            // Same angle, not time to refresh yet
+            consecutiveSameAngle++;
+            reason = `same angle (${consecutiveSameAngle}x)`;
+            shouldSave = false;
+          }
+          
+          if (shouldSave) {
+            const frameData = {
+              screenshot: imageBuffer,
+              timestamp: timestamp,
+              angleType: angleType
+            };
+            
+            // Add to buffer
+            screenshotBuffer.push(frameData);
+            
+            // Also preserve the latest frame for each useful angle type
+            if (angleType !== 'useless' && preservedFrames.hasOwnProperty(angleType)) {
+              preservedFrames[angleType] = frameData;
+              
+              // Upload to Supabase Storage and update database
+              const framePath = await uploadFrameToStorage(imageBuffer, angleType, timestamp);
+              if (framePath) {
+                await updatePreservedFrame(angleType, framePath, timestamp);
+                await logFrameHistory(angleType, framePath, timestamp);
+              }
+            }
+            
+            // Keep only recent frames in main buffer
+            if (screenshotBuffer.length > config.maxBufferSize) {
+              screenshotBuffer = screenshotBuffer.slice(-config.maxBufferSize);
+            }
+            
+            // Record successful capture for camera status tracking
+            recordCaptureSuccess(angleType);
+            
+            // Count frames by type
+            const counts = screenshotBuffer.reduce((acc, f) => {
+              acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+              return acc;
+            }, {});
+            
+            console.log(`✅ Frame SAVED (${angleType}) - ${reason}. Buffer: ${JSON.stringify(counts)}`);
+          } else {
+            console.log(`⏭️ Frame skipped (${angleType}) - ${reason}`);
+          }
+          
+          // Update last captured angle (for non-useless frames)
+          if (angleType !== 'useless') {
+            lastCapturedAngle = angleType;
+          }
+          
+          resolve(imageBuffer);
+        } catch (err) {
+          console.error('❌ Failed to read captured frame:', err.message);
+          recordCaptureFailure();
+          resolve(null);
+        }
+      } else {
+        console.error(`❌ ffmpeg failed with code ${code}`);
+        recordCaptureFailure();
+        resolve(null);
+      }
+    });
+
+    ffmpeg.on('error', (err) => {
+      isCapturing = false;
+      console.error('❌ ffmpeg error:', err.message);
+      recordCaptureFailure();
+      resolve(null);
+    });
+
+    setTimeout(() => {
+      if (isCapturing) {
+        ffmpeg.kill('SIGKILL');
+        isCapturing = false;
+        console.error('❌ ffmpeg timeout');
+        resolve(null);
+      }
+    }, 25000);
+  });
+}
+
+// Keep original captureFrame for on-demand captures (API calls)
+// Burst capture removed - smartCapture handles angle detection now
 
 // =============================================
 // MESSAGE REACTIONS API
