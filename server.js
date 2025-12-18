@@ -559,12 +559,12 @@ async function classifyFrameAngle(imageBuffer) {
             type: 'text',
             text: `Classify this Maseru Border camera image. Reply with ONLY one word:
 
-- BRIDGE: Shows bridge over river with orange/red pillar, vehicles on bridge lanes
-- PROCESSING: Shows green curved roof canopy/shelter, vehicles in processing yard
-- WIDE: Shows Engen petrol station OR Chiefs Fast Foods sign OR road with many vehicles heading to border
-- USELESS: Shows mainly trees, bushes, greenery, darkness, sky, or no clear road/vehicles visible
+- USELESS: Trees/bushes filling most of the frame, mountain view, vegetation, darkness, sky, or road barely visible through foliage. If trees dominate the image, it's USELESS.
+- BRIDGE: Clear view of bridge over river with prominent ORANGE/RED vertical pillar on right side, vehicles crossing bridge lanes, river visible below
+- PROCESSING: Shows GREEN CURVED ROOF canopy/shelter structure, trucks parked or queuing in yard area, this is the border processing zone with the distinctive wavy green roof
+- WIDE: Clear view of Engen petrol station sign OR Chiefs Fast Foods sign OR road with vehicles, WITHOUT trees blocking the view
 
-IMPORTANT: If the image is mostly trees/vegetation with no clear infrastructure, answer USELESS.
+IMPORTANT: Check for USELESS first! If trees/vegetation dominate the foreground, answer USELESS even if you can see some road in the distance.
 
 Reply with ONE word only.`
           }
@@ -1749,6 +1749,10 @@ app.get('/api/frames', async (req, res) => {
       'useless': null // Skip useless frames
     };
     
+    // Maximum age for "fresh" vs "stale" (for UI indicator)
+    const FRESH_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+    const MAX_PRESERVED_AGE_MS = 60 * 60 * 1000; // 1 hour - show preserved frames up to 1 hour old
+    
     // Go through buffer in reverse to get most recent of each type
     for (let i = screenshotBuffer.length - 1; i >= 0; i--) {
       const frame = screenshotBuffer[i];
@@ -1757,7 +1761,7 @@ app.get('/api/frames', async (req, res) => {
       // Skip useless frames and already captured angles
       if (angleType === 'useless' || framesByAngle[angleType]) continue;
       
-      // Skip stale frames
+      // Skip stale frames from buffer (only use fresh ones)
       if (!isFrameFresh(frame)) continue;
       
       const label = angleLabels[angleType];
@@ -1766,24 +1770,34 @@ app.get('/api/frames', async (req, res) => {
           angleType: angleType,
           label: label,
           timestamp: frame.timestamp,
-          image: frame.screenshot.toString('base64')
+          image: frame.screenshot.toString('base64'),
+          isStale: false
         };
       }
     }
     
-    // Fill in any missing angles from preserved frames (only if fresh)
+    // Fill in any missing angles from preserved frames
+    // IMPORTANT: Allow older preserved frames (up to 1 hour) for carousel display
+    // This helps when camera is stuck on certain angles
     const order = ['bridge', 'processing', 'wide'];
     for (const angleType of order) {
-      if (!framesByAngle[angleType] && preservedFrames[angleType] && isFrameFresh(preservedFrames[angleType])) {
+      if (!framesByAngle[angleType] && preservedFrames[angleType]) {
         const frame = preservedFrames[angleType];
-        const label = angleLabels[angleType];
-        if (label) {
-          framesByAngle[angleType] = {
-            angleType: angleType,
-            label: label,
-            timestamp: frame.timestamp,
-            image: frame.screenshot.toString('base64')
-          };
+        const frameAge = Date.now() - new Date(frame.timestamp).getTime();
+        
+        // Allow preserved frames up to 1 hour old for display
+        if (frameAge <= MAX_PRESERVED_AGE_MS) {
+          const label = angleLabels[angleType];
+          if (label) {
+            framesByAngle[angleType] = {
+              angleType: angleType,
+              label: label,
+              timestamp: frame.timestamp,
+              image: frame.screenshot.toString('base64'),
+              isStale: frameAge > FRESH_THRESHOLD_MS, // Mark as stale if older than 10 min
+              ageMinutes: Math.round(frameAge / 60000)
+            };
+          }
         }
       }
     }
@@ -1793,24 +1807,36 @@ app.get('/api/frames', async (req, res) => {
       .filter(type => framesByAngle[type])
       .map(type => framesByAngle[type]);
     
-    // Determine camera status
+    // Determine camera status based on fresh frames only
+    const freshFrames = frames.filter(f => !f.isStale);
+    const staleFrames = frames.filter(f => f.isStale);
+    
     let cameraStatus = 'normal';
     let statusMessage = null;
-    const availableAngles = frames.map(f => f.label);
+    const availableAngles = freshFrames.map(f => f.label);
     
-    if (frames.length === 0) {
-      // No fresh frames at all - camera is offline
-      cameraStatus = 'offline';
-      statusMessage = '⚠️ Camera feed unavailable. Please try again later.';
-    } else if (frames.length === 1) {
-      // Only one angle available - camera stuck
+    if (freshFrames.length === 0) {
+      // No fresh frames at all - camera may be offline
+      if (frames.length > 0) {
+        cameraStatus = 'stale';
+        statusMessage = '⚠️ Camera feed delayed. Showing older images.';
+      } else {
+        cameraStatus = 'offline';
+        statusMessage = '⚠️ Camera feed unavailable. Please try again later.';
+      }
+    } else if (freshFrames.length === 1) {
+      // Only one fresh angle available - camera may be stuck
       cameraStatus = 'limited';
-      statusMessage = `📹 Camera showing ${availableAngles[0]} view only. Analysis based on limited view.`;
-    } else if (frames.length === 2) {
-      // Two angles available
+      statusMessage = `📹 Camera currently showing ${availableAngles[0]} view. Other views from earlier.`;
+    } else if (freshFrames.length === 2) {
+      // Two fresh angles available
       cameraStatus = 'limited';
-      const missing = order.filter(a => !framesByAngle[a]).map(a => angleLabels[a]);
-      statusMessage = `📹 ${missing[0]} view unavailable. Analysis based on ${availableAngles.join(' & ')}.`;
+      const missingFresh = order.filter(a => !freshFrames.find(f => f.angleType === a)).map(a => angleLabels[a]);
+      if (staleFrames.length > 0) {
+        statusMessage = `📹 ${missingFresh[0]} view is from ${staleFrames[0].ageMinutes}m ago.`;
+      } else {
+        statusMessage = `📹 ${missingFresh[0]} view unavailable.`;
+      }
     }
     
     res.json({
@@ -1819,7 +1845,9 @@ app.get('/api/frames', async (req, res) => {
       totalInBuffer: screenshotBuffer.length,
       cameraStatus: cameraStatus,
       statusMessage: statusMessage,
-      availableAngles: availableAngles
+      availableAngles: availableAngles,
+      freshCount: freshFrames.length,
+      staleCount: staleFrames.length
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to get frames' });
@@ -1827,12 +1855,64 @@ app.get('/api/frames', async (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
+  // Count frames by type in buffer
+  const bufferCounts = screenshotBuffer.reduce((acc, f) => {
+    acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+    return acc;
+  }, {});
+  
+  // Check preserved frames status
+  const preservedStatus = {};
+  for (const [angle, frame] of Object.entries(preservedFrames)) {
+    if (frame) {
+      const age = Date.now() - frame.timestamp;
+      preservedStatus[angle] = {
+        exists: true,
+        ageMinutes: Math.round(age / 60000),
+        isFresh: age <= MAX_FRAME_AGE_MS
+      };
+    } else {
+      preservedStatus[angle] = { exists: false };
+    }
+  }
+  
   res.json({
     status: 'ok',
     bufferSize: screenshotBuffer.length,
+    bufferCounts: bufferCounts,
+    preservedFrames: preservedStatus,
     lastCapture: screenshotBuffer.length > 0 ? new Date(screenshotBuffer[screenshotBuffer.length - 1].timestamp).toISOString() : 'none',
     uptime: process.uptime(),
   });
+});
+
+// Debug endpoint to test classification on current frame
+app.get('/api/debug/classify', async (req, res) => {
+  try {
+    // Capture a fresh frame
+    console.log('🔍 Debug: Capturing frame for classification test...');
+    const imageBuffer = await captureFrame();
+    
+    if (!imageBuffer) {
+      return res.json({ success: false, message: 'Failed to capture frame' });
+    }
+    
+    // Get the last captured frame's classification
+    const lastFrame = screenshotBuffer[screenshotBuffer.length - 1];
+    
+    res.json({
+      success: true,
+      classification: lastFrame?.angleType || 'unknown',
+      timestamp: lastFrame?.timestamp ? new Date(lastFrame.timestamp).toISOString() : null,
+      bufferCounts: screenshotBuffer.reduce((acc, f) => {
+        acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+        return acc;
+      }, {}),
+      message: `Frame classified as: ${lastFrame?.angleType || 'unknown'}`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // =============================================
