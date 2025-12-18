@@ -1368,6 +1368,12 @@
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+
+    .gallery-label.stale {
+      color: var(--warning);
+      background: rgba(245, 158, 11, 0.2);
     }
 
     .gallery-nav {
@@ -1422,6 +1428,17 @@
     .gallery-dot.active {
       background: var(--accent);
       transform: scale(1.2);
+    }
+
+    .gallery-dot.stale {
+      background: var(--warning);
+      opacity: 0.7;
+    }
+
+    .gallery-dot.stale.active {
+      background: var(--warning);
+      transform: scale(1.2);
+      opacity: 1;
     }
 
     .gallery-dot:hover:not(.active) {
@@ -7344,16 +7361,25 @@ https://4dcs.co.za`;
       
       const frame = frames[currentFrameIndex];
       galleryImage.src = 'data:image/jpeg;base64,' + frame.image;
-      galleryLabel.textContent = frame.label;
+      
+      // Show label with stale indicator if frame is old
+      if (frame.isStale && frame.ageMinutes) {
+        galleryLabel.textContent = `${frame.label} (${frame.ageMinutes}m ago)`;
+        galleryLabel.classList.add('stale');
+      } else {
+        galleryLabel.textContent = frame.label;
+        galleryLabel.classList.remove('stale');
+      }
       
       // Update timestamp
       const timestamp = new Date(frame.timestamp);
       cameraTimestamp.textContent = timestamp.toLocaleTimeString();
       
-      // Update dots
+      // Update dots - add stale class for older frames
       const dots = galleryDots.querySelectorAll('.gallery-dot');
       dots.forEach((dot, i) => {
         dot.classList.toggle('active', i === currentFrameIndex);
+        dot.classList.toggle('stale', frames[i].isStale === true);
       });
       
       // Nav buttons always enabled for continuous loop
@@ -7384,8 +7410,11 @@ https://4dcs.co.za`;
       galleryDots.innerHTML = '';
       frames.forEach((frame, i) => {
         const dot = document.createElement('button');
-        dot.className = 'gallery-dot' + (i === currentFrameIndex ? ' active' : '');
-        dot.title = frame.label;
+        let className = 'gallery-dot';
+        if (i === currentFrameIndex) className += ' active';
+        if (frame.isStale) className += ' stale';
+        dot.className = className;
+        dot.title = frame.isStale ? `${frame.label} (${frame.ageMinutes}m ago)` : frame.label;
         dot.onclick = () => goToFrame(i);
         galleryDots.appendChild(dot);
       });
