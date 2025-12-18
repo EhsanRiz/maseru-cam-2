@@ -581,37 +581,34 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Classify this Maseru Border camera image into ONE category. Look for these KEY features:
+            text: `Classify this Maseru Border camera image. Look for these SPECIFIC landmarks:
 
 BRIDGE: 
-- MUST have a prominent ORANGE/RED vertical pillar visible (usually on right side)
-- Shows a bridge structure over a river
-- Road lanes crossing the bridge
+- Has an ORANGE/RED vertical pillar (usually on right side)
+- Shows bridge structure over river
 
-WIDE (Engen view):
-- Shows a WIDE/OPEN road area with multiple lanes
-- Often shows Engen petrol station OR buildings in background
-- Road stretches into the distance
-- NO green curved roof structure visible
-- This is the approach road TO the border
+PROCESSING (Canopy):
+- Has a GREEN CURVED ROOF/CANOPY structure at the TOP of the frame
+- The roof ARCHES OVER the vehicles below
+- Vehicles are UNDER this covered/sheltered area
+- NO two-story building visible on the left
 
-PROCESSING (Canopy view):
-- MUST have a distinctive GREEN CURVED/WAVY ROOF structure visible
-- Shows an enclosed yard area UNDER or NEAR the green canopy
-- Trucks parked close together in a contained area
-- The green roof is the KEY identifier - if no green roof, it's NOT processing
+WIDE (Engen/Road):
+- Has a TWO-STORY BUILDING on the LEFT side of the frame
+- Shows OPEN road stretching into the distance
+- NO overhead canopy/roof structure
+- Open sky above, not covered
 
 USELESS:
-- Mostly trees, bushes, vegetation, or mountain
-- Very dark/black image
-- Camera pointing at sky or ground
+- Mostly trees, bushes, vegetation, mountain, darkness, or blur
 
-CRITICAL: 
-- If you see vehicles on an OPEN ROAD without a green roof = WIDE
-- If you see a GREEN CURVED ROOF structure = PROCESSING
-- If you see an ORANGE PILLAR and bridge = BRIDGE
+QUICK CHECK:
+- See a TWO-STORY BUILDING on the LEFT? → WIDE
+- See a GREEN CURVED ROOF overhead? → PROCESSING
+- See an ORANGE PILLAR? → BRIDGE
+- See mostly trees/dark? → USELESS
 
-Reply with exactly ONE word: BRIDGE, WIDE, PROCESSING, or USELESS`
+Reply with ONE word: BRIDGE, PROCESSING, WIDE, or USELESS`
           }
         ],
       }],
