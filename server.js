@@ -581,36 +581,31 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `This is a traffic camera at Maseru Border. Classify which camera angle this is.
+            text: `Classify this traffic camera image from Maseru Border crossing.
 
-Look for these UNIQUE features:
+Step 1: Is the image mostly TREES, BUSHES, GRASS, MOUNTAIN, or VEGETATION filling the frame?
+- If more than half the image is green vegetation → Answer: USELESS
 
-BRIDGE:
-- You can see an ORANGE/RED vertical pillar structure
-- The road goes over a river/bridge
-- Wall/barrier visible on the sides
+Step 2: Can you see a GREEN WAVY/CORRUGATED METAL ROOF structure?
+- This is a shelter covering parked vehicles
+- The roof has a curved/wave shape and is GREEN colored
+- If YES → Answer: PROCESSING
 
-PROCESSING:
-- GREEN WAVY/CURVED METAL ROOF visible overhead (like a shelter/canopy)
-- The green roof has a distinctive wave pattern
-- Vehicles are parked UNDER this green shelter
-- The camera is looking INTO a covered parking/processing area
+Step 3: Can you see a TALL ORANGE/RED PILLAR standing vertically on the RIGHT side?
+- This pillar is about 3-4 meters tall, bright orange/red color
+- It marks the entrance to a bridge over a river
+- The road crosses over water
+- If YES → Answer: BRIDGE
 
-WIDE:
-- You can see the road stretching FAR into the distance
-- There is a WHITE/LIGHT colored MULTI-STORY BUILDING on the LEFT side
-- You can see the ENGEN petrol station OR shops in the background
-- This is an OPEN outdoor area with NO overhead roof/shelter
-- The road leads TO the border (approach road)
+Step 4: Can you see an OPEN ROAD stretching into the distance with NO overhead roof?
+- Buildings and shops visible in background
+- Clear sky above (no shelter/canopy covering the road)
+- Vehicles driving on an open road
+- If YES → Answer: WIDE
 
-USELESS:
-- Just trees, vegetation, mountain, or very dark
+Check in this exact order. Answer with the FIRST category that matches.
 
-KEY DIFFERENCE between PROCESSING and WIDE:
-- PROCESSING: Has GREEN METAL ROOF overhead, enclosed/covered area
-- WIDE: NO roof overhead, OPEN sky, road goes into distance
-
-Answer with exactly ONE word: BRIDGE, PROCESSING, WIDE, or USELESS`
+Your answer (one word only):`
           }
         ],
       }],
