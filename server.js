@@ -565,7 +565,43 @@ async function classifyFrameAngle(imageBuffer) {
   
   isClassifying = true;
   try {
-    const response = await anthropic.messages.create({
+    const imageBase64 = imageBuffer.toString('base64');
+    
+    // STEP 1: Check if this is WIDE (Engen view) with a simple yes/no question
+    const wideCheckResponse = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 10,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: imageBase64,
+            },
+          },
+          {
+            type: 'text',
+            text: `Can you see a ROAD going FAR INTO THE DISTANCE with buildings/petrol station far away in the background?
+
+Answer only YES or NO.`
+          }
+        ],
+      }],
+    });
+    
+    const wideResult = wideCheckResponse.content[0].text.trim().toUpperCase();
+    console.log(`📷 WIDE check: ${wideResult}`);
+    
+    if (wideResult.includes('YES')) {
+      console.log(`📷 Frame classified as: WIDE`);
+      return ANGLE_TYPES.WIDE;
+    }
+    
+    // STEP 2: If not WIDE, classify between BRIDGE, PROCESSING, USELESS
+    const classifyResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 50,
       messages: [{
@@ -576,46 +612,41 @@ async function classifyFrameAngle(imageBuffer) {
             source: {
               type: 'base64',
               media_type: 'image/jpeg',
-              data: imageBuffer.toString('base64'),
+              data: imageBase64,
             },
           },
           {
             type: 'text',
-            text: `Classify this traffic camera image. Follow these steps IN ORDER and stop at the first YES:
+            text: `Classify this traffic camera image:
 
-STEP 1 - Is this WIDE/Engen view?
-→ Do you see a ROAD COMING DOWN FROM FAR AWAY (going into the distance)?
-→ Do you see ENGEN PETROL STATION on the right side?
-→ If YES to these → Answer: WIDE
+BRIDGE:
+→ ORANGE/RED PILLAR visible on the right side
+→ Bridge structure over a river
+→ If YES → Answer: BRIDGE
 
-STEP 2 - Is this BRIDGE view?
-→ Do you see an ORANGE/RED PILLAR on the right?
-→ Do you see a bridge structure over a river?
-→ If YES to these → Answer: BRIDGE
-
-STEP 3 - Is this USELESS?
-→ Is the image MOSTLY trees, bushes, vegetation, or mountain?
+USELESS:
+→ Image is MOSTLY trees, bushes, vegetation, or mountain
+→ Image is very dark or blurry
 → If YES → Answer: USELESS
 
-STEP 4 - Is this PROCESSING/Canopy view?
-→ Do you see a GREEN METAL ROOF overhead?
-→ Do you see a COVERED WALKWAY on the right side?
-→ If YES to either → Answer: PROCESSING
+PROCESSING:
+→ GREEN METAL ROOF visible overhead
+→ COVERED WALKWAY on the right side
+→ Trucks/vehicles parked in the area
+→ If YES → Answer: PROCESSING
 
-If none match → Answer: USELESS
-
-Answer with ONE word only:`
+Answer with ONE word: BRIDGE, USELESS, or PROCESSING`
           }
         ],
       }],
     });
     
-    const result = response.content[0].text.trim().toUpperCase();
+    const result = classifyResponse.content[0].text.trim().toUpperCase();
     console.log(`📷 Frame classified as: ${result}`);
     
     if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
     if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
-    if (result.includes('WIDE')) return ANGLE_TYPES.WIDE;
+    if (result.includes('USELESS')) return ANGLE_TYPES.USELESS;
     return ANGLE_TYPES.USELESS;
     
   } catch (error) {
