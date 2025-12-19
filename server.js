@@ -581,31 +581,36 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Classify this traffic camera image from Maseru Border crossing.
+            text: `Classify this Maseru Border traffic camera image.
 
-Step 1: Is the image mostly TREES, BUSHES, GRASS, MOUNTAIN, or VEGETATION filling the frame?
-- If more than half the image is green vegetation → Answer: USELESS
+1. USELESS
+   → Most of the frame is trees, bushes, vegetation, or mountain
+   → Very dark or blurry image
+   → If YES, answer: USELESS
 
-Step 2: Can you see a GREEN WAVY/CORRUGATED METAL ROOF structure?
-- This is a shelter covering parked vehicles
-- The roof has a curved/wave shape and is GREEN colored
-- If YES → Answer: PROCESSING
+2. BRIDGE
+   → ORANGE/RED PILLAR visible on the right side
+   → Bridge structure over a river
+   → If YES, answer: BRIDGE
 
-Step 3: Can you see a TALL ORANGE/RED PILLAR standing vertically on the RIGHT side?
-- This pillar is about 3-4 meters tall, bright orange/red color
-- It marks the entrance to a bridge over a river
-- The road crosses over water
-- If YES → Answer: BRIDGE
+3. PROCESSING
+   → GREEN CORRUGATED/WAVY METAL ROOF visible overhead
+   → COVERED WALKWAY structure on the RIGHT side
+   → Trucks may be parked in the open area nearby
+   → If YES, answer: PROCESSING
 
-Step 4: Can you see an OPEN ROAD stretching into the distance with NO overhead roof?
-- Buildings and shops visible in background
-- Clear sky above (no shelter/canopy covering the road)
-- Vehicles driving on an open road
-- If YES → Answer: WIDE
+4. WIDE
+   → ROAD COMING DOWN FROM FAR AWAY (perspective going into distance)
+   → Engen Petrol Station visible on the RIGHT
+   → Two-story building on the LEFT
+   → NO overhead roof structure
+   → If YES, answer: WIDE
 
-Check in this exact order. Answer with the FIRST category that matches.
+KEY DIFFERENCES:
+- PROCESSING: Has GREEN ROOF overhead + COVERED WALKWAY on right
+- WIDE: Has ROAD FROM DISTANCE + ENGEN on right + NO overhead roof
 
-Your answer (one word only):`
+Answer with ONE word:`
           }
         ],
       }],
