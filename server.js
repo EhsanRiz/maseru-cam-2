@@ -909,16 +909,16 @@ VEHICLE COUNTS FROM BRIDGE VIEW (automated detection):
 
 ⚠️ IMPORTANT - CHECK ALL CAMERA VIEWS:
 The counts above are ONLY from the bridge. You MUST also look at:
-1. PROCESSING/CANOPY view (green curved roof area) - Are trucks queuing there?
-2. WIDE/ENGEN view (road to border) - Is traffic backed up on the approach road?
+1. CANOPY view - Are CARS queuing to enter (SA→LS)? Are cars on the right side (LS→SA)?
+2. WIDE/ENGEN view - Is traffic backed up on the approach road?
 
-🔺 UPGRADE RULE: If you see significant queues in the canopy area OR vehicles backed up 
-on the approach road, you MUST UPGRADE the traffic status accordingly:
-- Trucks queuing at canopy = at least MODERATE
-- Traffic backed up toward Engen = HEAVY or SEVERE
-- Many trucks in processing yard = add to your assessment
+🔺 UPGRADE RULES based on cross-view validation:
+- Cars queuing in 2 ROWS entering canopy = HEAVY for SA→LS
+- Traffic backed up to Engen/approach road = SEVERE for SA→LS
+- Queue on bridge far lane AND canopy right side = Confirmed LS→SA congestion
+- NOTE: Stationary trucks do NOT cause delays - they process elsewhere
 
-The bridge counts are a starting point, but your FINAL assessment must consider ALL views.
+The bridge counts are a starting point, but validate with canopy and wide views.
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment of ALL camera views.
@@ -928,17 +928,42 @@ Check the bridge, processing/canopy area, and approach road for queues.
     // Also add visual assessment reminder
     const visualAssessmentReminder = `
 ═══════════════════════════════════════════════════════════════
-CRITICAL: ASSESS ALL CAMERA ANGLES
+MASERU BORDER TRAFFIC FLOW GUIDE
 ═══════════════════════════════════════════════════════════════
-You are receiving multiple camera views. Look at EACH one:
+Understanding the camera views and traffic flow:
 
-📷 BRIDGE VIEW: Vehicles actually crossing the bridge
-📷 CANOPY/PROCESSING VIEW: Trucks waiting in the yard (green roof area)  
-📷 WIDE/ENGEN VIEW: Approach road - shows queues backing up
+📷 BRIDGE VIEW:
+   • LS→SA traffic: Uses the lane AWAY from the orange pillar (far side)
+   • SA→LS traffic: Uses the lane NEAR the orange pillar
+   • Count vehicles in each lane to assess directional traffic
 
-Your traffic assessment MUST reflect what you see in ALL views combined.
-If the bridge looks clear but you see 5+ trucks at the canopy or cars 
-queued on the approach road, traffic is NOT light!
+📷 CANOPY/PROCESSING VIEW:
+   • SA→LS TRAFFIC: Cars ENTERING the canopy area, queue in 1 row normally,
+     2 rows when traffic is heavy. Look for cars lined up coming INTO the shelter.
+   • LS→SA TRAFFIC: Vehicles on the RIGHT SIDE of the canopy area, 
+     these are heading toward South Africa.
+   • TRUCKS: Trucks park in the canopy BUT they process at a DIFFERENT location.
+     ⚠️ Trucks do NOT cause delays for cars UNLESS they are physically blocking 
+     the car lanes. Don't count stationary trucks as traffic delays!
+
+📷 WIDE/ENGEN VIEW:
+   • Shows the approach road from Lesotho side
+   • If cars are queued here, SA→LS traffic is severely backed up
+
+═══════════════════════════════════════════════════════════════
+CROSS-VIEW VALIDATION (use this to confirm traffic severity):
+═══════════════════════════════════════════════════════════════
+🔍 To confirm LS→SA traffic:
+   1. Check bridge: vehicles on far side (away from orange pillar)
+   2. Check canopy: vehicles on RIGHT side heading toward bridge
+   3. If BOTH show queues → Confirmed LS→SA congestion
+
+🔍 To confirm SA→LS traffic:
+   1. Check bridge: vehicles on near side (by orange pillar)
+   2. Check canopy: cars ENTERING/queuing in the canopy (1-2 rows)
+   3. Check wide/Engen: if backed up here, SA→LS is SEVERE
+   4. If bridge AND canopy show SA→LS queues → Confirmed congestion
+
 ═══════════════════════════════════════════════════════════════
 `;
 
@@ -975,12 +1000,26 @@ ${countsInfo}
 ${cameraStatusWarning}
 ${queueReportsPrompt}
 ═══════════════════════════════════════════════════════════════
-TRAFFIC LEVELS (consider ALL camera views combined):
+TRAFFIC LEVELS (assess EACH direction separately):
 ═══════════════════════════════════════════════════════════════
-• LIGHT: 0-3 vehicles total, no queues anywhere
-• MODERATE: 4-10 vehicles OR trucks queuing at processing area  
-• HEAVY: 10+ vehicles OR traffic backed up on approach road
-• SEVERE: Backed up to Engen/approach road with long waits
+
+For LS→SA (Lesotho to South Africa):
+• LIGHT: 0-3 vehicles, no queue on bridge far lane or canopy right side
+• MODERATE: 4-8 vehicles, some queue visible on bridge or canopy right
+• HEAVY: 8+ vehicles, clear queue on bridge AND canopy right side
+• SEVERE: Queue extends significantly, long waits expected
+
+For SA→LS (South Africa to Lesotho):
+• LIGHT: 0-3 vehicles, no cars entering canopy
+• MODERATE: 4-8 vehicles, single row of cars queuing into canopy
+• HEAVY: 8+ vehicles, cars in 2 ROWS entering canopy, bridge lane backed up
+• SEVERE: Queue backs up to Engen/approach road (visible in WIDE view)
+
+⚠️ IMPORTANT NOTES:
+• Trucks in canopy area do NOT automatically mean delays - they process elsewhere
+• Only count trucks as causing delays if they are blocking car lanes
+• 2 rows of cars entering canopy = definite HEAVY traffic for SA→LS
+• If Engen/approach road shows queue = SEVERE for SA→LS
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -1564,11 +1603,12 @@ VEHICLE COUNTS (from automated detection - these are ACCURATE):
 • Total detected: ${detectorCounts.total}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚠️ IMPORTANT: Use these EXACT counts. Do NOT try to count vehicles yourself.
+⚠️ IMPORTANT: Use these EXACT counts from the bridge view. 
+Also check canopy and wide views to validate traffic levels.
 
-📌 TRUCK CONTEXT: Trucks take longer to process at border. If trucks are present:
-- Mention truck presence in your response
-- If cars are behind trucks, note they may experience slight delays
+📌 TRUCK NOTE: Trucks in the canopy area process at a DIFFERENT location.
+- Stationary trucks do NOT cause delays for cars
+- Only mention trucks if they are blocking car lanes
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment.
@@ -1603,17 +1643,42 @@ The camera is currently only showing ${desc}. Other views are not available.
     // Visual assessment reminder for multi-view analysis
     const visualAssessmentReminder = `
 ═══════════════════════════════════════════════════════════════
-CRITICAL: ASSESS ALL CAMERA ANGLES
+MASERU BORDER TRAFFIC FLOW GUIDE
 ═══════════════════════════════════════════════════════════════
-You are receiving multiple camera views. Look at EACH one:
+Understanding the camera views and traffic flow:
 
-📷 BRIDGE VIEW: Vehicles actually crossing the bridge
-📷 CANOPY/PROCESSING VIEW: Trucks waiting in the yard (green roof area)  
-📷 WIDE/ENGEN VIEW: Approach road - shows queues backing up
+📷 BRIDGE VIEW:
+   • LS→SA traffic: Uses the lane AWAY from the orange pillar (far side)
+   • SA→LS traffic: Uses the lane NEAR the orange pillar
+   • Count vehicles in each lane to assess directional traffic
 
-Your traffic assessment MUST reflect what you see in ALL views combined.
-If the bridge looks clear but you see 5+ trucks at the canopy or cars 
-queued on the approach road, traffic is NOT light!
+📷 CANOPY/PROCESSING VIEW:
+   • SA→LS TRAFFIC: Cars ENTERING the canopy area, queue in 1 row normally,
+     2 rows when traffic is heavy. Look for cars lined up coming INTO the shelter.
+   • LS→SA TRAFFIC: Vehicles on the RIGHT SIDE of the canopy area, 
+     these are heading toward South Africa.
+   • TRUCKS: Trucks park in the canopy BUT they process at a DIFFERENT location.
+     ⚠️ Trucks do NOT cause delays for cars UNLESS they are physically blocking 
+     the car lanes. Don't count stationary trucks as traffic delays!
+
+📷 WIDE/ENGEN VIEW:
+   • Shows the approach road from Lesotho side
+   • If cars are queued here, SA→LS traffic is severely backed up
+
+═══════════════════════════════════════════════════════════════
+CROSS-VIEW VALIDATION (use this to confirm traffic severity):
+═══════════════════════════════════════════════════════════════
+🔍 To confirm LS→SA traffic:
+   1. Check bridge: vehicles on far side (away from orange pillar)
+   2. Check canopy: vehicles on RIGHT side heading toward bridge
+   3. If BOTH show queues → Confirmed LS→SA congestion
+
+🔍 To confirm SA→LS traffic:
+   1. Check bridge: vehicles on near side (by orange pillar)
+   2. Check canopy: cars ENTERING/queuing in the canopy (1-2 rows)
+   3. Check wide/Engen: if backed up here, SA→LS is SEVERE
+   4. If bridge AND canopy show SA→LS queues → Confirmed congestion
+
 ═══════════════════════════════════════════════════════════════
 `;
 
@@ -1625,12 +1690,26 @@ ${countsInfo}
 ${cameraStatusWarning}
 ${queueReportsPrompt}
 ═══════════════════════════════════════════════════════════════
-TRAFFIC LEVELS (consider ALL camera views combined):
+TRAFFIC LEVELS (assess EACH direction separately):
 ═══════════════════════════════════════════════════════════════
-• LIGHT: 0-3 vehicles total, no queues anywhere
-• MODERATE: 4-10 vehicles OR trucks queuing at processing area  
-• HEAVY: 10+ vehicles OR traffic backed up on approach road
-• SEVERE: Backed up to Engen/approach road with long waits
+
+For LS→SA (Lesotho to South Africa):
+• LIGHT: 0-3 vehicles, no queue on bridge far lane or canopy right side
+• MODERATE: 4-8 vehicles, some queue visible on bridge or canopy right
+• HEAVY: 8+ vehicles, clear queue on bridge AND canopy right side
+• SEVERE: Queue extends significantly, long waits expected
+
+For SA→LS (South Africa to Lesotho):
+• LIGHT: 0-3 vehicles, no cars entering canopy
+• MODERATE: 4-8 vehicles, single row of cars queuing into canopy
+• HEAVY: 8+ vehicles, cars in 2 ROWS entering canopy, bridge lane backed up
+• SEVERE: Queue backs up to Engen/approach road (visible in WIDE view)
+
+⚠️ IMPORTANT NOTES:
+• Trucks in canopy area do NOT automatically mean delays - they process elsewhere
+• Only count trucks as causing delays if they are blocking car lanes
+• 2 rows of cars entering canopy = definite HEAVY traffic for SA→LS
+• If Engen/approach road shows queue = SEVERE for SA→LS
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
