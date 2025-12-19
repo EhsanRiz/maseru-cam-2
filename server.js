@@ -581,36 +581,30 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Classify this Maseru Border traffic camera image.
+            text: `Classify this traffic camera image. Follow these steps IN ORDER and stop at the first YES:
 
-1. USELESS
-   → Most of the frame is trees, bushes, vegetation, or mountain
-   → Very dark or blurry image
-   → If YES, answer: USELESS
+STEP 1 - Is this WIDE/Engen view?
+→ Do you see a ROAD COMING DOWN FROM FAR AWAY (going into the distance)?
+→ Do you see ENGEN PETROL STATION on the right side?
+→ If YES to these → Answer: WIDE
 
-2. BRIDGE
-   → ORANGE/RED PILLAR visible on the right side
-   → Bridge structure over a river
-   → If YES, answer: BRIDGE
+STEP 2 - Is this BRIDGE view?
+→ Do you see an ORANGE/RED PILLAR on the right?
+→ Do you see a bridge structure over a river?
+→ If YES to these → Answer: BRIDGE
 
-3. PROCESSING
-   → GREEN CORRUGATED/WAVY METAL ROOF visible overhead
-   → COVERED WALKWAY structure on the RIGHT side
-   → Trucks may be parked in the open area nearby
-   → If YES, answer: PROCESSING
+STEP 3 - Is this USELESS?
+→ Is the image MOSTLY trees, bushes, vegetation, or mountain?
+→ If YES → Answer: USELESS
 
-4. WIDE
-   → ROAD COMING DOWN FROM FAR AWAY (perspective going into distance)
-   → Engen Petrol Station visible on the RIGHT
-   → Two-story building on the LEFT
-   → NO overhead roof structure
-   → If YES, answer: WIDE
+STEP 4 - Is this PROCESSING/Canopy view?
+→ Do you see a GREEN METAL ROOF overhead?
+→ Do you see a COVERED WALKWAY on the right side?
+→ If YES to either → Answer: PROCESSING
 
-KEY DIFFERENCES:
-- PROCESSING: Has GREEN ROOF overhead + COVERED WALKWAY on right
-- WIDE: Has ROAD FROM DISTANCE + ENGEN on right + NO overhead roof
+If none match → Answer: USELESS
 
-Answer with ONE word:`
+Answer with ONE word only:`
           }
         ],
       }],
