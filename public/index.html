@@ -7538,40 +7538,58 @@ https://4dcs.co.za`;
     // Load saved chat history on page load
     loadChatHistory();
     
+    // Robust scroll-to-bottom function that works on mobile
+    function scrollChatToBottom() {
+      if (!chatMessages) return;
+      
+      // Multiple attempts with increasing delays for mobile browsers
+      const scrollNow = () => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      };
+      
+      // Immediate
+      scrollNow();
+      
+      // After render
+      requestAnimationFrame(scrollNow);
+      
+      // After short delay
+      setTimeout(scrollNow, 100);
+      
+      // After longer delay (for slow mobile rendering)
+      setTimeout(scrollNow, 300);
+      
+      // Final attempt (for very slow connections/devices)
+      setTimeout(scrollNow, 500);
+    }
+    
     // Ensure chat scrolls to bottom when page fully loads
     window.addEventListener('load', () => {
-      setTimeout(() => {
-        if (chatMessages) {
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-      }, 200);
+      scrollChatToBottom();
     });
     
     // Scroll to bottom when user returns to the page/tab
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && chatMessages) {
-        setTimeout(() => {
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 100);
+      if (document.visibilityState === 'visible') {
+        scrollChatToBottom();
       }
     });
     
-    // Also handle iOS Safari's pageshow event (for back/forward navigation)
+    // Handle iOS Safari's pageshow event (for back/forward navigation and bfcache)
     window.addEventListener('pageshow', (event) => {
-      if (event.persisted && chatMessages) {
-        setTimeout(() => {
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 100);
-      }
+      // Always scroll on pageshow, not just when persisted
+      // This handles iPhone Safari's aggressive caching
+      scrollChatToBottom();
     });
     
     // Handle window focus (when switching between apps on mobile)
     window.addEventListener('focus', () => {
-      if (chatMessages) {
-        setTimeout(() => {
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 100);
-      }
+      scrollChatToBottom();
+    });
+    
+    // Also scroll after a delay on DOMContentLoaded for initial load
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(scrollChatToBottom, 200);
     });
     
     refreshCamera();
