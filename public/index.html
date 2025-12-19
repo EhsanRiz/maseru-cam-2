@@ -7547,6 +7547,33 @@ https://4dcs.co.za`;
       }, 200);
     });
     
+    // Scroll to bottom when user returns to the page/tab
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && chatMessages) {
+        setTimeout(() => {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, 100);
+      }
+    });
+    
+    // Also handle iOS Safari's pageshow event (for back/forward navigation)
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted && chatMessages) {
+        setTimeout(() => {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, 100);
+      }
+    });
+    
+    // Handle window focus (when switching between apps on mobile)
+    window.addEventListener('focus', () => {
+      if (chatMessages) {
+        setTimeout(() => {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, 100);
+      }
+    });
+    
     refreshCamera();
     setInterval(refreshCamera, 180000); // Refresh every 3 minutes
     
