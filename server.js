@@ -581,34 +581,36 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Classify this Maseru Border camera image. Look for these SPECIFIC landmarks:
+            text: `This is a traffic camera at Maseru Border. Classify which camera angle this is.
 
-BRIDGE: 
-- Has an ORANGE/RED vertical pillar (usually on right side)
-- Shows bridge structure over river
+Look for these UNIQUE features:
 
-PROCESSING (Canopy):
-- Has a GREEN CURVED ROOF/CANOPY structure at the TOP of the frame
-- The roof ARCHES OVER the vehicles below
-- Vehicles are UNDER this covered/sheltered area
-- NO two-story building visible on the left
+BRIDGE:
+- You can see an ORANGE/RED vertical pillar structure
+- The road goes over a river/bridge
+- Wall/barrier visible on the sides
 
-WIDE (Engen/Road):
-- Has a TWO-STORY BUILDING on the LEFT side of the frame
-- Shows OPEN road stretching into the distance
-- NO overhead canopy/roof structure
-- Open sky above, not covered
+PROCESSING:
+- GREEN WAVY/CURVED METAL ROOF visible overhead (like a shelter/canopy)
+- The green roof has a distinctive wave pattern
+- Vehicles are parked UNDER this green shelter
+- The camera is looking INTO a covered parking/processing area
+
+WIDE:
+- You can see the road stretching FAR into the distance
+- There is a WHITE/LIGHT colored MULTI-STORY BUILDING on the LEFT side
+- You can see the ENGEN petrol station OR shops in the background
+- This is an OPEN outdoor area with NO overhead roof/shelter
+- The road leads TO the border (approach road)
 
 USELESS:
-- Mostly trees, bushes, vegetation, mountain, darkness, or blur
+- Just trees, vegetation, mountain, or very dark
 
-QUICK CHECK:
-- See a TWO-STORY BUILDING on the LEFT? → WIDE
-- See a GREEN CURVED ROOF overhead? → PROCESSING
-- See an ORANGE PILLAR? → BRIDGE
-- See mostly trees/dark? → USELESS
+KEY DIFFERENCE between PROCESSING and WIDE:
+- PROCESSING: Has GREEN METAL ROOF overhead, enclosed/covered area
+- WIDE: NO roof overhead, OPEN sky, road goes into distance
 
-Reply with ONE word: BRIDGE, PROCESSING, WIDE, or USELESS`
+Answer with exactly ONE word: BRIDGE, PROCESSING, WIDE, or USELESS`
           }
         ],
       }],
