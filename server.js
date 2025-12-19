@@ -76,6 +76,150 @@ const ANGLE_TO_VIEW = {
   'wide': 'engen'
 };
 
+// =============================================
+// TRAFFIC HISTORY TRACKER (Time-Series Analysis)
+// =============================================
+// Tracks vehicle counts over time to detect flow speed and trends
+const trafficHistory = {
+  readings: [],           // Array of { timestamp, bridgeCounts, canopyCounts }
+  MAX_HISTORY: 10,        // Keep last 10 readings (~10-15 minutes)
+  TREND_WINDOW: 5,        // Use last 5 readings for trend calculation
+  
+  // Add a new reading
+  addReading(bridgeCounts, canopyCounts = null) {
+    const reading = {
+      timestamp: Date.now(),
+      bridge: bridgeCounts ? {
+        lsToSa: bridgeCounts.LS_to_SA || 0,
+        saToLs: bridgeCounts.SA_to_LS || 0,
+        total: bridgeCounts.total || 0
+      } : null,
+      canopy: canopyCounts ? {
+        saToLsQueue: canopyCounts.SA_to_LS_queue || 0,
+        lsToSaArea: canopyCounts.LS_to_SA_area || 0,
+        total: canopyCounts.total || 0
+      } : null
+    };
+    
+    this.readings.push(reading);
+    
+    // Keep only recent readings
+    if (this.readings.length > this.MAX_HISTORY) {
+      this.readings = this.readings.slice(-this.MAX_HISTORY);
+    }
+    
+    console.log(`📈 Traffic history: ${this.readings.length} readings`);
+  },
+  
+  // Analyze trends over recent readings
+  analyzeTrends() {
+    if (this.readings.length < 2) {
+      return { trend: 'unknown', confidence: 'low', message: 'Not enough data yet' };
+    }
+    
+    const recentReadings = this.readings.slice(-this.TREND_WINDOW);
+    const oldestReading = recentReadings[0];
+    const newestReading = recentReadings[recentReadings.length - 1];
+    const timeDiffMinutes = (newestReading.timestamp - oldestReading.timestamp) / 60000;
+    
+    // Calculate changes in bridge counts
+    let trendInfo = {
+      lsToSa: { trend: 'stable', change: 0 },
+      saToLs: { trend: 'stable', change: 0 },
+      overall: 'stable',
+      flowSpeed: 'normal',
+      confidence: this.readings.length >= 5 ? 'high' : 'medium',
+      timePeriod: Math.round(timeDiffMinutes)
+    };
+    
+    if (oldestReading.bridge && newestReading.bridge) {
+      // LS→SA trend
+      const lsToSaChange = newestReading.bridge.lsToSa - oldestReading.bridge.lsToSa;
+      trendInfo.lsToSa.change = lsToSaChange;
+      if (lsToSaChange > 2) trendInfo.lsToSa.trend = 'increasing';
+      else if (lsToSaChange < -2) trendInfo.lsToSa.trend = 'decreasing';
+      
+      // SA→LS trend
+      const saToLsChange = newestReading.bridge.saToLs - oldestReading.bridge.saToLs;
+      trendInfo.saToLs.change = saToLsChange;
+      if (saToLsChange > 2) trendInfo.saToLs.trend = 'increasing';
+      else if (saToLsChange < -2) trendInfo.saToLs.trend = 'decreasing';
+      
+      // Overall trend
+      const totalChange = lsToSaChange + saToLsChange;
+      if (totalChange > 3) trendInfo.overall = 'building_up';
+      else if (totalChange < -3) trendInfo.overall = 'clearing';
+      
+      // Flow speed estimation
+      // If counts are consistently high, traffic is slow/stuck
+      // If counts fluctuate, traffic is moving
+      const avgTotal = recentReadings.reduce((sum, r) => sum + (r.bridge?.total || 0), 0) / recentReadings.length;
+      const variance = recentReadings.reduce((sum, r) => {
+        const diff = (r.bridge?.total || 0) - avgTotal;
+        return sum + (diff * diff);
+      }, 0) / recentReadings.length;
+      
+      if (avgTotal > 10 && variance < 2) {
+        trendInfo.flowSpeed = 'slow';
+      } else if (avgTotal > 15 && variance < 3) {
+        trendInfo.flowSpeed = 'very_slow';
+      } else if (variance > 5) {
+        trendInfo.flowSpeed = 'moving_well';
+      }
+    }
+    
+    return trendInfo;
+  },
+  
+  // Get human-readable trend summary
+  getTrendSummary() {
+    const trends = this.analyzeTrends();
+    
+    if (trends.trend === 'unknown') {
+      return '';
+    }
+    
+    let summary = [];
+    
+    // Flow speed
+    if (trends.flowSpeed === 'slow') {
+      summary.push('Traffic appears to be moving slowly');
+    } else if (trends.flowSpeed === 'very_slow') {
+      summary.push('Traffic appears stuck or very slow');
+    } else if (trends.flowSpeed === 'moving_well') {
+      summary.push('Traffic is flowing steadily');
+    }
+    
+    // Direction-specific trends
+    if (trends.lsToSa.trend === 'increasing') {
+      summary.push('LS→SA queue is building up');
+    } else if (trends.lsToSa.trend === 'decreasing') {
+      summary.push('LS→SA queue is clearing');
+    }
+    
+    if (trends.saToLs.trend === 'increasing') {
+      summary.push('SA→LS queue is building up');
+    } else if (trends.saToLs.trend === 'decreasing') {
+      summary.push('SA→LS queue is clearing');
+    }
+    
+    // Overall
+    if (trends.overall === 'building_up' && summary.length === 0) {
+      summary.push('Traffic is building up overall');
+    } else if (trends.overall === 'clearing' && summary.length === 0) {
+      summary.push('Traffic is clearing overall');
+    }
+    
+    if (summary.length > 0 && trends.confidence === 'high') {
+      return summary.join('. ') + ` (based on last ${trends.timePeriod} minutes)`;
+    } else if (summary.length > 0) {
+      return summary.join('. ');
+    }
+    
+    return '';
+  }
+};
+
 // Buffer to store multiple screenshots with timestamps and angle classification
 let screenshotBuffer = [];
 let latestAnalysis = null;
@@ -567,6 +711,39 @@ async function classifyFrameAngle(imageBuffer) {
   try {
     const imageBase64 = imageBuffer.toString('base64');
     
+    // STEP 0: Check if this is USELESS (trees/vegetation) FIRST
+    const uselessCheckResponse = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 10,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: imageBase64,
+            },
+          },
+          {
+            type: 'text',
+            text: `Is this image MOSTLY showing TREES, BUSHES, GREEN VEGETATION, or HILLSIDE/MOUNTAIN with no road or vehicles visible?
+
+Answer only YES or NO.`
+          }
+        ],
+      }],
+    });
+    
+    const uselessResult = uselessCheckResponse.content[0].text.trim().toUpperCase();
+    console.log(`📷 USELESS check: ${uselessResult}`);
+    
+    if (uselessResult.includes('YES')) {
+      console.log(`📷 Frame classified as: USELESS (vegetation)`);
+      return ANGLE_TYPES.USELESS;
+    }
+    
     // STEP 1: Check if this is WIDE (Engen view) with a simple yes/no question
     const wideCheckResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -600,7 +777,7 @@ Answer only YES or NO.`
       return ANGLE_TYPES.WIDE;
     }
     
-    // STEP 2: If not WIDE, classify between BRIDGE, PROCESSING, USELESS
+    // STEP 2: If not USELESS or WIDE, classify between BRIDGE and PROCESSING
     const classifyResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 50,
@@ -624,18 +801,15 @@ BRIDGE:
 → Bridge structure over a river
 → If YES → Answer: BRIDGE
 
-USELESS:
-→ Image is MOSTLY trees, bushes, vegetation, or mountain
-→ Image is very dark or blurry
-→ If YES → Answer: USELESS
-
 PROCESSING:
 → GREEN METAL ROOF visible overhead
 → COVERED WALKWAY on the right side
 → Trucks/vehicles parked in the area
 → If YES → Answer: PROCESSING
 
-Answer with ONE word: BRIDGE, USELESS, or PROCESSING`
+If neither matches → Answer: USELESS
+
+Answer with ONE word: BRIDGE, PROCESSING, or USELESS`
           }
         ],
       }],
@@ -646,7 +820,6 @@ Answer with ONE word: BRIDGE, USELESS, or PROCESSING`
     
     if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
     if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
-    if (result.includes('USELESS')) return ANGLE_TYPES.USELESS;
     return ANGLE_TYPES.USELESS;
     
   } catch (error) {
@@ -882,6 +1055,7 @@ async function analyzeTraffic(userQuestion = null) {
     // =============================================
     // Direction is determined by GEOMETRY, not language inference
     let detectorCounts = null;
+    let canopyDetectorCounts = null;
     
     // Find the bridge frame and call detector
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
@@ -892,26 +1066,62 @@ async function analyzeTraffic(userQuestion = null) {
       );
     }
     
+    // Find the canopy/processing frame and call detector for SA→LS queue
+    const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
+    if (canopyFrame) {
+      canopyDetectorCounts = await detectVehicles(
+        canopyFrame.screenshot.toString('base64'),
+        'canopy'
+      );
+      if (canopyDetectorCounts) {
+        console.log(`🎯 Canopy Detector: SA→LS queue: ${canopyDetectorCounts.SA_to_LS || 0}, LS→SA area: ${canopyDetectorCounts.LS_to_SA || 0}`);
+      }
+    }
+    
+    // Add to traffic history for time-series analysis
+    trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
+    
+    // Get trend analysis
+    const trendInfo = trafficHistory.analyzeTrends();
+    const trendSummary = trafficHistory.getTrendSummary();
+    
     // Determine traffic levels from detector counts
     let lsToSaStatus = 'LIGHT';
     let saToLsStatus = 'LIGHT';
     let lsToSaCount = 0;
     let saToLsCount = 0;
+    let saToLsCanopyCount = 0;
     
+    // Bridge counts
     if (detectorCounts && !detectorCounts.direction_uncertain) {
       lsToSaCount = detectorCounts.LS_to_SA;
       saToLsCount = detectorCounts.SA_to_LS;
-      
+    }
+    
+    // Add canopy counts for SA→LS (cars entering canopy)
+    if (canopyDetectorCounts) {
+      saToLsCanopyCount = canopyDetectorCounts.SA_to_LS || 0;
+    }
+    
+    // Combined SA→LS count (bridge + canopy queue)
+    const combinedSaToLs = saToLsCount + saToLsCanopyCount;
+    
+    if (detectorCounts && !detectorCounts.direction_uncertain) {
       // Determine status levels
       if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
-      else if (lsToSaCount <= 10) lsToSaStatus = 'MODERATE';
+      else if (lsToSaCount <= 8) lsToSaStatus = 'MODERATE';
       else lsToSaStatus = 'HEAVY';
       
-      if (saToLsCount <= 3) saToLsStatus = 'LIGHT';
-      else if (saToLsCount <= 10) saToLsStatus = 'MODERATE';
+      // SA→LS uses COMBINED count (bridge + canopy)
+      if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
+      else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
       else saToLsStatus = 'HEAVY';
       
-      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (${lsToSaCount}), SA→LS: ${saToLsStatus} (${saToLsCount})`);
+      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (${lsToSaCount}), SA→LS: ${saToLsStatus} (bridge: ${saToLsCount}, canopy: ${saToLsCanopyCount}, combined: ${combinedSaToLs})`);
+      
+      if (trendSummary) {
+        console.log(`📈 Trend: ${trendSummary}`);
+      }
     } else if (detectorCounts?.direction_uncertain) {
       console.log(`⚠️ Direction uncertain - too many unassigned vehicles`);
     }
@@ -926,29 +1136,35 @@ async function analyzeTraffic(userQuestion = null) {
     const lsToSaBreakdown = breakdown.LS_to_SA || { cars: 0, trucks: 0, buses: 0 };
     const saToLsBreakdown = breakdown.SA_to_LS || { cars: 0, trucks: 0, buses: 0 };
     
+    // Build trend info string
+    const trendInfoString = trendSummary ? `
+📈 TRAFFIC TREND (based on recent history):
+${trendSummary}
+` : '';
+    
     const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
       ? `
-VEHICLE COUNTS FROM BRIDGE VIEW (automated detection):
+VEHICLE COUNTS (automated detection):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles on bridge
   Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
+  Status: ${lsToSaStatus}
   
-• SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles on bridge
+• SA→LS (South Africa to Lesotho): COMBINED COUNT
+  - Bridge: ${saToLsCount} vehicles
+  - Canopy queue: ${saToLsCanopyCount} vehicles entering/waiting
+  - TOTAL: ${combinedSaToLs} vehicles
   Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
+  Status: ${saToLsStatus}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${trendInfoString}
+⚠️ IMPORTANT: The SA→LS count now COMBINES bridge + canopy vehicles.
+Use these counts as your primary source. Also visually verify with the camera views.
 
-⚠️ IMPORTANT - CHECK ALL CAMERA VIEWS:
-The counts above are ONLY from the bridge. You MUST also look at:
-1. CANOPY view - Are CARS queuing to enter (SA→LS)? Are cars on the right side (LS→SA)?
-2. WIDE/ENGEN view - Is traffic backed up on the approach road?
-
-🔺 UPGRADE RULES based on cross-view validation:
-- Cars queuing in 2 ROWS entering canopy = HEAVY for SA→LS
-- Traffic backed up to Engen/approach road = SEVERE for SA→LS
-- Queue on bridge far lane AND canopy right side = Confirmed LS→SA congestion
+🔺 UPGRADE RULES:
+- If canopy shows cars in 2 ROWS = HEAVY for SA→LS
+- If Engen/approach road is backed up = SEVERE for SA→LS
 - NOTE: Stationary trucks do NOT cause delays - they process elsewhere
-
-The bridge counts are a starting point, but validate with canopy and wide views.
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment of ALL camera views.
@@ -1587,6 +1803,8 @@ app.post('/api/chat/stream', async (req, res) => {
     // STEP 1: Call YOLO detector for vehicle counts
     // =============================================
     let detectorCounts = null;
+    let canopyDetectorCounts = null;
+    
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
     if (bridgeFrame) {
       detectorCounts = await detectVehicles(
@@ -1595,22 +1813,50 @@ app.post('/api/chat/stream', async (req, res) => {
       );
     }
     
+    // Find the canopy/processing frame and call detector for SA→LS queue
+    const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
+    if (canopyFrame) {
+      canopyDetectorCounts = await detectVehicles(
+        canopyFrame.screenshot.toString('base64'),
+        'canopy'
+      );
+    }
+    
+    // Add to traffic history for time-series analysis
+    trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
+    
+    // Get trend analysis
+    const trendSummary = trafficHistory.getTrendSummary();
+    
     // Determine traffic levels from detector counts
     let lsToSaStatus = 'LIGHT';
     let saToLsStatus = 'LIGHT';
     let lsToSaCount = 0;
     let saToLsCount = 0;
+    let saToLsCanopyCount = 0;
     
+    // Bridge counts
     if (detectorCounts && !detectorCounts.direction_uncertain) {
       lsToSaCount = detectorCounts.LS_to_SA;
       saToLsCount = detectorCounts.SA_to_LS;
-      
+    }
+    
+    // Add canopy counts for SA→LS
+    if (canopyDetectorCounts) {
+      saToLsCanopyCount = canopyDetectorCounts.SA_to_LS || 0;
+    }
+    
+    // Combined SA→LS count (bridge + canopy queue)
+    const combinedSaToLs = saToLsCount + saToLsCanopyCount;
+    
+    if (detectorCounts && !detectorCounts.direction_uncertain) {
       if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
-      else if (lsToSaCount <= 10) lsToSaStatus = 'MODERATE';
+      else if (lsToSaCount <= 8) lsToSaStatus = 'MODERATE';
       else lsToSaStatus = 'HEAVY';
       
-      if (saToLsCount <= 3) saToLsStatus = 'LIGHT';
-      else if (saToLsCount <= 10) saToLsStatus = 'MODERATE';
+      // SA→LS uses COMBINED count
+      if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
+      else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
       else saToLsStatus = 'HEAVY';
     }
 
@@ -1619,26 +1865,29 @@ app.post('/api/chat/stream', async (req, res) => {
     const lsToSaBreakdown = breakdown.LS_to_SA || { cars: 0, trucks: 0, buses: 0 };
     const saToLsBreakdown = breakdown.SA_to_LS || { cars: 0, trucks: 0, buses: 0 };
 
+    // Build trend info string
+    const trendInfoString = trendSummary ? `
+📈 TRAFFIC TREND: ${trendSummary}
+` : '';
+
     // Build counts info for prompt
     const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
       ? `
-VEHICLE COUNTS (from automated detection - these are ACCURATE):
+VEHICLE COUNTS (automated detection):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
   Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
   
-• SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles - ${saToLsStatus}
+• SA→LS (South Africa to Lesotho): COMBINED COUNT
+  - Bridge: ${saToLsCount} vehicles
+  - Canopy queue: ${saToLsCanopyCount} vehicles
+  - TOTAL: ${combinedSaToLs} vehicles - ${saToLsStatus}
   Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
-
-• Total detected: ${detectorCounts.total}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${trendInfoString}
+⚠️ IMPORTANT: SA→LS count COMBINES bridge + canopy vehicles.
 
-⚠️ IMPORTANT: Use these EXACT counts from the bridge view. 
-Also check canopy and wide views to validate traffic levels.
-
-📌 TRUCK NOTE: Trucks in the canopy area process at a DIFFERENT location.
-- Stationary trucks do NOT cause delays for cars
-- Only mention trucks if they are blocking car lanes
+📌 TRUCK NOTE: Stationary trucks do NOT cause delays - they process elsewhere.
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment.
