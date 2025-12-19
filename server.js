@@ -3745,6 +3745,38 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
+// Log terms & conditions acceptance
+app.post('/api/terms-acceptance', async (req, res) => {
+  try {
+    const { version, acceptedAt, deviceInfo } = req.body;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+
+    console.log('📋 Terms acceptance:');
+    console.log(`   Version: ${version}`);
+    console.log(`   Time: ${acceptedAt}`);
+    console.log(`   IP: ${ip}`);
+
+    // Store in Supabase if available
+    if (supabase) {
+      await supabase.from('terms_acceptances').insert({
+        version: version,
+        accepted_at: acceptedAt,
+        ip_address: ip,
+        user_agent: deviceInfo?.userAgent || null,
+        device_language: deviceInfo?.language || null,
+        device_platform: deviceInfo?.platform || null,
+        screen_size: deviceInfo?.screenSize || null
+      });
+      console.log('✅ Terms acceptance logged to database');
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Terms acceptance logging error:', err);
+    res.json({ success: true }); // Don't fail - user should still proceed
+  }
+});
+
 // Get feedback summary (for admin)
 app.get('/api/feedback/stats', async (req, res) => {
   if (!supabase) {
