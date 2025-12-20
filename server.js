@@ -712,6 +712,7 @@ async function classifyFrameAngle(imageBuffer) {
     const imageBase64 = imageBuffer.toString('base64');
     
     // STEP 0: Check if this is USELESS (trees/vegetation) FIRST
+    // Be aggressive - if we can't clearly see road/vehicles, it's useless
     const uselessCheckResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 10,
@@ -728,7 +729,11 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Is this image MOSTLY showing TREES, BUSHES, GREEN VEGETATION, or HILLSIDE/MOUNTAIN with no road or vehicles visible?
+            text: `Can you clearly see a ROAD with VEHICLES or a TRAFFIC QUEUE in this image?
+
+If the image is MOSTLY trees, vegetation, bushes, hillside, or sky - answer NO.
+If buildings are visible but NO road or vehicles - answer NO.
+Only answer YES if you can clearly see a road where cars drive.
 
 Answer only YES or NO.`
           }
@@ -737,10 +742,11 @@ Answer only YES or NO.`
     });
     
     const uselessResult = uselessCheckResponse.content[0].text.trim().toUpperCase();
-    console.log(`📷 USELESS check: ${uselessResult}`);
+    console.log(`📷 ROAD/VEHICLES visible check: ${uselessResult}`);
     
-    if (uselessResult.includes('YES')) {
-      console.log(`📷 Frame classified as: USELESS (vegetation)`);
+    // If NO road/vehicles visible, it's USELESS
+    if (uselessResult.includes('NO')) {
+      console.log(`📷 Frame classified as: USELESS (no road/vehicles visible)`);
       return ANGLE_TYPES.USELESS;
     }
     
