@@ -1089,6 +1089,8 @@ async function analyzeTraffic(userQuestion = null) {
     const wideFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.WIDE);
     let engenQueueDetected = false;
     
+    console.log(`🔍 Looking for WIDE frame. Found: ${wideFrame ? 'YES' : 'NO'}, framesToUse angles: ${framesToUse.map(f => f.angleType).join(', ')}`);
+    
     if (wideFrame) {
       wideDetectorCounts = await detectVehicles(
         wideFrame.screenshot.toString('base64'),
