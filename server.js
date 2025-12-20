@@ -1062,6 +1062,7 @@ async function analyzeTraffic(userQuestion = null) {
     // Direction is determined by GEOMETRY, not language inference
     let detectorCounts = null;
     let canopyDetectorCounts = null;
+    let wideDetectorCounts = null;
     
     // Find the bridge frame and call detector
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
@@ -1084,6 +1085,27 @@ async function analyzeTraffic(userQuestion = null) {
       }
     }
     
+    // Find the wide/Engen frame and check for queue backup (informational only)
+    const wideFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.WIDE);
+    let engenQueueDetected = false;
+    
+    if (wideFrame) {
+      wideDetectorCounts = await detectVehicles(
+        wideFrame.screenshot.toString('base64'),
+        'engen'
+      );
+      if (wideDetectorCounts) {
+        const engenVehicles = wideDetectorCounts.LS_to_SA || wideDetectorCounts.total || 0;
+        console.log(`🎯 Engen Detector: ${engenVehicles} vehicles in queue area`);
+        
+        // If 2+ vehicles detected at Engen, queue has stretched past Engen
+        if (engenVehicles >= 2) {
+          engenQueueDetected = true;
+          console.log(`📍 Queue stretches past Engen (${engenVehicles} vehicles detected)`);
+        }
+      }
+    }
+    
     // Add to traffic history for time-series analysis
     trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
     
@@ -1091,7 +1113,7 @@ async function analyzeTraffic(userQuestion = null) {
     const trendInfo = trafficHistory.analyzeTrends();
     const trendSummary = trafficHistory.getTrendSummary();
     
-    // Determine traffic levels from detector counts
+    // Determine traffic levels from detector counts (existing logic - unchanged)
     let lsToSaStatus = 'LIGHT';
     let saToLsStatus = 'LIGHT';
     let lsToSaCount = 0;
@@ -1113,17 +1135,26 @@ async function analyzeTraffic(userQuestion = null) {
     const combinedSaToLs = saToLsCount + saToLsCanopyCount;
     
     if (detectorCounts && !detectorCounts.direction_uncertain) {
-      // Determine status levels
+      // Determine status levels - EXISTING LOGIC (unchanged)
       if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
       else if (lsToSaCount <= 8) lsToSaStatus = 'MODERATE';
       else lsToSaStatus = 'HEAVY';
+        lsToSaStatus = 'HEAVY';
+        console.log(`⚠️ LS→SA set to HEAVY - queue reaching Engen area`);
+      } else if (lsToSaCount <= 3) {
+        lsToSaStatus = 'LIGHT';
+      } else if (lsToSaCount <= 8) {
+        lsToSaStatus = 'MODERATE';
+      } else {
+        lsToSaStatus = 'HEAVY';
+      }
       
       // SA→LS uses COMBINED count (bridge + canopy)
       if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
       else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
       else saToLsStatus = 'HEAVY';
       
-      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (${lsToSaCount}), SA→LS: ${saToLsStatus} (bridge: ${saToLsCount}, canopy: ${saToLsCanopyCount}, combined: ${combinedSaToLs})`);
+      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (${lsToSaCount} on bridge${engenQueueDetected ? ', queue at Engen!' : ''}), SA→LS: ${saToLsStatus} (bridge: ${saToLsCount}, canopy: ${saToLsCanopyCount}, combined: ${combinedSaToLs})`);
       
       if (trendSummary) {
         console.log(`📈 Trend: ${trendSummary}`);
@@ -1147,6 +1178,11 @@ async function analyzeTraffic(userQuestion = null) {
 📈 TRAFFIC TREND (based on recent history):
 ${trendSummary}
 ` : '';
+
+    // Build Engen queue note (only if queue detected - otherwise don't mention)
+    const engenNote = engenQueueDetected 
+      ? `\n  📍 NOTE: Queue stretches past Engen petrol station!`
+      : '';
     
     const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
       ? `
@@ -1154,7 +1190,7 @@ VEHICLE COUNTS (automated detection):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles on bridge
   Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
-  Status: ${lsToSaStatus}
+  Status: ${lsToSaStatus}${engenNote}
   
 • SA→LS (South Africa to Lesotho): COMBINED COUNT
   - Bridge: ${saToLsCount} vehicles
@@ -1164,12 +1200,14 @@ VEHICLE COUNTS (automated detection):
   Status: ${saToLsStatus}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${trendInfoString}
-⚠️ IMPORTANT: The SA→LS count now COMBINES bridge + canopy vehicles.
+⚠️ IMPORTANT: 
+- SA→LS count COMBINES bridge + canopy vehicles.
+- If "Queue stretches past Engen" is noted above, MENTION this to users for LS→SA direction.
+
 Use these counts as your primary source. Also visually verify with the camera views.
 
-🔺 UPGRADE RULES:
+🔺 RULES:
 - If canopy shows cars in 2 ROWS = HEAVY for SA→LS
-- If Engen/approach road is backed up = SEVERE for SA→LS
 - NOTE: Stationary trucks do NOT cause delays - they process elsewhere
 `
       : `
