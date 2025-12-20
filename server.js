@@ -1139,15 +1139,6 @@ async function analyzeTraffic(userQuestion = null) {
       if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
       else if (lsToSaCount <= 8) lsToSaStatus = 'MODERATE';
       else lsToSaStatus = 'HEAVY';
-        lsToSaStatus = 'HEAVY';
-        console.log(`⚠️ LS→SA set to HEAVY - queue reaching Engen area`);
-      } else if (lsToSaCount <= 3) {
-        lsToSaStatus = 'LIGHT';
-      } else if (lsToSaCount <= 8) {
-        lsToSaStatus = 'MODERATE';
-      } else {
-        lsToSaStatus = 'HEAVY';
-      }
       
       // SA→LS uses COMBINED count (bridge + canopy)
       if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
