@@ -1193,15 +1193,17 @@ VEHICLE COUNTS (automated detection):
   Status: ${saToLsStatus}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${trendInfoString}
-⚠️ IMPORTANT: 
-- SA→LS count COMBINES bridge + canopy vehicles.
-- If "Queue stretches past Engen" is noted above, MENTION this to users for LS→SA direction.
-
-Use these counts as your primary source. Also visually verify with the camera views.
+🚨 CRITICAL - YOU MUST USE THESE EXACT COUNTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- LS→SA: Report "${lsToSaCount} vehicles" (NOT your visual estimate!)
+- SA→LS: Report "${combinedSaToLs} vehicles" (bridge ${saToLsCount} + canopy ${saToLsCanopyCount})
+- DO NOT make up different numbers - the detector counts are accurate!
+- If "Queue stretches past Engen" is noted, MENTION this for LS→SA direction.
 
 🔺 RULES:
 - If canopy shows cars in 2 ROWS = HEAVY for SA→LS
 - NOTE: Stationary trucks do NOT cause delays - they process elsewhere
+- NEVER say more vehicles than the detector counted!
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment of ALL camera views.
