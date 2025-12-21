@@ -729,11 +729,14 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Can you clearly see a ROAD with VEHICLES or a TRAFFIC QUEUE in this image?
+            text: `Can you see any of these in this image?
+- A ROAD where vehicles drive (even if empty)
+- A BRIDGE structure over water (look for railings, pillars, street lights in a row)
+- VEHICLES or a traffic queue
+- A GREEN METAL ROOF structure (canopy)
 
 If the image is MOSTLY trees, vegetation, bushes, hillside, or sky - answer NO.
-If buildings are visible but NO road or vehicles - answer NO.
-Only answer YES if you can clearly see a road where cars drive.
+If you can see a road, bridge, vehicles, or green roof structure - answer YES.
 
 Answer only YES or NO.`
           }
