@@ -176,7 +176,7 @@ function getCameraStatusInfo() {
 }
 
 // Maximum age for frames to be considered valid (10 minutes)
-const MAX_FRAME_AGE_MS = 10 * 60 * 1000;
+const MAX_FRAME_AGE_MS = 45 * 60 * 1000; // 45 minutes - camera classification may miss some angles
 
 // Helper function to check if a frame is still fresh
 function isFrameFresh(frame) {
@@ -559,14 +559,12 @@ async function classifyFrameAngle(imageBuffer) {
             type: 'text',
             text: `Classify this Maseru Border camera image. Reply with ONLY one word:
 
-- BRIDGE: Shows bridge over river with orange/red pillar, vehicles on bridge lanes
-- PROCESSING: Shows green curved roof canopy/shelter, vehicles in processing yard
-- WIDE: Shows Engen petrol station OR Chiefs Fast Foods sign OR road with many vehicles heading to border
-- USELESS: Shows mainly trees, bushes, greenery, darkness, sky, or no clear road/vehicles visible
+- WIDE: Wide-angle view showing large open area, parking lot, petrol station (Engen), OR multiple buildings/structures visible, OR "Chiefs" sign, OR distant view of road/vehicles approaching border
+- BRIDGE: Close-up of bridge over river with distinctive orange/red painted pillar or railing, vehicles crossing bridge
+- PROCESSING: Green curved corrugated roof canopy/shelter structure, vehicles underneath or near the covered area
+- USELESS: Mostly trees, bushes, vegetation, darkness, blurry, sky only, OR no road/vehicles/buildings visible
 
-IMPORTANT: If the image is mostly trees/vegetation with no clear infrastructure, answer USELESS.
-
-Reply with ONE word only.`
+Reply with ONE word only: WIDE, BRIDGE, PROCESSING, or USELESS`
           }
         ],
       }],
@@ -575,9 +573,9 @@ Reply with ONE word only.`
     const result = response.content[0].text.trim().toUpperCase();
     console.log(`📷 Frame classified as: ${result}`);
     
+    if (result.includes('WIDE')) return ANGLE_TYPES.WIDE;
     if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
     if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
-    if (result.includes('WIDE')) return ANGLE_TYPES.WIDE;
     return ANGLE_TYPES.USELESS;
     
   } catch (error) {
