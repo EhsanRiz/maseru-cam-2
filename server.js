@@ -541,7 +541,82 @@ async function classifyFrameAngle(imageBuffer) {
   
   isClassifying = true;
   try {
-    const response = await anthropic.messages.create({
+    const imageBase64 = imageBuffer.toString('base64');
+    
+    // STEP 0: Check if this is USELESS (trees/vegetation) FIRST
+    // Be aggressive - if we can't clearly see road/vehicles, it's useless
+    const uselessCheckResponse = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 10,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: imageBase64,
+            },
+          },
+          {
+            type: 'text',
+            text: `Can you clearly see a ROAD with VEHICLES or a TRAFFIC QUEUE in this image?
+
+If the image is MOSTLY trees, vegetation, bushes, hillside, or sky - answer NO.
+If buildings are visible but NO road or vehicles - answer NO.
+Only answer YES if you can clearly see a road where cars drive.
+
+Answer only YES or NO.`
+          }
+        ],
+      }],
+    });
+    
+    const uselessResult = uselessCheckResponse.content[0].text.trim().toUpperCase();
+    console.log(`📷 ROAD/VEHICLES visible check: ${uselessResult}`);
+    
+    // If NO road/vehicles visible, it's USELESS
+    if (uselessResult.includes('NO')) {
+      console.log(`📷 Frame classified as: USELESS (no road/vehicles visible)`);
+      return ANGLE_TYPES.USELESS;
+    }
+    
+    // STEP 1: Check if this is WIDE (Engen view) with a simple yes/no question
+    const wideCheckResponse = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 10,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: imageBase64,
+            },
+          },
+          {
+            type: 'text',
+            text: `Can you see a ROAD going FAR INTO THE DISTANCE with buildings/petrol station far away in the background?
+
+Answer only YES or NO.`
+          }
+        ],
+      }],
+    });
+    
+    const wideResult = wideCheckResponse.content[0].text.trim().toUpperCase();
+    console.log(`📷 WIDE check: ${wideResult}`);
+    
+    if (wideResult.includes('YES')) {
+      console.log(`📷 Frame classified as: WIDE`);
+      return ANGLE_TYPES.WIDE;
+    }
+    
+    // STEP 2: If not USELESS or WIDE, classify between BRIDGE and PROCESSING
+    const classifyResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 50,
       messages: [{
@@ -552,36 +627,37 @@ async function classifyFrameAngle(imageBuffer) {
             source: {
               type: 'base64',
               media_type: 'image/jpeg',
-              data: imageBuffer.toString('base64'),
+              data: imageBase64,
             },
           },
           {
             type: 'text',
-            text: `Classify this Maseru Border camera image. Reply with ONLY one word.
+            text: `Classify this traffic camera image:
 
-PROCESSING: Look for GREEN CURVED CORRUGATED METAL ROOF (like a half-pipe/tunnel shape). This is a canopy/shelter covering a vehicle processing area. The roof has distinctive curved ribs. Vehicles may be parked underneath.
+BRIDGE:
+→ ORANGE/RED PILLAR visible on the right side
+→ Bridge structure over a river
+→ If YES → Answer: BRIDGE
 
-BRIDGE: Orange/red painted pillar or railing visible. Shows the bridge over the river with vehicles crossing on lanes.
+PROCESSING:
+→ GREEN METAL ROOF visible overhead
+→ COVERED WALKWAY on the right side
+→ Trucks/vehicles parked in the area
+→ If YES → Answer: PROCESSING
 
-WIDE: Shows Engen petrol station, "Chiefs" fast food sign, OR a distant wide view of the approach road with multiple buildings visible. NO curved green roof visible.
+If neither matches → Answer: USELESS
 
-USELESS: Mostly trees, bushes, vegetation, darkness, blurry, or sky. No clear road/vehicles/buildings.
-
-KEY: If you see a curved green corrugated metal roof structure, answer PROCESSING.
-
-Reply with ONE word: PROCESSING, BRIDGE, WIDE, or USELESS`
+Answer with ONE word: BRIDGE, PROCESSING, or USELESS`
           }
         ],
       }],
     });
     
-    const result = response.content[0].text.trim().toUpperCase();
+    const result = classifyResponse.content[0].text.trim().toUpperCase();
     console.log(`📷 Frame classified as: ${result}`);
     
-    // Check PROCESSING first - it's being missed
-    if (result.includes('PROCESSING') || result.includes('CANOPY') || result.includes('SHELTER')) return ANGLE_TYPES.PROCESSING;
     if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
-    if (result.includes('WIDE') || result.includes('ENGEN')) return ANGLE_TYPES.WIDE;
+    if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
     return ANGLE_TYPES.USELESS;
     
   } catch (error) {
