@@ -5384,8 +5384,9 @@
             setTimeout(() => {
               if (action === 'openQueueReport') {
                 openQueueReportModal();
+              } else if (action === 'retryQueueReport') {
+                retryQueueReport();
               }
-              // Add more actions here as needed
             }, 300);
           }
         } else {
@@ -5444,8 +5445,9 @@
             setTimeout(() => {
               if (action === 'openQueueReport') {
                 openQueueReportModal();
+              } else if (action === 'retryQueueReport') {
+                retryQueueReport();
               }
-              // Add more actions here as needed
             }, 300);
           }
         } else {
@@ -6504,12 +6506,22 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentUser.access_token}`
+            'Authorization': `Bearer ${currentUser?.access_token || ''}`
           },
           body: JSON.stringify(queueReportData)
         });
         
         const result = await response.json();
+        
+        // Handle session expired (401)
+        if (response.status === 401) {
+          // Close report modal but KEEP the data (queueReportData is preserved)
+          closeQueueReport();
+          
+          // Show login with context - after login, auto-submit the report
+          showLoginWithContext('📊', 'Session expired - login to submit your report', 'retryQueueReport');
+          return;
+        }
         
         if (result.success) {
           // Show success
@@ -6535,6 +6547,38 @@
         submitBtn.disabled = false;
         submitBtn.textContent = '✓ Confirm & Submit';
       }
+    }
+
+    // Retry submitting queue report after re-login
+    async function retryQueueReport() {
+      // Re-open the modal at confirmation step
+      document.getElementById('queueReportModal').classList.add('show');
+      
+      // Go directly to step 4 (confirmation) since data is preserved
+      document.querySelectorAll('.queue-report-step').forEach(s => s.classList.remove('active'));
+      document.getElementById('queueReportStep4').classList.add('active');
+      document.getElementById('queueReportBack').classList.add('show');
+      document.getElementById('queueReportTitle').textContent = '📊 Confirm Your Report';
+      
+      // Re-populate confirmation display
+      const sideName = queueReportData.side === 'lesotho' ? 'Lesotho' : 'South Africa';
+      const flag = queueReportData.side === 'lesotho' ? '🇱🇸' : '🇿🇦';
+      const directionText = queueReportData.direction === 'leaving' ? 'Leaving' : 'Entering';
+      
+      document.getElementById('confirmCheckpoint').textContent = `${flag} ${directionText} ${sideName}`;
+      document.getElementById('confirmQueue').textContent = queueLengthLabels[queueReportData.queue_length];
+      document.getElementById('confirmSpeed').textContent = speedLabels[queueReportData.processing_speed];
+      document.getElementById('confirmWindows').textContent = queueReportData.windows_open === '5' ? '5+' : queueReportData.windows_open;
+      document.getElementById('confirmWait').textContent = waitTimeLabels[queueReportData.wait_time];
+      
+      if (queueReportData.comment) {
+        document.getElementById('confirmComment').textContent = `"${queueReportData.comment}"`;
+        document.getElementById('confirmCommentRow').style.display = 'flex';
+      }
+      
+      // Auto-submit with new token
+      showToast('Retrying submission...');
+      await submitQueueReport();
     }
 
     // Trigger traffic update after submitting report
