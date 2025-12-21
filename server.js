@@ -15,10 +15,10 @@ const config = {
   port: process.env.PORT || 3000,
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridge.stream_all/playlist.m3u8',
-  captureInterval: 180000,       // Capture every 3 minutes
-  cacheTimeout: 180000,         // Cache analysis for 3 minutes
-  maxBufferSize: 12,            // Keep last 12 frames (6 minutes of history)
-  analysisFrames: 3,            // Use 3 frames for analysis
+  captureInterval: 90000,        // Capture every 90 seconds (was 3 min) to catch more angles
+  cacheTimeout: 120000,          // Cache analysis for 2 minutes
+  maxBufferSize: 20,             // Keep last 20 frames (more history)
+  analysisFrames: 3,             // Use 3 frames for analysis
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
   detectorUrl: process.env.DETECTOR_URL || 'https://traffic-detector-jzbg.onrender.com',
@@ -74,6 +74,150 @@ const ANGLE_TO_VIEW = {
   'bridge': 'bridge',
   'processing': 'canopy',
   'wide': 'engen'
+};
+
+// =============================================
+// TRAFFIC HISTORY TRACKER (Time-Series Analysis)
+// =============================================
+// Tracks vehicle counts over time to detect flow speed and trends
+const trafficHistory = {
+  readings: [],           // Array of { timestamp, bridgeCounts, canopyCounts }
+  MAX_HISTORY: 10,        // Keep last 10 readings (~10-15 minutes)
+  TREND_WINDOW: 5,        // Use last 5 readings for trend calculation
+  
+  // Add a new reading
+  addReading(bridgeCounts, canopyCounts = null) {
+    const reading = {
+      timestamp: Date.now(),
+      bridge: bridgeCounts ? {
+        lsToSa: bridgeCounts.LS_to_SA || 0,
+        saToLs: bridgeCounts.SA_to_LS || 0,
+        total: bridgeCounts.total || 0
+      } : null,
+      canopy: canopyCounts ? {
+        saToLsQueue: canopyCounts.SA_to_LS_queue || 0,
+        lsToSaArea: canopyCounts.LS_to_SA_area || 0,
+        total: canopyCounts.total || 0
+      } : null
+    };
+    
+    this.readings.push(reading);
+    
+    // Keep only recent readings
+    if (this.readings.length > this.MAX_HISTORY) {
+      this.readings = this.readings.slice(-this.MAX_HISTORY);
+    }
+    
+    console.log(`📈 Traffic history: ${this.readings.length} readings`);
+  },
+  
+  // Analyze trends over recent readings
+  analyzeTrends() {
+    if (this.readings.length < 2) {
+      return { trend: 'unknown', confidence: 'low', message: 'Not enough data yet' };
+    }
+    
+    const recentReadings = this.readings.slice(-this.TREND_WINDOW);
+    const oldestReading = recentReadings[0];
+    const newestReading = recentReadings[recentReadings.length - 1];
+    const timeDiffMinutes = (newestReading.timestamp - oldestReading.timestamp) / 60000;
+    
+    // Calculate changes in bridge counts
+    let trendInfo = {
+      lsToSa: { trend: 'stable', change: 0 },
+      saToLs: { trend: 'stable', change: 0 },
+      overall: 'stable',
+      flowSpeed: 'normal',
+      confidence: this.readings.length >= 5 ? 'high' : 'medium',
+      timePeriod: Math.round(timeDiffMinutes)
+    };
+    
+    if (oldestReading.bridge && newestReading.bridge) {
+      // LS→SA trend
+      const lsToSaChange = newestReading.bridge.lsToSa - oldestReading.bridge.lsToSa;
+      trendInfo.lsToSa.change = lsToSaChange;
+      if (lsToSaChange > 2) trendInfo.lsToSa.trend = 'increasing';
+      else if (lsToSaChange < -2) trendInfo.lsToSa.trend = 'decreasing';
+      
+      // SA→LS trend
+      const saToLsChange = newestReading.bridge.saToLs - oldestReading.bridge.saToLs;
+      trendInfo.saToLs.change = saToLsChange;
+      if (saToLsChange > 2) trendInfo.saToLs.trend = 'increasing';
+      else if (saToLsChange < -2) trendInfo.saToLs.trend = 'decreasing';
+      
+      // Overall trend
+      const totalChange = lsToSaChange + saToLsChange;
+      if (totalChange > 3) trendInfo.overall = 'building_up';
+      else if (totalChange < -3) trendInfo.overall = 'clearing';
+      
+      // Flow speed estimation
+      // If counts are consistently high, traffic is slow/stuck
+      // If counts fluctuate, traffic is moving
+      const avgTotal = recentReadings.reduce((sum, r) => sum + (r.bridge?.total || 0), 0) / recentReadings.length;
+      const variance = recentReadings.reduce((sum, r) => {
+        const diff = (r.bridge?.total || 0) - avgTotal;
+        return sum + (diff * diff);
+      }, 0) / recentReadings.length;
+      
+      if (avgTotal > 10 && variance < 2) {
+        trendInfo.flowSpeed = 'slow';
+      } else if (avgTotal > 15 && variance < 3) {
+        trendInfo.flowSpeed = 'very_slow';
+      } else if (variance > 5) {
+        trendInfo.flowSpeed = 'moving_well';
+      }
+    }
+    
+    return trendInfo;
+  },
+  
+  // Get human-readable trend summary
+  getTrendSummary() {
+    const trends = this.analyzeTrends();
+    
+    if (trends.trend === 'unknown') {
+      return '';
+    }
+    
+    let summary = [];
+    
+    // Flow speed
+    if (trends.flowSpeed === 'slow') {
+      summary.push('Traffic appears to be moving slowly');
+    } else if (trends.flowSpeed === 'very_slow') {
+      summary.push('Traffic appears stuck or very slow');
+    } else if (trends.flowSpeed === 'moving_well') {
+      summary.push('Traffic is flowing steadily');
+    }
+    
+    // Direction-specific trends
+    if (trends.lsToSa.trend === 'increasing') {
+      summary.push('LS→SA queue is building up');
+    } else if (trends.lsToSa.trend === 'decreasing') {
+      summary.push('LS→SA queue is clearing');
+    }
+    
+    if (trends.saToLs.trend === 'increasing') {
+      summary.push('SA→LS queue is building up');
+    } else if (trends.saToLs.trend === 'decreasing') {
+      summary.push('SA→LS queue is clearing');
+    }
+    
+    // Overall
+    if (trends.overall === 'building_up' && summary.length === 0) {
+      summary.push('Traffic is building up overall');
+    } else if (trends.overall === 'clearing' && summary.length === 0) {
+      summary.push('Traffic is clearing overall');
+    }
+    
+    if (summary.length > 0 && trends.confidence === 'high') {
+      return summary.join('. ') + ` (based on last ${trends.timePeriod} minutes)`;
+    } else if (summary.length > 0) {
+      return summary.join('. ');
+    }
+    
+    return '';
+  }
 };
 
 // Buffer to store multiple screenshots with timestamps and angle classification
@@ -176,7 +320,7 @@ function getCameraStatusInfo() {
 }
 
 // Maximum age for frames to be considered valid (10 minutes)
-const MAX_FRAME_AGE_MS = 45 * 60 * 1000; // 45 minutes - camera classification may miss some angles
+const MAX_FRAME_AGE_MS = 45 * 60 * 1000; // 45 minutes - camera cycles angles slowly
 
 // Helper function to check if a frame is still fresh
 function isFrameFresh(frame) {
@@ -288,6 +432,8 @@ async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
   try {
     const fileName = `${angleType}/${timestamp}.jpg`;
     
+    console.log(`📤 Uploading ${angleType} frame to Supabase...`);
+    
     const { data, error } = await supabase.storage
       .from('frames')
       .upload(fileName, imageBuffer, {
@@ -305,6 +451,7 @@ async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
       .from('frames')
       .getPublicUrl(fileName);
     
+    console.log(`✅ Uploaded ${angleType} frame to Supabase: ${fileName}`);
     return urlData?.publicUrl || fileName;
   } catch (err) {
     console.error('❌ Storage upload failed:', err.message);
@@ -535,6 +682,27 @@ async function getTypicalTraffic() {
 // END SUPABASE HELPER FUNCTIONS
 // =============================================
 
+// =============================================
+// BLUR DETECTION
+// =============================================
+// Detect motion blur by checking image file size
+// Blurry/motion-blur images compress much smaller than sharp images
+
+function isImageBlurry(imageBuffer) {
+  const sizeKB = imageBuffer.length / 1024;
+  
+  // Sharp 800px wide JPEGs from this camera are typically 50-120KB
+  // Blurry/motion-blur frames are typically 20-35KB
+  const BLUR_THRESHOLD_KB = 40;
+  
+  if (sizeKB < BLUR_THRESHOLD_KB) {
+    console.log(`🌫️ Frame likely blurry (${sizeKB.toFixed(1)}KB < ${BLUR_THRESHOLD_KB}KB threshold) - SKIPPING`);
+    return true;
+  }
+  
+  return false;
+}
+
 // Classify frame angle using AI
 async function classifyFrameAngle(imageBuffer) {
   if (isClassifying) return ANGLE_TYPES.USELESS;
@@ -544,7 +712,7 @@ async function classifyFrameAngle(imageBuffer) {
     const imageBase64 = imageBuffer.toString('base64');
     
     // STEP 0: Check if this is USELESS (trees/vegetation) FIRST
-    // Be aggressive - if we can't clearly see road/vehicles/bridge, it's useless
+    // Be aggressive - if we can't clearly see road/vehicles, it's useless
     const uselessCheckResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 10,
@@ -561,14 +729,11 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Can you see any of these in this image?
-- A ROAD where vehicles drive
-- A BRIDGE over water (with orange/red pillars or railings)
-- VEHICLES or a traffic queue
-- A GREEN CURVED METAL ROOF structure
+            text: `Can you clearly see a ROAD with VEHICLES or a TRAFFIC QUEUE in this image?
 
 If the image is MOSTLY trees, vegetation, bushes, hillside, or sky - answer NO.
-If you can see road, bridge, vehicles, or the green roof structure - answer YES.
+If buildings are visible but NO road or vehicles - answer NO.
+Only answer YES if you can clearly see a road where cars drive.
 
 Answer only YES or NO.`
           }
@@ -638,17 +803,19 @@ Answer only YES or NO.`
             text: `Classify this traffic camera image:
 
 BRIDGE:
-→ Shows a BRIDGE over a RIVER
-→ ORANGE/RED painted pillar, railing, or structure visible
-→ Water or riverbank may be visible below
-→ If you see orange/red bridge elements → Answer: BRIDGE
+→ ORANGE/RED PILLAR visible on the right side
+→ Bridge structure over a river
+→ If YES → Answer: BRIDGE
 
 PROCESSING:
-→ GREEN CURVED METAL ROOF visible (like a tunnel/canopy)
-→ Covered area where vehicles are parked/processed
-→ If you see a green corrugated roof structure → Answer: PROCESSING
+→ GREEN METAL ROOF visible overhead
+→ COVERED WALKWAY on the right side
+→ Trucks/vehicles parked in the area
+→ If YES → Answer: PROCESSING
 
-Answer with ONE word: BRIDGE or PROCESSING`
+If neither matches → Answer: USELESS
+
+Answer with ONE word: BRIDGE, PROCESSING, or USELESS`
           }
         ],
       }],
@@ -657,9 +824,9 @@ Answer with ONE word: BRIDGE or PROCESSING`
     const result = classifyResponse.content[0].text.trim().toUpperCase();
     console.log(`📷 Frame classified as: ${result}`);
     
+    if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
     if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
-    // Default to BRIDGE if not clearly PROCESSING (we already know it's not useless or wide)
-    return ANGLE_TYPES.BRIDGE;
+    return ANGLE_TYPES.USELESS;
     
   } catch (error) {
     console.error('❌ Classification failed:', error.message);
@@ -723,6 +890,14 @@ async function captureFrame() {
         try {
           const imageBuffer = fs.readFileSync(outputPath);
           const timestamp = Date.now();
+          
+          // Check for motion blur BEFORE classification
+          if (isImageBlurry(imageBuffer)) {
+            // Skip blurry frames entirely - don't waste API call on classification
+            console.log('⏭️ Skipping blurry frame');
+            resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
+            return;
+          }
           
           // Classify the frame angle
           const angleType = await classifyFrameAngle(imageBuffer);
@@ -886,6 +1061,8 @@ async function analyzeTraffic(userQuestion = null) {
     // =============================================
     // Direction is determined by GEOMETRY, not language inference
     let detectorCounts = null;
+    let canopyDetectorCounts = null;
+    let wideDetectorCounts = null;
     
     // Find the bridge frame and call detector
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
@@ -896,26 +1073,85 @@ async function analyzeTraffic(userQuestion = null) {
       );
     }
     
-    // Determine traffic levels from detector counts
+    // Find the canopy/processing frame and call detector for SA→LS queue
+    const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
+    if (canopyFrame) {
+      canopyDetectorCounts = await detectVehicles(
+        canopyFrame.screenshot.toString('base64'),
+        'canopy'
+      );
+      if (canopyDetectorCounts) {
+        console.log(`🎯 Canopy Detector: SA→LS queue: ${canopyDetectorCounts.SA_to_LS || 0}, LS→SA area: ${canopyDetectorCounts.LS_to_SA || 0}`);
+      }
+    }
+    
+    // Find the wide/Engen frame and check for queue backup (informational only)
+    const wideFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.WIDE);
+    let engenQueueDetected = false;
+    
+    console.log(`🔍 Looking for WIDE frame. Found: ${wideFrame ? 'YES' : 'NO'}, framesToUse angles: ${framesToUse.map(f => f.angleType).join(', ')}`);
+    
+    if (wideFrame) {
+      wideDetectorCounts = await detectVehicles(
+        wideFrame.screenshot.toString('base64'),
+        'engen'
+      );
+      if (wideDetectorCounts) {
+        const engenVehicles = wideDetectorCounts.LS_to_SA || wideDetectorCounts.total || 0;
+        console.log(`🎯 Engen Detector: ${engenVehicles} vehicles in queue area`);
+        
+        // If 2+ vehicles detected at Engen, queue has stretched past Engen
+        if (engenVehicles >= 2) {
+          engenQueueDetected = true;
+          console.log(`📍 Queue stretches past Engen (${engenVehicles} vehicles detected)`);
+        }
+      }
+    }
+    
+    // Add to traffic history for time-series analysis
+    trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
+    
+    // Get trend analysis
+    const trendInfo = trafficHistory.analyzeTrends();
+    const trendSummary = trafficHistory.getTrendSummary();
+    
+    // Determine traffic levels from detector counts (existing logic - unchanged)
     let lsToSaStatus = 'LIGHT';
     let saToLsStatus = 'LIGHT';
     let lsToSaCount = 0;
     let saToLsCount = 0;
+    let saToLsCanopyCount = 0;
     
+    // Bridge counts
     if (detectorCounts && !detectorCounts.direction_uncertain) {
       lsToSaCount = detectorCounts.LS_to_SA;
       saToLsCount = detectorCounts.SA_to_LS;
-      
-      // Determine status levels
+    }
+    
+    // Add canopy counts for SA→LS (cars entering canopy)
+    if (canopyDetectorCounts) {
+      saToLsCanopyCount = canopyDetectorCounts.SA_to_LS || 0;
+    }
+    
+    // Combined SA→LS count (bridge + canopy queue)
+    const combinedSaToLs = saToLsCount + saToLsCanopyCount;
+    
+    if (detectorCounts && !detectorCounts.direction_uncertain) {
+      // Determine status levels - EXISTING LOGIC (unchanged)
       if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
-      else if (lsToSaCount <= 10) lsToSaStatus = 'MODERATE';
+      else if (lsToSaCount <= 8) lsToSaStatus = 'MODERATE';
       else lsToSaStatus = 'HEAVY';
       
-      if (saToLsCount <= 3) saToLsStatus = 'LIGHT';
-      else if (saToLsCount <= 10) saToLsStatus = 'MODERATE';
+      // SA→LS uses COMBINED count (bridge + canopy)
+      if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
+      else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
       else saToLsStatus = 'HEAVY';
       
-      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (${lsToSaCount}), SA→LS: ${saToLsStatus} (${saToLsCount})`);
+      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (${lsToSaCount} on bridge${engenQueueDetected ? ', queue at Engen!' : ''}), SA→LS: ${saToLsStatus} (bridge: ${saToLsCount}, canopy: ${saToLsCanopyCount}, combined: ${combinedSaToLs})`);
+      
+      if (trendSummary) {
+        console.log(`📈 Trend: ${trendSummary}`);
+      }
     } else if (detectorCounts?.direction_uncertain) {
       console.log(`⚠️ Direction uncertain - too many unassigned vehicles`);
     }
@@ -930,30 +1166,90 @@ async function analyzeTraffic(userQuestion = null) {
     const lsToSaBreakdown = breakdown.LS_to_SA || { cars: 0, trucks: 0, buses: 0 };
     const saToLsBreakdown = breakdown.SA_to_LS || { cars: 0, trucks: 0, buses: 0 };
     
+    // Build trend info string
+    const trendInfoString = trendSummary ? `
+📈 TRAFFIC TREND (based on recent history):
+${trendSummary}
+` : '';
+
+    // Build Engen queue note (only if queue detected - otherwise don't mention)
+    const engenNote = engenQueueDetected 
+      ? `\n  📍 NOTE: Queue stretches past Engen petrol station!`
+      : '';
+    
     const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
       ? `
-VEHICLE COUNTS (from automated detection - these are ACCURATE):
+VEHICLE COUNTS (automated detection):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
+• LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles on bridge
   Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
+  Status: ${lsToSaStatus}${engenNote}
   
-• SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles - ${saToLsStatus}
+• SA→LS (South Africa to Lesotho): COMBINED COUNT
+  - Bridge: ${saToLsCount} vehicles
+  - Canopy queue: ${saToLsCanopyCount} vehicles entering/waiting
+  - TOTAL: ${combinedSaToLs} vehicles
   Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
-
-• Total detected: ${detectorCounts.total}
+  Status: ${saToLsStatus}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${trendInfoString}
+🚨 CRITICAL - YOU MUST USE THESE EXACT COUNTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- LS→SA: Report "${lsToSaCount} vehicles" (NOT your visual estimate!)
+- SA→LS: Report "${combinedSaToLs} vehicles" (bridge ${saToLsCount} + canopy ${saToLsCanopyCount})
+- DO NOT make up different numbers - the detector counts are accurate!
+- If "Queue stretches past Engen" is noted, MENTION this for LS→SA direction.
 
-⚠️ IMPORTANT: Use these EXACT counts. Do NOT try to count vehicles yourself.
-The counts above are determined by automated detection and are authoritative.
-
-📌 TRUCK CONTEXT: Trucks take longer to process at border. If trucks are present:
-- Mention truck presence in your response
-- If cars are behind trucks, note they may experience slight delays
-- Example: "3 cars waiting behind a truck being processed"
+🔺 RULES:
+- If canopy shows cars in 2 ROWS = HEAVY for SA→LS
+- NOTE: Stationary trucks do NOT cause delays - they process elsewhere
+- NEVER say more vehicles than the detector counted!
 `
       : `
-⚠️ Automated vehicle detection unavailable. Use your visual assessment.
-Use the camera images to estimate traffic in each direction.
+⚠️ Automated vehicle detection unavailable. Use your visual assessment of ALL camera views.
+Check the bridge, processing/canopy area, and approach road for queues.
+`;
+
+    // Also add visual assessment reminder
+    const visualAssessmentReminder = `
+═══════════════════════════════════════════════════════════════
+MASERU BORDER TRAFFIC FLOW GUIDE
+═══════════════════════════════════════════════════════════════
+Understanding the camera views and traffic flow:
+
+📷 BRIDGE VIEW:
+   • LS→SA traffic: Uses the lane AWAY from the orange pillar (far side)
+   • SA→LS traffic: Uses the lane NEAR the orange pillar
+   • Count vehicles in each lane to assess directional traffic
+
+📷 CANOPY/PROCESSING VIEW:
+   • SA→LS TRAFFIC: Cars ENTERING the canopy area, queue in 1 row normally,
+     2 rows when traffic is heavy. Look for cars lined up coming INTO the shelter.
+   • LS→SA TRAFFIC: Vehicles on the RIGHT SIDE of the canopy area, 
+     these are heading toward South Africa.
+   • TRUCKS: Trucks park in the canopy BUT they process at a DIFFERENT location.
+     ⚠️ Trucks do NOT cause delays for cars UNLESS they are physically blocking 
+     the car lanes. Don't count stationary trucks as traffic delays!
+
+📷 WIDE/ENGEN VIEW:
+   • Shows the approach road from Lesotho side
+   • If cars are queued here, SA→LS traffic is severely backed up
+
+═══════════════════════════════════════════════════════════════
+CROSS-VIEW VALIDATION (use this to confirm traffic severity):
+═══════════════════════════════════════════════════════════════
+🔍 To confirm LS→SA traffic:
+   1. Check bridge: vehicles on far side (away from orange pillar)
+   2. Check canopy: vehicles on RIGHT side heading toward bridge
+   3. If BOTH show queues → Confirmed LS→SA congestion
+
+🔍 To confirm SA→LS traffic:
+   1. Check bridge: vehicles on near side (by orange pillar)
+   2. Check canopy: cars ENTERING/queuing in the canopy (1-2 rows)
+   3. Check wide/Engen: if backed up here, SA→LS is SEVERE
+   4. If bridge AND canopy show SA→LS queues → Confirmed congestion
+
+═══════════════════════════════════════════════════════════════
 `;
 
     // Generate camera status warning for prompt
@@ -984,16 +1280,31 @@ The camera is currently only showing ${desc}. Other views are not available. Men
 
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
+${visualAssessmentReminder}
 ${countsInfo}
 ${cameraStatusWarning}
 ${queueReportsPrompt}
 ═══════════════════════════════════════════════════════════════
-TRAFFIC LEVELS (for vehicles on bridge/road):
+TRAFFIC LEVELS (assess EACH direction separately):
 ═══════════════════════════════════════════════════════════════
-• LIGHT: 0-3 vehicles
-• MODERATE: 4-10 vehicles  
-• HEAVY: 10+ vehicles
-• SEVERE: Backed up to Engen/approach road
+
+For LS→SA (Lesotho to South Africa):
+• LIGHT: 0-3 vehicles, no queue on bridge far lane or canopy right side
+• MODERATE: 4-8 vehicles, some queue visible on bridge or canopy right
+• HEAVY: 8+ vehicles, clear queue on bridge AND canopy right side
+• SEVERE: Queue extends significantly, long waits expected
+
+For SA→LS (South Africa to Lesotho):
+• LIGHT: 0-3 vehicles, no cars entering canopy
+• MODERATE: 4-8 vehicles, single row of cars queuing into canopy
+• HEAVY: 8+ vehicles, cars in 2 ROWS entering canopy, bridge lane backed up
+• SEVERE: Queue backs up to Engen/approach road (visible in WIDE view)
+
+⚠️ IMPORTANT NOTES:
+• Trucks in canopy area do NOT automatically mean delays - they process elsewhere
+• Only count trucks as causing delays if they are blocking car lanes
+• 2 rows of cars entering canopy = definite HEAVY traffic for SA→LS
+• If Engen/approach road shows queue = SEVERE for SA→LS
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -1065,12 +1376,12 @@ STANDARD FORMAT (for general traffic questions):
 
 [LS_TO_SA]
 status: [LIGHT/MODERATE/HEAVY/SEVERE]
-detail: [Simple - e.g., "Only 2 vehicles, no queue." or "About 8 vehicles waiting."]
+detail: [Include WHERE the queue is - e.g., "About 10 vehicles on the bridge heading to SA." or "Queue extends past Engen petrol station." Keep it simple but location-specific.]
 [/LS_TO_SA]
 
 [SA_TO_LS]
 status: [LIGHT/MODERATE/HEAVY/SEVERE]
-detail: [Simple - e.g., "Clear with minimal traffic." or "Steady flow, short wait expected."]
+detail: [Include WHERE the queue is - e.g., "3 on the bridge, 5 in the processing area." or "About 8 vehicles - some crossing, others queuing to enter Lesotho." Be specific about bridge vs processing area.]
 [/SA_TO_LS]
 
 **Advice:** [Practical, personalized if direction mentioned]
@@ -1081,7 +1392,7 @@ detail: [Simple - e.g., "Clear with minimal traffic." or "Steady flow, short wai
 REMEMBER:
 ═══════════════════════════════════════════════════════════════
 1. Sound like a helpful friend, not a robot
-2. Keep details SHORT and SIMPLE
+2. Keep details SHORT and SIMPLE but LOCATION-SPECIFIC
 3. If they mention their direction, focus advice on THEIR journey
 4. NEVER use technical camera terminology
 5. ALWAYS show both directions in standard format
@@ -1531,6 +1842,8 @@ app.post('/api/chat/stream', async (req, res) => {
     // STEP 1: Call YOLO detector for vehicle counts
     // =============================================
     let detectorCounts = null;
+    let canopyDetectorCounts = null;
+    
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
     if (bridgeFrame) {
       detectorCounts = await detectVehicles(
@@ -1539,22 +1852,50 @@ app.post('/api/chat/stream', async (req, res) => {
       );
     }
     
+    // Find the canopy/processing frame and call detector for SA→LS queue
+    const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
+    if (canopyFrame) {
+      canopyDetectorCounts = await detectVehicles(
+        canopyFrame.screenshot.toString('base64'),
+        'canopy'
+      );
+    }
+    
+    // Add to traffic history for time-series analysis
+    trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
+    
+    // Get trend analysis
+    const trendSummary = trafficHistory.getTrendSummary();
+    
     // Determine traffic levels from detector counts
     let lsToSaStatus = 'LIGHT';
     let saToLsStatus = 'LIGHT';
     let lsToSaCount = 0;
     let saToLsCount = 0;
+    let saToLsCanopyCount = 0;
     
+    // Bridge counts
     if (detectorCounts && !detectorCounts.direction_uncertain) {
       lsToSaCount = detectorCounts.LS_to_SA;
       saToLsCount = detectorCounts.SA_to_LS;
-      
+    }
+    
+    // Add canopy counts for SA→LS
+    if (canopyDetectorCounts) {
+      saToLsCanopyCount = canopyDetectorCounts.SA_to_LS || 0;
+    }
+    
+    // Combined SA→LS count (bridge + canopy queue)
+    const combinedSaToLs = saToLsCount + saToLsCanopyCount;
+    
+    if (detectorCounts && !detectorCounts.direction_uncertain) {
       if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
-      else if (lsToSaCount <= 10) lsToSaStatus = 'MODERATE';
+      else if (lsToSaCount <= 8) lsToSaStatus = 'MODERATE';
       else lsToSaStatus = 'HEAVY';
       
-      if (saToLsCount <= 3) saToLsStatus = 'LIGHT';
-      else if (saToLsCount <= 10) saToLsStatus = 'MODERATE';
+      // SA→LS uses COMBINED count
+      if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
+      else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
       else saToLsStatus = 'HEAVY';
     }
 
@@ -1563,25 +1904,29 @@ app.post('/api/chat/stream', async (req, res) => {
     const lsToSaBreakdown = breakdown.LS_to_SA || { cars: 0, trucks: 0, buses: 0 };
     const saToLsBreakdown = breakdown.SA_to_LS || { cars: 0, trucks: 0, buses: 0 };
 
+    // Build trend info string
+    const trendInfoString = trendSummary ? `
+📈 TRAFFIC TREND: ${trendSummary}
+` : '';
+
     // Build counts info for prompt
     const countsInfo = detectorCounts && !detectorCounts.direction_uncertain
       ? `
-VEHICLE COUNTS (from automated detection - these are ACCURATE):
+VEHICLE COUNTS (automated detection):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
   Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
   
-• SA→LS (South Africa to Lesotho): ${saToLsCount} vehicles - ${saToLsStatus}
+• SA→LS (South Africa to Lesotho): COMBINED COUNT
+  - Bridge: ${saToLsCount} vehicles
+  - Canopy queue: ${saToLsCanopyCount} vehicles
+  - TOTAL: ${combinedSaToLs} vehicles - ${saToLsStatus}
   Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
-
-• Total detected: ${detectorCounts.total}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${trendInfoString}
+⚠️ IMPORTANT: SA→LS count COMBINES bridge + canopy vehicles.
 
-⚠️ IMPORTANT: Use these EXACT counts. Do NOT try to count vehicles yourself.
-
-📌 TRUCK CONTEXT: Trucks take longer to process at border. If trucks are present:
-- Mention truck presence in your response
-- If cars are behind trucks, note they may experience slight delays
+📌 TRUCK NOTE: Stationary trucks do NOT cause delays - they process elsewhere.
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment.
@@ -1613,19 +1958,76 @@ The camera is currently only showing ${desc}. Other views are not available.
     // Get queue reports from users
     const queueReportsPrompt = await formatQueueReportsForPrompt();
 
+    // Visual assessment reminder for multi-view analysis
+    const visualAssessmentReminder = `
+═══════════════════════════════════════════════════════════════
+MASERU BORDER TRAFFIC FLOW GUIDE
+═══════════════════════════════════════════════════════════════
+Understanding the camera views and traffic flow:
+
+📷 BRIDGE VIEW:
+   • LS→SA traffic: Uses the lane AWAY from the orange pillar (far side)
+   • SA→LS traffic: Uses the lane NEAR the orange pillar
+   • Count vehicles in each lane to assess directional traffic
+
+📷 CANOPY/PROCESSING VIEW:
+   • SA→LS TRAFFIC: Cars ENTERING the canopy area, queue in 1 row normally,
+     2 rows when traffic is heavy. Look for cars lined up coming INTO the shelter.
+   • LS→SA TRAFFIC: Vehicles on the RIGHT SIDE of the canopy area, 
+     these are heading toward South Africa.
+   • TRUCKS: Trucks park in the canopy BUT they process at a DIFFERENT location.
+     ⚠️ Trucks do NOT cause delays for cars UNLESS they are physically blocking 
+     the car lanes. Don't count stationary trucks as traffic delays!
+
+📷 WIDE/ENGEN VIEW:
+   • Shows the approach road from Lesotho side
+   • If cars are queued here, SA→LS traffic is severely backed up
+
+═══════════════════════════════════════════════════════════════
+CROSS-VIEW VALIDATION (use this to confirm traffic severity):
+═══════════════════════════════════════════════════════════════
+🔍 To confirm LS→SA traffic:
+   1. Check bridge: vehicles on far side (away from orange pillar)
+   2. Check canopy: vehicles on RIGHT side heading toward bridge
+   3. If BOTH show queues → Confirmed LS→SA congestion
+
+🔍 To confirm SA→LS traffic:
+   1. Check bridge: vehicles on near side (by orange pillar)
+   2. Check canopy: cars ENTERING/queuing in the canopy (1-2 rows)
+   3. Check wide/Engen: if backed up here, SA→LS is SEVERE
+   4. If bridge AND canopy show SA→LS queues → Confirmed congestion
+
+═══════════════════════════════════════════════════════════════
+`;
+
     // Build system prompt with detector counts
     const systemPrompt = `You are a friendly traffic assistant for Maseru Bridge border crossing between Lesotho and South Africa.
 
+${visualAssessmentReminder}
 ${countsInfo}
 ${cameraStatusWarning}
 ${queueReportsPrompt}
 ═══════════════════════════════════════════════════════════════
-TRAFFIC LEVELS (for vehicles on bridge/road):
+TRAFFIC LEVELS (assess EACH direction separately):
 ═══════════════════════════════════════════════════════════════
-• LIGHT: 0-3 vehicles
-• MODERATE: 4-10 vehicles  
-• HEAVY: 10+ vehicles
-• SEVERE: Backed up to Engen/approach road
+
+For LS→SA (Lesotho to South Africa):
+• LIGHT: 0-3 vehicles, no queue on bridge far lane or canopy right side
+• MODERATE: 4-8 vehicles, some queue visible on bridge or canopy right
+• HEAVY: 8+ vehicles, clear queue on bridge AND canopy right side
+• SEVERE: Queue extends significantly, long waits expected
+
+For SA→LS (South Africa to Lesotho):
+• LIGHT: 0-3 vehicles, no cars entering canopy
+• MODERATE: 4-8 vehicles, single row of cars queuing into canopy
+• HEAVY: 8+ vehicles, cars in 2 ROWS entering canopy, bridge lane backed up
+• SEVERE: Queue backs up to Engen/approach road (visible in WIDE view)
+
+⚠️ IMPORTANT NOTES:
+• Trucks in canopy area do NOT automatically mean delays - they process elsewhere
+• Only count trucks as causing delays if they are blocking car lanes
+• 2 rows of cars entering canopy = definite HEAVY traffic for SA→LS
+• If Engen/approach road shows queue = SEVERE for SA→LS
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -1686,12 +2088,12 @@ STANDARD FORMAT (for general traffic questions):
 
 [LS_TO_SA]
 status: [LIGHT/MODERATE/HEAVY/SEVERE]
-detail: [Simple - e.g., "Only 2 vehicles, no queue." or "About 8 vehicles waiting."]
+detail: [Include WHERE the queue is - e.g., "About 10 vehicles on the bridge heading to SA." or "Queue extends past Engen petrol station." Keep it simple but location-specific.]
 [/LS_TO_SA]
 
 [SA_TO_LS]
 status: [LIGHT/MODERATE/HEAVY/SEVERE]
-detail: [Simple - e.g., "Clear with minimal traffic." or "Steady flow, short wait expected."]
+detail: [Include WHERE the queue is - e.g., "3 on the bridge, 5 in the processing area." or "About 8 vehicles - some crossing, others queuing to enter Lesotho." Be specific about bridge vs processing area.]
 [/SA_TO_LS]
 
 **Advice:** [Practical, personalized if direction mentioned]
@@ -1702,7 +2104,7 @@ detail: [Simple - e.g., "Clear with minimal traffic." or "Steady flow, short wai
 REMEMBER:
 ═══════════════════════════════════════════════════════════════
 1. Sound like a helpful friend, not a robot
-2. Keep details SHORT and SIMPLE
+2. Keep details SHORT and SIMPLE but LOCATION-SPECIFIC
 3. If they mention their direction, focus advice on THEIR journey
 4. NEVER use technical camera terminology
 5. ALWAYS show both directions in standard format
@@ -1830,6 +2232,10 @@ app.get('/api/frames', async (req, res) => {
       'useless': null // Skip useless frames
     };
     
+    // Maximum age for "fresh" vs "stale" (for UI indicator)
+    const FRESH_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+    const MAX_PRESERVED_AGE_MS = 60 * 60 * 1000; // 1 hour - show preserved frames up to 1 hour old
+    
     // Go through buffer in reverse to get most recent of each type
     for (let i = screenshotBuffer.length - 1; i >= 0; i--) {
       const frame = screenshotBuffer[i];
@@ -1838,7 +2244,7 @@ app.get('/api/frames', async (req, res) => {
       // Skip useless frames and already captured angles
       if (angleType === 'useless' || framesByAngle[angleType]) continue;
       
-      // Skip stale frames
+      // Skip stale frames from buffer (only use fresh ones)
       if (!isFrameFresh(frame)) continue;
       
       const label = angleLabels[angleType];
@@ -1847,24 +2253,34 @@ app.get('/api/frames', async (req, res) => {
           angleType: angleType,
           label: label,
           timestamp: frame.timestamp,
-          image: frame.screenshot.toString('base64')
+          image: frame.screenshot.toString('base64'),
+          isStale: false
         };
       }
     }
     
-    // Fill in any missing angles from preserved frames (only if fresh)
+    // Fill in any missing angles from preserved frames
+    // IMPORTANT: Allow older preserved frames (up to 1 hour) for carousel display
+    // This helps when camera is stuck on certain angles
     const order = ['bridge', 'processing', 'wide'];
     for (const angleType of order) {
-      if (!framesByAngle[angleType] && preservedFrames[angleType] && isFrameFresh(preservedFrames[angleType])) {
+      if (!framesByAngle[angleType] && preservedFrames[angleType]) {
         const frame = preservedFrames[angleType];
-        const label = angleLabels[angleType];
-        if (label) {
-          framesByAngle[angleType] = {
-            angleType: angleType,
-            label: label,
-            timestamp: frame.timestamp,
-            image: frame.screenshot.toString('base64')
-          };
+        const frameAge = Date.now() - new Date(frame.timestamp).getTime();
+        
+        // Allow preserved frames up to 1 hour old for display
+        if (frameAge <= MAX_PRESERVED_AGE_MS) {
+          const label = angleLabels[angleType];
+          if (label) {
+            framesByAngle[angleType] = {
+              angleType: angleType,
+              label: label,
+              timestamp: frame.timestamp,
+              image: frame.screenshot.toString('base64'),
+              isStale: frameAge > FRESH_THRESHOLD_MS, // Mark as stale if older than 10 min
+              ageMinutes: Math.round(frameAge / 60000)
+            };
+          }
         }
       }
     }
@@ -1874,24 +2290,36 @@ app.get('/api/frames', async (req, res) => {
       .filter(type => framesByAngle[type])
       .map(type => framesByAngle[type]);
     
-    // Determine camera status
+    // Determine camera status based on fresh frames only
+    const freshFrames = frames.filter(f => !f.isStale);
+    const staleFrames = frames.filter(f => f.isStale);
+    
     let cameraStatus = 'normal';
     let statusMessage = null;
-    const availableAngles = frames.map(f => f.label);
+    const availableAngles = freshFrames.map(f => f.label);
     
-    if (frames.length === 0) {
-      // No fresh frames at all - camera is offline
-      cameraStatus = 'offline';
-      statusMessage = '⚠️ Camera feed unavailable. Please try again later.';
-    } else if (frames.length === 1) {
-      // Only one angle available - camera stuck
+    if (freshFrames.length === 0) {
+      // No fresh frames at all - camera may be offline
+      if (frames.length > 0) {
+        cameraStatus = 'stale';
+        statusMessage = '⚠️ Camera feed delayed. Showing older images.';
+      } else {
+        cameraStatus = 'offline';
+        statusMessage = '⚠️ Camera feed unavailable. Please try again later.';
+      }
+    } else if (freshFrames.length === 1) {
+      // Only one fresh angle available - camera may be stuck
       cameraStatus = 'limited';
-      statusMessage = `📹 Camera showing ${availableAngles[0]} view only. Analysis based on limited view.`;
-    } else if (frames.length === 2) {
-      // Two angles available
+      statusMessage = `📹 Camera currently showing ${availableAngles[0]} view. Other views from earlier.`;
+    } else if (freshFrames.length === 2) {
+      // Two fresh angles available
       cameraStatus = 'limited';
-      const missing = order.filter(a => !framesByAngle[a]).map(a => angleLabels[a]);
-      statusMessage = `📹 ${missing[0]} view unavailable. Analysis based on ${availableAngles.join(' & ')}.`;
+      const missingFresh = order.filter(a => !freshFrames.find(f => f.angleType === a)).map(a => angleLabels[a]);
+      if (staleFrames.length > 0) {
+        statusMessage = `📹 ${missingFresh[0]} view is from ${staleFrames[0].ageMinutes}m ago.`;
+      } else {
+        statusMessage = `📹 ${missingFresh[0]} view unavailable.`;
+      }
     }
     
     res.json({
@@ -1900,7 +2328,9 @@ app.get('/api/frames', async (req, res) => {
       totalInBuffer: screenshotBuffer.length,
       cameraStatus: cameraStatus,
       statusMessage: statusMessage,
-      availableAngles: availableAngles
+      availableAngles: availableAngles,
+      freshCount: freshFrames.length,
+      staleCount: staleFrames.length
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to get frames' });
@@ -1908,12 +2338,64 @@ app.get('/api/frames', async (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
+  // Count frames by type in buffer
+  const bufferCounts = screenshotBuffer.reduce((acc, f) => {
+    acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+    return acc;
+  }, {});
+  
+  // Check preserved frames status
+  const preservedStatus = {};
+  for (const [angle, frame] of Object.entries(preservedFrames)) {
+    if (frame) {
+      const age = Date.now() - frame.timestamp;
+      preservedStatus[angle] = {
+        exists: true,
+        ageMinutes: Math.round(age / 60000),
+        isFresh: age <= MAX_FRAME_AGE_MS
+      };
+    } else {
+      preservedStatus[angle] = { exists: false };
+    }
+  }
+  
   res.json({
     status: 'ok',
     bufferSize: screenshotBuffer.length,
+    bufferCounts: bufferCounts,
+    preservedFrames: preservedStatus,
     lastCapture: screenshotBuffer.length > 0 ? new Date(screenshotBuffer[screenshotBuffer.length - 1].timestamp).toISOString() : 'none',
     uptime: process.uptime(),
   });
+});
+
+// Debug endpoint to test classification on current frame
+app.get('/api/debug/classify', async (req, res) => {
+  try {
+    // Capture a fresh frame
+    console.log('🔍 Debug: Capturing frame for classification test...');
+    const imageBuffer = await captureFrame();
+    
+    if (!imageBuffer) {
+      return res.json({ success: false, message: 'Failed to capture frame' });
+    }
+    
+    // Get the last captured frame's classification
+    const lastFrame = screenshotBuffer[screenshotBuffer.length - 1];
+    
+    res.json({
+      success: true,
+      classification: lastFrame?.angleType || 'unknown',
+      timestamp: lastFrame?.timestamp ? new Date(lastFrame.timestamp).toISOString() : null,
+      bufferCounts: screenshotBuffer.reduce((acc, f) => {
+        acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+        return acc;
+      }, {}),
+      message: `Frame classified as: ${lastFrame?.angleType || 'unknown'}`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // =============================================
@@ -3019,14 +3501,177 @@ app.get('/', (req, res) => {
 
 // Background capture
 async function startBackgroundCapture() {
-  console.log('🔄 Starting background capture...');
+  console.log('🔄 Starting background capture with angle-change detection...');
   
+  // Initial capture
   await captureFrame();
   
+  // Rapid sampling every 20 seconds, but only save when angle changes
   setInterval(async () => {
-    await captureFrame();
-  }, config.captureInterval);
+    await smartCapture();
+  }, 20000); // Check every 20 seconds
 }
+
+// Track last captured angle to detect camera movement
+let lastCapturedAngle = null;
+let lastAngleChangeTime = 0;
+let consecutiveSameAngle = 0;
+
+// Smart capture: Only save frame if camera angle changed OR it's been too long
+async function smartCapture() {
+  if (isCapturing) {
+    console.log('⏳ Capture already in progress');
+    return;
+  }
+
+  isCapturing = true;
+  const outputPath = '/tmp/frame.jpg';
+
+  return new Promise((resolve) => {
+    const ffmpeg = spawn('ffmpeg', [
+      '-y',
+      '-i', config.streamUrl,
+      '-vframes', '1',
+      '-q:v', '2',
+      '-vf', 'scale=800:-1',
+      outputPath
+    ], {
+      timeout: 30000,
+    });
+
+    let stderr = '';
+    
+    ffmpeg.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    ffmpeg.on('close', async (code) => {
+      isCapturing = false;
+      
+      if (code === 0 && fs.existsSync(outputPath)) {
+        try {
+          const imageBuffer = fs.readFileSync(outputPath);
+          const timestamp = Date.now();
+          
+          // Check for motion blur BEFORE classification
+          if (isImageBlurry(imageBuffer)) {
+            // Skip blurry frames entirely - camera is probably still moving
+            resolve(null);
+            return;
+          }
+          
+          // Classify the frame angle
+          const angleType = await classifyFrameAngle(imageBuffer);
+          
+          const timeSinceLastChange = timestamp - lastAngleChangeTime;
+          const isNewAngle = angleType !== lastCapturedAngle && angleType !== 'useless';
+          const tooLongSameAngle = timeSinceLastChange > 180000; // 3 minutes without change
+          
+          // Decide whether to save this frame
+          let shouldSave = false;
+          let reason = '';
+          
+          if (isNewAngle) {
+            // Camera moved to a new angle - SAVE!
+            shouldSave = true;
+            reason = 'angle changed';
+            consecutiveSameAngle = 0;
+            lastAngleChangeTime = timestamp;
+          } else if (tooLongSameAngle && angleType !== 'useless') {
+            // Been too long, save anyway to keep frame fresh
+            shouldSave = true;
+            reason = 'refresh (same angle)';
+            consecutiveSameAngle++;
+          } else if (angleType === 'useless') {
+            // Useless frame - check but don't increment
+            reason = 'useless (skipped)';
+            shouldSave = false;
+          } else {
+            // Same angle, not time to refresh yet
+            consecutiveSameAngle++;
+            reason = `same angle (${consecutiveSameAngle}x)`;
+            shouldSave = false;
+          }
+          
+          if (shouldSave) {
+            const frameData = {
+              screenshot: imageBuffer,
+              timestamp: timestamp,
+              angleType: angleType
+            };
+            
+            // Add to buffer
+            screenshotBuffer.push(frameData);
+            
+            // Also preserve the latest frame for each useful angle type
+            if (angleType !== 'useless' && preservedFrames.hasOwnProperty(angleType)) {
+              preservedFrames[angleType] = frameData;
+              
+              // Upload to Supabase Storage and update database
+              const framePath = await uploadFrameToStorage(imageBuffer, angleType, timestamp);
+              if (framePath) {
+                await updatePreservedFrame(angleType, framePath, timestamp);
+                await logFrameHistory(angleType, framePath, timestamp);
+              }
+            }
+            
+            // Keep only recent frames in main buffer
+            if (screenshotBuffer.length > config.maxBufferSize) {
+              screenshotBuffer = screenshotBuffer.slice(-config.maxBufferSize);
+            }
+            
+            // Record successful capture for camera status tracking
+            recordCaptureSuccess(angleType);
+            
+            // Count frames by type
+            const counts = screenshotBuffer.reduce((acc, f) => {
+              acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+              return acc;
+            }, {});
+            
+            console.log(`✅ Frame SAVED (${angleType}) - ${reason}. Buffer: ${JSON.stringify(counts)}`);
+          } else {
+            console.log(`⏭️ Frame skipped (${angleType}) - ${reason}`);
+          }
+          
+          // Update last captured angle (for non-useless frames)
+          if (angleType !== 'useless') {
+            lastCapturedAngle = angleType;
+          }
+          
+          resolve(imageBuffer);
+        } catch (err) {
+          console.error('❌ Failed to read captured frame:', err.message);
+          recordCaptureFailure();
+          resolve(null);
+        }
+      } else {
+        console.error(`❌ ffmpeg failed with code ${code}`);
+        recordCaptureFailure();
+        resolve(null);
+      }
+    });
+
+    ffmpeg.on('error', (err) => {
+      isCapturing = false;
+      console.error('❌ ffmpeg error:', err.message);
+      recordCaptureFailure();
+      resolve(null);
+    });
+
+    setTimeout(() => {
+      if (isCapturing) {
+        ffmpeg.kill('SIGKILL');
+        isCapturing = false;
+        console.error('❌ ffmpeg timeout');
+        resolve(null);
+      }
+    }, 25000);
+  });
+}
+
+// Keep original captureFrame for on-demand captures (API calls)
+// Burst capture removed - smartCapture handles angle detection now
 
 // =============================================
 // MESSAGE REACTIONS API
@@ -3136,6 +3781,38 @@ app.post('/api/feedback', async (req, res) => {
   } catch (err) {
     console.error('Feedback error:', err);
     res.json({ success: true }); // Don't fail
+  }
+});
+
+// Log terms & conditions acceptance
+app.post('/api/terms-acceptance', async (req, res) => {
+  try {
+    const { version, acceptedAt, deviceInfo } = req.body;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+
+    console.log('📋 Terms acceptance:');
+    console.log(`   Version: ${version}`);
+    console.log(`   Time: ${acceptedAt}`);
+    console.log(`   IP: ${ip}`);
+
+    // Store in Supabase if available
+    if (supabase) {
+      await supabase.from('terms_acceptances').insert({
+        version: version,
+        accepted_at: acceptedAt,
+        ip_address: ip,
+        user_agent: deviceInfo?.userAgent || null,
+        device_language: deviceInfo?.language || null,
+        device_platform: deviceInfo?.platform || null,
+        screen_size: deviceInfo?.screenSize || null
+      });
+      console.log('✅ Terms acceptance logged to database');
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Terms acceptance logging error:', err);
+    res.json({ success: true }); // Don't fail - user should still proceed
   }
 });
 
