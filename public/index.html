@@ -1368,12 +1368,6 @@
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      transition: all 0.2s;
-    }
-
-    .gallery-label.stale {
-      color: var(--warning);
-      background: rgba(245, 158, 11, 0.2);
     }
 
     .gallery-nav {
@@ -1428,17 +1422,6 @@
     .gallery-dot.active {
       background: var(--accent);
       transform: scale(1.2);
-    }
-
-    .gallery-dot.stale {
-      background: var(--warning);
-      opacity: 0.7;
-    }
-
-    .gallery-dot.stale.active {
-      background: var(--warning);
-      transform: scale(1.2);
-      opacity: 1;
     }
 
     .gallery-dot:hover:not(.active) {
@@ -3194,203 +3177,6 @@
       cursor: not-allowed;
     }
 
-    /* Terms & Conditions Modal */
-    .terms-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.95);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10000;
-      padding: 1rem;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.3s ease;
-    }
-
-    .terms-overlay.show {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .terms-modal {
-      background: #1a1a1a;
-      border-radius: 16px;
-      max-width: 500px;
-      width: 100%;
-      max-height: 85vh;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-      transform: scale(0.9);
-      transition: transform 0.3s ease;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .terms-overlay.show .terms-modal {
-      transform: scale(1);
-    }
-
-    .terms-header {
-      padding: 1.5rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      text-align: center;
-      background: #222;
-      border-radius: 16px 16px 0 0;
-    }
-
-    .terms-header h2 {
-      margin: 0;
-      font-size: 1.3rem;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-
-    .terms-header p {
-      margin: 0.5rem 0 0 0;
-      font-size: 0.85rem;
-      color: #aaaaaa;
-    }
-
-    .terms-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1.5rem;
-      background: #1a1a1a;
-    }
-
-    .terms-section {
-      margin-bottom: 1.25rem;
-    }
-
-    .terms-section h3 {
-      font-size: 0.95rem;
-      color: #ffffff;
-      margin: 0 0 0.5rem 0;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .terms-section p, .terms-section ul {
-      font-size: 0.85rem;
-      color: #cccccc;
-      margin: 0;
-      line-height: 1.5;
-    }
-
-    .terms-section ul {
-      padding-left: 1.25rem;
-      margin-top: 0.5rem;
-    }
-
-    .terms-section li {
-      margin-bottom: 0.3rem;
-    }
-
-    .terms-highlight {
-      background: rgba(34, 197, 94, 0.15);
-      border-left: 3px solid #22c55e;
-      padding: 0.75rem 1rem;
-      border-radius: 0 8px 8px 0;
-      margin: 1rem 0;
-    }
-
-    .terms-highlight p {
-      color: #ffffff;
-      font-weight: 500;
-    }
-
-    .terms-footer {
-      padding: 1.25rem 1.5rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-      background: #222;
-      border-radius: 0 0 16px 16px;
-    }
-
-    .terms-checkbox {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-      cursor: pointer;
-    }
-
-    .terms-checkbox input {
-      width: 20px;
-      height: 20px;
-      margin-top: 2px;
-      accent-color: #22c55e;
-      cursor: pointer;
-    }
-
-    .terms-checkbox label {
-      font-size: 0.9rem;
-      color: #ffffff;
-      cursor: pointer;
-      line-height: 1.4;
-    }
-
-    .terms-accept-btn {
-      width: 100%;
-      background: #22c55e;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 0.9rem;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-
-    .terms-accept-btn:hover:not(:disabled) {
-      background: #1ea550;
-      transform: translateY(-1px);
-    }
-
-    .terms-accept-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .terms-view-link {
-      text-align: center;
-      margin-top: 0.75rem;
-    }
-
-    .terms-view-link a {
-      color: #22c55e;
-      font-size: 0.8rem;
-      text-decoration: none;
-    }
-
-    .terms-view-link a:hover {
-      text-decoration: underline;
-    }
-
-    /* Settings menu terms link */
-    .settings-item.terms-link {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    .settings-item.terms-link:hover {
-      color: var(--text);
-    }
-
     .feedback-success {
       text-align: center;
       padding: 2rem 1rem;
@@ -4238,17 +4024,6 @@
                 <line x1="21" y1="12" x2="9" y2="12"></line>
               </svg>
               <span>Sign Out</span>
-            </button>
-            <div class="settings-divider"></div>
-            <button class="settings-item terms-link" onclick="openTermsModal(true); closeSettings();">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-              </svg>
-              <span>Terms & Conditions</span>
             </button>
           </div>
         </div>
@@ -7228,7 +7003,7 @@
         isLoading = false;
         sendBtn.disabled = false;
         chatInput.focus();
-        saveChatHistory();
+        // Note: saveChatHistory() is called in finalizeStreamedMessage() after typewriter completes
       }
     }
 
@@ -7285,6 +7060,9 @@
           </div>
         </div>
       `;
+      
+      // Save chat history AFTER message is finalized (no streaming cursor)
+      saveChatHistory();
     }
     
     // Generate inline camera alert HTML for mobile
@@ -7569,25 +7347,16 @@ https://4dcs.co.za`;
       
       const frame = frames[currentFrameIndex];
       galleryImage.src = 'data:image/jpeg;base64,' + frame.image;
-      
-      // Show label with stale indicator if frame is old
-      if (frame.isStale && frame.ageMinutes) {
-        galleryLabel.textContent = `${frame.label} (${frame.ageMinutes}m ago)`;
-        galleryLabel.classList.add('stale');
-      } else {
-        galleryLabel.textContent = frame.label;
-        galleryLabel.classList.remove('stale');
-      }
+      galleryLabel.textContent = frame.label;
       
       // Update timestamp
       const timestamp = new Date(frame.timestamp);
       cameraTimestamp.textContent = timestamp.toLocaleTimeString();
       
-      // Update dots - add stale class for older frames
+      // Update dots
       const dots = galleryDots.querySelectorAll('.gallery-dot');
       dots.forEach((dot, i) => {
         dot.classList.toggle('active', i === currentFrameIndex);
-        dot.classList.toggle('stale', frames[i].isStale === true);
       });
       
       // Nav buttons always enabled for continuous loop
@@ -7618,11 +7387,8 @@ https://4dcs.co.za`;
       galleryDots.innerHTML = '';
       frames.forEach((frame, i) => {
         const dot = document.createElement('button');
-        let className = 'gallery-dot';
-        if (i === currentFrameIndex) className += ' active';
-        if (frame.isStale) className += ' stale';
-        dot.className = className;
-        dot.title = frame.isStale ? `${frame.label} (${frame.ageMinutes}m ago)` : frame.label;
+        dot.className = 'gallery-dot' + (i === currentFrameIndex ? ' active' : '');
+        dot.title = frame.label;
         dot.onclick = () => goToFrame(i);
         galleryDots.appendChild(dot);
       });
@@ -7746,176 +7512,22 @@ https://4dcs.co.za`;
     // Load saved chat history on page load
     loadChatHistory();
     
-    // Robust scroll-to-bottom function that works on mobile
-    function scrollChatToBottom() {
-      if (!chatMessages) return;
-      
-      // Multiple attempts with increasing delays for mobile browsers
-      const scrollNow = () => {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-      };
-      
-      // Immediate
-      scrollNow();
-      
-      // After render
-      requestAnimationFrame(scrollNow);
-      
-      // After short delay
-      setTimeout(scrollNow, 100);
-      
-      // After longer delay (for slow mobile rendering)
-      setTimeout(scrollNow, 300);
-      
-      // Final attempt (for very slow connections/devices)
-      setTimeout(scrollNow, 500);
-    }
+    // Save chat history before page unloads (safety net)
+    window.addEventListener('beforeunload', () => {
+      saveChatHistory();
+    });
     
     // Ensure chat scrolls to bottom when page fully loads
     window.addEventListener('load', () => {
-      scrollChatToBottom();
-    });
-    
-    // Scroll to bottom when user returns to the page/tab
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        scrollChatToBottom();
-      }
-    });
-    
-    // Handle iOS Safari's pageshow event (for back/forward navigation and bfcache)
-    window.addEventListener('pageshow', (event) => {
-      // Always scroll on pageshow, not just when persisted
-      // This handles iPhone Safari's aggressive caching
-      scrollChatToBottom();
-    });
-    
-    // Handle window focus (when switching between apps on mobile)
-    window.addEventListener('focus', () => {
-      scrollChatToBottom();
-    });
-    
-    // Also scroll after a delay on DOMContentLoaded for initial load
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(scrollChatToBottom, 200);
+      setTimeout(() => {
+        if (chatMessages) {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      }, 200);
     });
     
     refreshCamera();
     setInterval(refreshCamera, 180000); // Refresh every 3 minutes
-    
-    // =============================================
-    // TERMS & CONDITIONS
-    // =============================================
-    const TERMS_ACCEPTED_KEY = 'maseru_traffic_terms_accepted';
-    const TERMS_VERSION = '1.0'; // Increment this to force re-acceptance
-    
-    // Check if terms have been accepted
-    function hasAcceptedTerms() {
-      try {
-        const accepted = localStorage.getItem(TERMS_ACCEPTED_KEY);
-        if (!accepted) return false;
-        const data = JSON.parse(accepted);
-        return data.version === TERMS_VERSION;
-      } catch (e) {
-        return false;
-      }
-    }
-    
-    // Show terms modal for first-time users
-    function checkTermsAcceptance() {
-      if (!hasAcceptedTerms()) {
-        openTermsModal(false); // false = first time, show checkbox
-      }
-    }
-    
-    // Open terms modal
-    // viewOnly: true = just viewing from settings (no checkbox needed)
-    function openTermsModal(viewOnly = false) {
-      const overlay = document.getElementById('termsOverlay');
-      const checkboxContainer = document.getElementById('termsCheckboxContainer');
-      const acceptBtn = document.getElementById('termsAcceptBtn');
-      const viewLink = document.getElementById('termsViewLink');
-      const checkbox = document.getElementById('termsCheckbox');
-      
-      if (viewOnly) {
-        // Viewing from settings - hide checkbox, show close link
-        checkboxContainer.style.display = 'none';
-        acceptBtn.style.display = 'none';
-        viewLink.style.display = 'block';
-      } else {
-        // First time - show checkbox and accept button
-        checkboxContainer.style.display = 'flex';
-        acceptBtn.style.display = 'flex';
-        viewLink.style.display = 'none';
-        checkbox.checked = false;
-        acceptBtn.disabled = true;
-      }
-      
-      overlay.classList.add('show');
-      document.body.style.overflow = 'hidden';
-    }
-    
-    // Close terms modal
-    function closeTermsModal() {
-      const overlay = document.getElementById('termsOverlay');
-      overlay.classList.remove('show');
-      document.body.style.overflow = '';
-    }
-    
-    // Update accept button state based on checkbox
-    function updateTermsButton() {
-      const checkbox = document.getElementById('termsCheckbox');
-      const acceptBtn = document.getElementById('termsAcceptBtn');
-      acceptBtn.disabled = !checkbox.checked;
-    }
-    
-    // Accept terms and save to localStorage + database
-    async function acceptTerms() {
-      const checkbox = document.getElementById('termsCheckbox');
-      if (!checkbox.checked) return;
-      
-      const acceptedAt = new Date().toISOString();
-      
-      // Save to localStorage
-      try {
-        const data = {
-          version: TERMS_VERSION,
-          acceptedAt: acceptedAt
-        };
-        localStorage.setItem(TERMS_ACCEPTED_KEY, JSON.stringify(data));
-      } catch (e) {
-        console.log('Could not save terms acceptance locally:', e);
-      }
-      
-      // Also log to database for record-keeping
-      try {
-        const deviceInfo = {
-          userAgent: navigator.userAgent,
-          language: navigator.language,
-          platform: navigator.platform || 'unknown',
-          screenSize: `${window.screen.width}x${window.screen.height}`
-        };
-        
-        await fetch('/api/terms-acceptance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            version: TERMS_VERSION,
-            acceptedAt: acceptedAt,
-            deviceInfo: deviceInfo
-          })
-        });
-        console.log('✅ Terms acceptance logged to database');
-      } catch (e) {
-        // Don't block user if logging fails
-        console.log('Could not log terms acceptance to database:', e);
-      }
-      
-      closeTermsModal();
-    }
-    
-    // Check terms on page load (after a short delay to let splash screen show first)
-    setTimeout(checkTermsAcceptance, 2600);
     
     // Hide splash screen after content loads
     function hideSplashScreen() {
@@ -7932,83 +7544,6 @@ https://4dcs.co.za`;
     // Hide splash after minimum display time (2.5s) or when content ready
     setTimeout(hideSplashScreen, 2500);
   </script>
-
-  <!-- Terms & Conditions Modal -->
-  <div class="terms-overlay" id="termsOverlay">
-    <div class="terms-modal">
-      <div class="terms-header">
-        <h2>📋 Terms & Conditions</h2>
-        <p>Please review before using 4D Traffic Bot</p>
-      </div>
-      
-      <div class="terms-content">
-        <div class="terms-highlight">
-          <p>🚗 This service provides AI-estimated traffic information to help you plan your border crossing.</p>
-        </div>
-        
-        <div class="terms-section">
-          <h3>⚠️ Disclaimer</h3>
-          <p>Traffic information displayed on 4D Traffic Bot is generated using artificial intelligence analysis of live camera feeds. This information is:</p>
-          <ul>
-            <li>An <strong>estimate only</strong> and may not reflect actual conditions</li>
-            <li>Subject to delays, inaccuracies, or technical errors</li>
-            <li>Not a substitute for official border authority information</li>
-          </ul>
-        </div>
-        
-        <div class="terms-section">
-          <h3>🚫 Limitation of Liability</h3>
-          <p>4D Climate Solutions (Pty) Ltd and its affiliates shall not be held liable for:</p>
-          <ul>
-            <li>Any decisions made based on information from this service</li>
-            <li>Delays, missed appointments, or travel disruptions</li>
-            <li>Financial losses or damages of any kind</li>
-            <li>Inaccurate traffic estimates or technical failures</li>
-          </ul>
-        </div>
-        
-        <div class="terms-section">
-          <h3>✅ Acceptable Use</h3>
-          <p>By using this service, you agree to:</p>
-          <ul>
-            <li>Use the information for personal, non-commercial purposes</li>
-            <li>Not rely solely on this service for critical travel decisions</li>
-            <li>Verify information with official sources when necessary</li>
-            <li>Report any issues or inaccuracies through our feedback system</li>
-          </ul>
-        </div>
-        
-        <div class="terms-section">
-          <h3>🔒 Privacy</h3>
-          <p>We respect your privacy. We do not collect personal information unless you voluntarily create an account. Camera feeds are processed in real-time and not stored for surveillance purposes.</p>
-        </div>
-        
-        <div class="terms-section">
-          <h3>📡 Service Availability</h3>
-          <p>We strive to provide reliable service, but cannot guarantee uninterrupted availability. The service may be temporarily unavailable due to maintenance, camera issues, or technical problems.</p>
-        </div>
-        
-        <div class="terms-section">
-          <h3>📧 Contact</h3>
-          <p>For questions or concerns, contact us at <a href="mailto:info@4dcs.co.za" style="color: var(--accent);">info@4dcs.co.za</a></p>
-        </div>
-      </div>
-      
-      <div class="terms-footer">
-        <div class="terms-checkbox" id="termsCheckboxContainer">
-          <input type="checkbox" id="termsCheckbox" onchange="updateTermsButton()">
-          <label for="termsCheckbox">I have read and agree to the Terms & Conditions</label>
-        </div>
-        <button class="terms-accept-btn" id="termsAcceptBtn" onclick="acceptTerms()" disabled>
-          <span>Continue to Traffic Bot</span>
-          <span>→</span>
-        </button>
-        <div class="terms-view-link" id="termsViewLink" style="display: none;">
-          <a href="#" onclick="closeTermsModal()">Close</a>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- iOS Add to Home Screen Prompt -->
   <div class="ios-prompt" id="iosPrompt">
