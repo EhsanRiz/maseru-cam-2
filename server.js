@@ -557,14 +557,19 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Classify this Maseru Border camera image. Reply with ONLY one word:
+            text: `Classify this Maseru Border camera image. Reply with ONLY one word.
 
-- WIDE: Wide-angle view showing large open area, parking lot, petrol station (Engen), OR multiple buildings/structures visible, OR "Chiefs" sign, OR distant view of road/vehicles approaching border
-- BRIDGE: Close-up of bridge over river with distinctive orange/red painted pillar or railing, vehicles crossing bridge
-- PROCESSING: Green curved corrugated roof canopy/shelter structure, vehicles underneath or near the covered area
-- USELESS: Mostly trees, bushes, vegetation, darkness, blurry, sky only, OR no road/vehicles/buildings visible
+PROCESSING: Look for GREEN CURVED CORRUGATED METAL ROOF (like a half-pipe/tunnel shape). This is a canopy/shelter covering a vehicle processing area. The roof has distinctive curved ribs. Vehicles may be parked underneath.
 
-Reply with ONE word only: WIDE, BRIDGE, PROCESSING, or USELESS`
+BRIDGE: Orange/red painted pillar or railing visible. Shows the bridge over the river with vehicles crossing on lanes.
+
+WIDE: Shows Engen petrol station, "Chiefs" fast food sign, OR a distant wide view of the approach road with multiple buildings visible. NO curved green roof visible.
+
+USELESS: Mostly trees, bushes, vegetation, darkness, blurry, or sky. No clear road/vehicles/buildings.
+
+KEY: If you see a curved green corrugated metal roof structure, answer PROCESSING.
+
+Reply with ONE word: PROCESSING, BRIDGE, WIDE, or USELESS`
           }
         ],
       }],
@@ -573,9 +578,10 @@ Reply with ONE word only: WIDE, BRIDGE, PROCESSING, or USELESS`
     const result = response.content[0].text.trim().toUpperCase();
     console.log(`📷 Frame classified as: ${result}`);
     
-    if (result.includes('WIDE')) return ANGLE_TYPES.WIDE;
+    // Check PROCESSING first - it's being missed
+    if (result.includes('PROCESSING') || result.includes('CANOPY') || result.includes('SHELTER')) return ANGLE_TYPES.PROCESSING;
     if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
-    if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
+    if (result.includes('WIDE') || result.includes('ENGEN')) return ANGLE_TYPES.WIDE;
     return ANGLE_TYPES.USELESS;
     
   } catch (error) {
