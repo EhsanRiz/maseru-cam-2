@@ -5014,6 +5014,10 @@
     const AUTH_STORAGE_KEY = 'maseru_traffic_user';
     let currentUser = null;
     
+    // Report polling state (declared here so available to auth functions)
+    let reportPollingInterval = null;
+    let isPollingActive = false;
+    
     // Load user from localStorage on startup
     function loadStoredUser() {
       try {
@@ -5022,9 +5026,9 @@
           currentUser = JSON.parse(stored);
           updateAuthUI();
           
-          // Check for new reports after a short delay (let page render first)
+          // Start polling for new reports after a short delay (let page render first)
           setTimeout(() => {
-            checkForNewReports();
+            startReportPolling();
           }, 2000);
         }
       } catch (e) {
@@ -5037,12 +5041,20 @@
       currentUser = user;
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
       updateAuthUI();
+      
+      // Start polling when user logs in
+      if (!isPollingActive) {
+        startReportPolling();
+      }
     }
     
     // Clear stored user
     function clearUser() {
       currentUser = null;
       localStorage.removeItem(AUTH_STORAGE_KEY);
+      
+      // Stop polling when user logs out
+      stopReportPolling();
       updateAuthUI();
     }
     
@@ -6563,7 +6575,68 @@
     // NEW REPORT NOTIFICATION SYSTEM
     // =============================================
     const LAST_SEEN_REPORT_KEY = 'lastSeenReportId';
+    const REPORT_POLL_INTERVAL = 60000; // 60 seconds
     let notificationTimeout = null;
+    // Note: reportPollingInterval and isPollingActive are declared near AUTH_STORAGE_KEY
+
+    // Start polling for new reports (only for logged-in users)
+    function startReportPolling() {
+      if (!currentUser || isPollingActive) return;
+      
+      isPollingActive = true;
+      console.log('📊 Started polling for new reports');
+      
+      // Check immediately on start
+      checkForNewReports();
+      
+      // Then check every 60 seconds
+      reportPollingInterval = setInterval(() => {
+        // Only poll if tab is visible and user is still logged in
+        if (!document.hidden && currentUser) {
+          checkForNewReports();
+        }
+      }, REPORT_POLL_INTERVAL);
+    }
+
+    // Stop polling for new reports
+    function stopReportPolling() {
+      if (reportPollingInterval) {
+        clearInterval(reportPollingInterval);
+        reportPollingInterval = null;
+      }
+      isPollingActive = false;
+      
+      // Also dismiss any active notification
+      const notification = document.getElementById('newReportNotification');
+      if (notification && notification.classList.contains('show')) {
+        notification.classList.remove('show');
+      }
+      
+      console.log('📊 Stopped polling for new reports');
+    }
+
+    // Handle tab visibility changes
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        // Tab is hidden - pause polling to save resources
+        if (reportPollingInterval) {
+          clearInterval(reportPollingInterval);
+          reportPollingInterval = null;
+          console.log('📊 Paused polling (tab hidden)');
+        }
+      } else {
+        // Tab is visible again - resume polling if user is logged in
+        if (currentUser && isPollingActive && !reportPollingInterval) {
+          checkForNewReports(); // Check immediately when tab becomes visible
+          reportPollingInterval = setInterval(() => {
+            if (!document.hidden && currentUser) {
+              checkForNewReports();
+            }
+          }, REPORT_POLL_INTERVAL);
+          console.log('📊 Resumed polling (tab visible)');
+        }
+      }
+    });
 
     async function checkForNewReports() {
       // Only show notifications to logged-in users
@@ -6579,12 +6652,12 @@
         const latestReport = data.reports[0];
         const lastSeenId = localStorage.getItem(LAST_SEEN_REPORT_KEY);
         
-        // Only show if this is a new report (not our own, and not already seen)
+        // Only show if this is a new report (not already seen) and within 30 minutes
         if (latestReport.id !== lastSeenId && latestReport.minutes_ago <= 30) {
           showReportNotification(latestReport);
         }
       } catch (err) {
-        console.error('Error checking for new reports:', err);
+        // Silently fail - don't spam console during polling
       }
     }
 
