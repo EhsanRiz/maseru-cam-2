@@ -544,7 +544,7 @@ async function classifyFrameAngle(imageBuffer) {
     const imageBase64 = imageBuffer.toString('base64');
     
     // STEP 0: Check if this is USELESS (trees/vegetation) FIRST
-    // Be aggressive - if we can't clearly see road/vehicles, it's useless
+    // Be aggressive - if we can't clearly see road/vehicles/bridge, it's useless
     const uselessCheckResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 10,
@@ -561,11 +561,14 @@ async function classifyFrameAngle(imageBuffer) {
           },
           {
             type: 'text',
-            text: `Can you clearly see a ROAD with VEHICLES or a TRAFFIC QUEUE in this image?
+            text: `Can you see any of these in this image?
+- A ROAD where vehicles drive
+- A BRIDGE over water (with orange/red pillars or railings)
+- VEHICLES or a traffic queue
+- A GREEN CURVED METAL ROOF structure
 
 If the image is MOSTLY trees, vegetation, bushes, hillside, or sky - answer NO.
-If buildings are visible but NO road or vehicles - answer NO.
-Only answer YES if you can clearly see a road where cars drive.
+If you can see road, bridge, vehicles, or the green roof structure - answer YES.
 
 Answer only YES or NO.`
           }
@@ -635,19 +638,17 @@ Answer only YES or NO.`
             text: `Classify this traffic camera image:
 
 BRIDGE:
-→ ORANGE/RED PILLAR visible on the right side
-→ Bridge structure over a river
-→ If YES → Answer: BRIDGE
+→ Shows a BRIDGE over a RIVER
+→ ORANGE/RED painted pillar, railing, or structure visible
+→ Water or riverbank may be visible below
+→ If you see orange/red bridge elements → Answer: BRIDGE
 
 PROCESSING:
-→ GREEN METAL ROOF visible overhead
-→ COVERED WALKWAY on the right side
-→ Trucks/vehicles parked in the area
-→ If YES → Answer: PROCESSING
+→ GREEN CURVED METAL ROOF visible (like a tunnel/canopy)
+→ Covered area where vehicles are parked/processed
+→ If you see a green corrugated roof structure → Answer: PROCESSING
 
-If neither matches → Answer: USELESS
-
-Answer with ONE word: BRIDGE, PROCESSING, or USELESS`
+Answer with ONE word: BRIDGE or PROCESSING`
           }
         ],
       }],
@@ -656,9 +657,9 @@ Answer with ONE word: BRIDGE, PROCESSING, or USELESS`
     const result = classifyResponse.content[0].text.trim().toUpperCase();
     console.log(`📷 Frame classified as: ${result}`);
     
-    if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
     if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
-    return ANGLE_TYPES.USELESS;
+    // Default to BRIDGE if not clearly PROCESSING (we already know it's not useless or wide)
+    return ANGLE_TYPES.BRIDGE;
     
   } catch (error) {
     console.error('❌ Classification failed:', error.message);
