@@ -1127,6 +1127,7 @@ async function analyzeTraffic(userQuestion = null) {
     let lsToSaCount = 0;
     let saToLsCount = 0;
     let saToLsCanopyCount = 0;
+    let lsToSaCanopyCount = 0;  // NEW: LS→SA vehicles in canopy (right side)
     
     // Bridge counts
     if (detectorCounts && !detectorCounts.direction_uncertain) {
@@ -1134,18 +1135,20 @@ async function analyzeTraffic(userQuestion = null) {
       saToLsCount = detectorCounts.SA_to_LS;
     }
     
-    // Add canopy counts for SA→LS (cars entering canopy)
+    // Add canopy counts
     if (canopyDetectorCounts) {
-      saToLsCanopyCount = canopyDetectorCounts.SA_to_LS || 0;
+      saToLsCanopyCount = canopyDetectorCounts.SA_to_LS || 0;  // Left side - entering canopy
+      lsToSaCanopyCount = canopyDetectorCounts.LS_to_SA || 0;  // Right side - heading to SA
     }
     
-    // Combined SA→LS count (bridge + canopy queue)
+    // Combined counts (bridge + canopy)
     const combinedSaToLs = saToLsCount + saToLsCanopyCount;
+    const combinedLsToSa = lsToSaCount + lsToSaCanopyCount;  // NEW: Include canopy right side
     
     if (detectorCounts && !detectorCounts.direction_uncertain) {
-      // Determine status levels - EXISTING LOGIC (unchanged)
-      if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
-      else if (lsToSaCount <= 8) lsToSaStatus = 'MODERATE';
+      // Determine status levels using COMBINED counts
+      if (combinedLsToSa <= 3) lsToSaStatus = 'LIGHT';
+      else if (combinedLsToSa <= 8) lsToSaStatus = 'MODERATE';
       else lsToSaStatus = 'HEAVY';
       
       // SA→LS uses COMBINED count (bridge + canopy)
@@ -1153,7 +1156,7 @@ async function analyzeTraffic(userQuestion = null) {
       else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
       else saToLsStatus = 'HEAVY';
       
-      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (${lsToSaCount} on bridge${engenQueueDetected ? ', queue at Engen!' : ''}), SA→LS: ${saToLsStatus} (bridge: ${saToLsCount}, canopy: ${saToLsCanopyCount}, combined: ${combinedSaToLs})`);
+      console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (bridge: ${lsToSaCount}, canopy: ${lsToSaCanopyCount}, combined: ${combinedLsToSa}${engenQueueDetected ? ', queue at Engen!' : ''}), SA→LS: ${saToLsStatus} (bridge: ${saToLsCount}, canopy: ${saToLsCanopyCount}, combined: ${combinedSaToLs})`);
       
       if (trendSummary) {
         console.log(`📈 Trend: ${trendSummary}`);
@@ -1187,13 +1190,16 @@ ${trendSummary}
       ? `
 VEHICLE COUNTS (automated detection):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles on bridge
+• LS→SA (Lesotho to South Africa): COMBINED COUNT
+  - Bridge: ${lsToSaCount} vehicles (far lane, away from orange pillar)
+  - Canopy RIGHT side: ${lsToSaCanopyCount} vehicles (heading toward SA)
+  - TOTAL: ${combinedLsToSa} vehicles
   Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
   Status: ${lsToSaStatus}${engenNote}
   
 • SA→LS (South Africa to Lesotho): COMBINED COUNT
-  - Bridge: ${saToLsCount} vehicles
-  - Canopy queue: ${saToLsCanopyCount} vehicles entering/waiting
+  - Bridge: ${saToLsCount} vehicles (near lane, by orange pillar)
+  - Canopy LEFT side: ${saToLsCanopyCount} vehicles (entering/queuing)
   - TOTAL: ${combinedSaToLs} vehicles
   Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
   Status: ${saToLsStatus}
@@ -1201,15 +1207,16 @@ VEHICLE COUNTS (automated detection):
 ${trendInfoString}
 🚨 CRITICAL - YOU MUST USE THESE EXACT COUNTS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- LS→SA: Report "${lsToSaCount} vehicles" (NOT your visual estimate!)
-- SA→LS: Report "${combinedSaToLs} vehicles" (bridge ${saToLsCount} + canopy ${saToLsCanopyCount})
+- LS→SA: Report "${combinedLsToSa} vehicles" (bridge ${lsToSaCount} + canopy right ${lsToSaCanopyCount})
+- SA→LS: Report "${combinedSaToLs} vehicles" (bridge ${saToLsCount} + canopy left ${saToLsCanopyCount})
 - DO NOT make up different numbers - the detector counts are accurate!
 - If "Queue stretches past Engen" is noted, MENTION this for LS→SA direction.
 
-🔺 RULES:
-- If canopy shows cars in 2 ROWS = HEAVY for SA→LS
-- NOTE: Stationary trucks do NOT cause delays - they process elsewhere
-- NEVER say more vehicles than the detector counted!
+🔺 CANOPY DIRECTION RULES (CRITICAL):
+- Canopy RIGHT side = LS→SA traffic (heading TO South Africa)
+- Canopy LEFT side = SA→LS traffic (entering to go to Lesotho)
+- The pink/colored vehicles on the RIGHT are going TO South Africa, NOT entering Lesotho!
+- TRUST the automated counts above, do NOT re-interpret directions!
 `
       : `
 ⚠️ Automated vehicle detection unavailable. Use your visual assessment of ALL camera views.
@@ -1879,6 +1886,7 @@ app.post('/api/chat/stream', async (req, res) => {
     let lsToSaCount = 0;
     let saToLsCount = 0;
     let saToLsCanopyCount = 0;
+    let lsToSaCanopyCount = 0;  // NEW: LS→SA vehicles in canopy (right side)
     
     // Bridge counts
     if (detectorCounts && !detectorCounts.direction_uncertain) {
@@ -1886,17 +1894,20 @@ app.post('/api/chat/stream', async (req, res) => {
       saToLsCount = detectorCounts.SA_to_LS;
     }
     
-    // Add canopy counts for SA→LS
+    // Add canopy counts
     if (canopyDetectorCounts) {
-      saToLsCanopyCount = canopyDetectorCounts.SA_to_LS || 0;
+      saToLsCanopyCount = canopyDetectorCounts.SA_to_LS || 0;  // Left side - entering canopy
+      lsToSaCanopyCount = canopyDetectorCounts.LS_to_SA || 0;  // Right side - heading to SA
     }
     
-    // Combined SA→LS count (bridge + canopy queue)
+    // Combined counts (bridge + canopy)
     const combinedSaToLs = saToLsCount + saToLsCanopyCount;
+    const combinedLsToSa = lsToSaCount + lsToSaCanopyCount;  // NEW: Include canopy right side
     
     if (detectorCounts && !detectorCounts.direction_uncertain) {
-      if (lsToSaCount <= 3) lsToSaStatus = 'LIGHT';
-      else if (lsToSaCount <= 8) lsToSaStatus = 'MODERATE';
+      // Use COMBINED counts for status
+      if (combinedLsToSa <= 3) lsToSaStatus = 'LIGHT';
+      else if (combinedLsToSa <= 8) lsToSaStatus = 'MODERATE';
       else lsToSaStatus = 'HEAVY';
       
       // SA→LS uses COMBINED count
@@ -1920,17 +1931,23 @@ app.post('/api/chat/stream', async (req, res) => {
       ? `
 VEHICLE COUNTS (automated detection):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• LS→SA (Lesotho to South Africa): ${lsToSaCount} vehicles - ${lsToSaStatus}
+• LS→SA (Lesotho to South Africa): COMBINED COUNT
+  - Bridge: ${lsToSaCount} vehicles
+  - Canopy RIGHT side: ${lsToSaCanopyCount} vehicles
+  - TOTAL: ${combinedLsToSa} vehicles - ${lsToSaStatus}
   Breakdown: ${lsToSaBreakdown.cars} cars, ${lsToSaBreakdown.trucks} trucks, ${lsToSaBreakdown.buses} buses
   
 • SA→LS (South Africa to Lesotho): COMBINED COUNT
   - Bridge: ${saToLsCount} vehicles
-  - Canopy queue: ${saToLsCanopyCount} vehicles
+  - Canopy LEFT side: ${saToLsCanopyCount} vehicles
   - TOTAL: ${combinedSaToLs} vehicles - ${saToLsStatus}
   Breakdown: ${saToLsBreakdown.cars} cars, ${saToLsBreakdown.trucks} trucks, ${saToLsBreakdown.buses} buses
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${trendInfoString}
-⚠️ IMPORTANT: SA→LS count COMBINES bridge + canopy vehicles.
+🔺 CANOPY DIRECTION RULES:
+- Canopy RIGHT side = LS→SA traffic (heading TO South Africa)
+- Canopy LEFT side = SA→LS traffic (entering to go to Lesotho)
+- TRUST the automated counts, do NOT re-interpret directions!
 
 📌 TRUCK NOTE: Stationary trucks do NOT cause delays - they process elsewhere.
 `
