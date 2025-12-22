@@ -4562,6 +4562,37 @@
           </div>
         </div>
         
+        <!-- Step 0: At Border Confirmation -->
+        <div class="queue-report-step" id="queueReportStep0">
+          <p class="queue-report-question">Are you currently at the border?</p>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; text-align: center;">Reports are most accurate when submitted from the queue</p>
+          <div class="side-options">
+            <div class="side-option" onclick="confirmAtBorder(true)">
+              <div class="flag">✅</div>
+              <div class="label">Yes, I'm here</div>
+            </div>
+            <div class="side-option" onclick="confirmAtBorder(false)">
+              <div class="flag">🏠</div>
+              <div class="label">No, just checking</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Step 0b: Not at border message -->
+        <div class="queue-report-step" id="queueReportNotAtBorder">
+          <div class="queue-report-login-prompt">
+            <div style="font-size: 2.5rem; margin-bottom: 1rem;">📍</div>
+            <p style="font-size: 1rem; color: var(--text-primary); margin-bottom: 0.5rem;">No problem!</p>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Reports help most when you're experiencing the queue. Check back when you arrive at the border!</p>
+            <button class="queue-report-submit" onclick="showReportTab('view')" style="margin-bottom: 0.75rem;">
+              📋 View Recent Reports
+            </button>
+            <button class="queue-report-back-btn" onclick="closeQueueReport()" style="width: 100%;">
+              Close
+            </button>
+          </div>
+        </div>
+        
         <!-- Step 1: Select Side -->
         <div class="queue-report-step" id="queueReportStep1">
           <p class="queue-report-question">Which side of the border are you on?</p>
@@ -4579,7 +4610,7 @@
         
         <!-- Step 2: Select Direction -->
         <div class="queue-report-step" id="queueReportStep2">
-          <p class="queue-report-question" id="directionQuestion">Are you...</p>
+          <p class="queue-report-question" id="directionQuestion">Are you leaving or entering?</p>
           <div class="direction-options">
             <div class="direction-option" onclick="selectDirection('leaving')">
               <div class="icon">👋</div>
@@ -6484,7 +6515,7 @@
         wait_time: null,
         comment: null
       };
-      queueReportStep = 1;
+      queueReportStep = 0; // Start at Step 0 now
       
       // Hide all steps
       document.querySelectorAll('.queue-report-step').forEach(s => s.classList.remove('active'));
@@ -6503,10 +6534,26 @@
       document.getElementById('tabViewReports').classList.remove('active');
       document.getElementById('reportTabs').style.display = 'flex';
       
-      // Go directly to step 1 (user is already logged in)
-      document.getElementById('queueReportStep1').classList.add('active');
+      // Go to step 0 (at border confirmation)
+      document.getElementById('queueReportStep0').classList.add('active');
       
       document.getElementById('queueReportModal').classList.add('show');
+    }
+
+    // Step 0: Confirm user is at border
+    function confirmAtBorder(isAtBorder) {
+      if (isAtBorder) {
+        // User is at border - proceed to Step 1
+        queueReportStep = 1;
+        document.getElementById('queueReportStep0').classList.remove('active');
+        document.getElementById('queueReportStep1').classList.add('active');
+        document.getElementById('queueReportBack').classList.add('show');
+      } else {
+        // User is not at border - show friendly message
+        document.getElementById('queueReportStep0').classList.remove('active');
+        document.getElementById('queueReportNotAtBorder').classList.add('active');
+        document.getElementById('queueReportTitle').textContent = '📍 Not at Border';
+      }
     }
 
     // Tab switching for report modal
@@ -6521,9 +6568,9 @@
         document.getElementById('tabViewReports').classList.remove('active');
         document.getElementById('queueReportTitle').textContent = '📊 Report Queue Status';
         
-        // Show step 1
-        document.getElementById('queueReportStep1').classList.add('active');
-        queueReportStep = 1;
+        // Show step 0 (at border confirmation)
+        document.getElementById('queueReportStep0').classList.add('active');
+        queueReportStep = 0;
       } else {
         // Show view reports tab
         document.getElementById('tabSubmitReport').classList.remove('active');
@@ -6638,11 +6685,17 @@
     }
 
     function queueReportGoBack() {
-      if (queueReportStep === 2) {
+      if (queueReportStep === 1) {
+        // Go back to Step 0 (at border confirmation)
+        queueReportStep = 0;
+        document.getElementById('queueReportStep1').classList.remove('active');
+        document.getElementById('queueReportStep0').classList.add('active');
+        document.getElementById('queueReportBack').classList.remove('show');
+        document.getElementById('queueReportTitle').textContent = '📊 Report Queue Status';
+      } else if (queueReportStep === 2) {
         queueReportStep = 1;
         document.getElementById('queueReportStep2').classList.remove('active');
         document.getElementById('queueReportStep1').classList.add('active');
-        document.getElementById('queueReportBack').classList.remove('show');
         document.getElementById('queueReportTitle').textContent = '📊 Report Queue Status';
       } else if (queueReportStep === 3) {
         queueReportStep = 2;
