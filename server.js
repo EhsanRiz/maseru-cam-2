@@ -2784,65 +2784,127 @@ async function formatQueueReportsForPrompt() {
   const reports = await getActiveQueueReports();
   
   if (reports.length === 0) {
-    return '';
+    return `
+═══════════════════════════════════════════════════════════════
+PASSPORT CONTROL REPORTS (from travelers):
+═══════════════════════════════════════════════════════════════
+No recent reports from travelers at passport control.
+Camera shows vehicle queues only - passport control wait times unknown.
+`;
   }
   
   const checkpointNames = {
-    'leaving_ls': '🇱🇸 Leaving Lesotho',
-    'entering_sa': '🇿🇦 Entering South Africa',
-    'leaving_sa': '🇿🇦 Leaving South Africa',
-    'entering_ls': '🇱🇸 Entering Lesotho'
+    'leaving_ls': '🇱🇸 Leaving Lesotho (LS Exit)',
+    'entering_sa': '🇿🇦 Entering South Africa (SA Entry)',
+    'leaving_sa': '🇿🇦 Leaving South Africa (SA Exit)',
+    'entering_ls': '🇱🇸 Entering Lesotho (LS Entry)'
   };
   
   const queueLengthLabels = {
-    'empty': 'Empty',
-    'short': 'Short (1-10 people)',
-    'medium': 'Medium (10-25 people)',
-    'long': 'Long (25-50 people)',
-    'very_long': 'Very Long (50+ people)'
+    'empty': 'Empty/No queue',
+    'short': 'Short queue (1-10 people)',
+    'medium': 'Medium queue (10-25 people)',
+    'long': 'Long queue (25-50 people)',
+    'very_long': 'Very long queue (50+ people)'
   };
   
   const waitTimeLabels = {
-    'less_than_5': '<5 min',
-    '5_to_10': '5-10 min',
-    '10_to_20': '10-20 min',
-    '20_to_30': '20-30 min',
-    '30_to_45': '30-45 min',
-    '45_to_60': '45-60 min',
-    'more_than_60': '>1 hour'
+    'less_than_5': '~5 minutes',
+    '5_to_10': '5-10 minutes',
+    '10_to_20': '10-20 minutes',
+    '20_to_30': '20-30 minutes',
+    '30_to_45': '30-45 minutes',
+    '45_to_60': '45-60 minutes',
+    'more_than_60': 'over 1 hour'
+  };
+  
+  // Freshness labels
+  const getFreshnessLabel = (minutesAgo) => {
+    if (minutesAgo <= 10) return '🟢 FRESH';
+    if (minutesAgo <= 25) return '🟡 RECENT';
+    if (minutesAgo <= 45) return '🟠 AGING';
+    return '🔴 OLD';
   };
   
   let promptText = `
 ═══════════════════════════════════════════════════════════════
-USER REPORTS (crowdsourced from travelers in queues):
+PASSPORT CONTROL REPORTS (from travelers in queues):
 ═══════════════════════════════════════════════════════════════
+These are INSIDE the border buildings - what cameras CANNOT see!
+
 `;
   
-  const allCheckpoints = ['leaving_ls', 'entering_sa', 'leaving_sa', 'entering_ls'];
+  // Group by journey direction for better context
+  const lsToSaCheckpoints = ['leaving_ls', 'entering_sa'];
+  const saToLsCheckpoints = ['leaving_sa', 'entering_ls'];
   
-  for (const checkpoint of allCheckpoints) {
+  promptText += `📍 For travelers going LESOTHO → SOUTH AFRICA:\n`;
+  for (const checkpoint of lsToSaCheckpoints) {
     const report = reports.find(r => r.checkpoint === checkpoint);
     const name = checkpointNames[checkpoint];
     
     if (report) {
       const minutesAgo = Math.round((Date.now() - new Date(report.created_at).getTime()) / 60000);
+      const freshness = getFreshnessLabel(minutesAgo);
       const queueLabel = queueLengthLabels[report.queue_length];
       const waitLabel = waitTimeLabels[report.wait_time];
       const speedLabel = report.processing_speed.replace('_', ' ');
       
-      promptText += `• ${name} (${minutesAgo} min ago): ${queueLabel}, ${speedLabel} speed, ${report.windows_open} window${report.windows_open > 1 ? 's' : ''}, waited ${waitLabel}`;
+      promptText += `  • ${name}: ${freshness} (${minutesAgo} min ago)\n`;
+      promptText += `    Queue: ${queueLabel} | Wait: ${waitLabel} | Speed: ${speedLabel} | Windows: ${report.windows_open}\n`;
       if (report.comment) {
-        promptText += ` — "${report.comment}"`;
+        promptText += `    Note: "${report.comment}"\n`;
       }
-      promptText += '\n';
     } else {
-      promptText += `• ${name}: No recent report\n`;
+      promptText += `  • ${name}: No recent report\n`;
+    }
+  }
+  
+  promptText += `\n📍 For travelers going SOUTH AFRICA → LESOTHO:\n`;
+  for (const checkpoint of saToLsCheckpoints) {
+    const report = reports.find(r => r.checkpoint === checkpoint);
+    const name = checkpointNames[checkpoint];
+    
+    if (report) {
+      const minutesAgo = Math.round((Date.now() - new Date(report.created_at).getTime()) / 60000);
+      const freshness = getFreshnessLabel(minutesAgo);
+      const queueLabel = queueLengthLabels[report.queue_length];
+      const waitLabel = waitTimeLabels[report.wait_time];
+      const speedLabel = report.processing_speed.replace('_', ' ');
+      
+      promptText += `  • ${name}: ${freshness} (${minutesAgo} min ago)\n`;
+      promptText += `    Queue: ${queueLabel} | Wait: ${waitLabel} | Speed: ${speedLabel} | Windows: ${report.windows_open}\n`;
+      if (report.comment) {
+        promptText += `    Note: "${report.comment}"\n`;
+      }
+    } else {
+      promptText += `  • ${name}: No recent report\n`;
     }
   }
   
   promptText += `
-Use these reports to give travelers a complete picture. Always mention how old the report is.
-Combine camera data (bridge/vehicle counts) with user reports (passport control queues) for best advice.
+═══════════════════════════════════════════════════════════════
+HOW TO USE BOTH DATA SOURCES:
+═══════════════════════════════════════════════════════════════
+• CAMERA DATA = Vehicle queues (bridge, canopy, approach road)
+• USER REPORTS = Passport control queues INSIDE buildings
+
+COMBINE THEM for total crossing time estimate:
+  Total time ≈ Vehicle queue wait + Passport control wait(s)
+
+Example synthesis:
+  "About 10 vehicles queued (camera shows ~10 min vehicle wait).
+   A traveler reported 8 min ago that Lesotho exit had a medium 
+   queue with 15 min wait. Budget ~25 min total for your crossing."
+
+FRESHNESS GUIDE:
+  🟢 FRESH (0-10 min): High confidence - mention naturally
+  🟡 RECENT (10-25 min): Good confidence - mention the time
+  🟠 AGING (25-45 min): Lower confidence - add "conditions may have changed"
+  🔴 OLD (45-60 min): Low confidence - caveat strongly
+
+IMPORTANT: When user mentions their direction (e.g., "going to SA"), 
+prioritize the relevant checkpoints for THEIR journey.
 `;
   
   return promptText;
@@ -2853,11 +2915,20 @@ app.get('/api/reports', async (req, res) => {
   try {
     const reports = await getActiveQueueReports();
     
-    // Add minutes_ago to each report
-    const reportsWithAge = reports.map(r => ({
-      ...r,
-      minutes_ago: Math.round((Date.now() - new Date(r.created_at).getTime()) / 60000)
-    }));
+    // Add minutes_ago and freshness to each report
+    const reportsWithAge = reports.map(r => {
+      const minutesAgo = Math.round((Date.now() - new Date(r.created_at).getTime()) / 60000);
+      let freshness = 'fresh';
+      if (minutesAgo > 45) freshness = 'old';
+      else if (minutesAgo > 25) freshness = 'aging';
+      else if (minutesAgo > 10) freshness = 'recent';
+      
+      return {
+        ...r,
+        minutes_ago: minutesAgo,
+        freshness: freshness
+      };
+    });
     
     res.json({
       success: true,
@@ -2866,6 +2937,114 @@ app.get('/api/reports', async (req, res) => {
     });
   } catch (err) {
     res.json({ success: false, message: err.message, reports: [] });
+  }
+});
+
+// GET /api/reports/history - Get recent reports (last 2 hours) grouped by checkpoint with freshness
+app.get('/api/reports/history', async (req, res) => {
+  if (!supabase) {
+    return res.json({ success: false, message: 'Database not connected', checkpoints: {} });
+  }
+  
+  try {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    
+    const { data, error } = await supabase
+      .from('queue_reports')
+      .select('*')
+      .gt('created_at', twoHoursAgo)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching report history:', error);
+      return res.json({ success: false, message: error.message, checkpoints: {} });
+    }
+    
+    // Group by checkpoint and add freshness
+    const checkpoints = {
+      'leaving_ls': [],
+      'entering_sa': [],
+      'leaving_sa': [],
+      'entering_ls': []
+    };
+    
+    const checkpointLabels = {
+      'leaving_ls': { name: 'Leaving Lesotho', flag: '🇱🇸', journey: 'LS→SA' },
+      'entering_sa': { name: 'Entering South Africa', flag: '🇿🇦', journey: 'LS→SA' },
+      'leaving_sa': { name: 'Leaving South Africa', flag: '🇿🇦', journey: 'SA→LS' },
+      'entering_ls': { name: 'Entering Lesotho', flag: '🇱🇸', journey: 'SA→LS' }
+    };
+    
+    const queueLengthLabels = {
+      'empty': 'Empty',
+      'short': 'Short (1-10)',
+      'medium': 'Medium (10-25)',
+      'long': 'Long (25-50)',
+      'very_long': 'Very Long (50+)'
+    };
+    
+    const waitTimeLabels = {
+      'less_than_5': '<5 min',
+      '5_to_10': '5-10 min',
+      '10_to_20': '10-20 min',
+      '20_to_30': '20-30 min',
+      '30_to_45': '30-45 min',
+      '45_to_60': '45-60 min',
+      'more_than_60': '>1 hour'
+    };
+    
+    const speedLabels = {
+      'very_slow': 'Very Slow',
+      'slow': 'Slow',
+      'moderate': 'Moderate',
+      'fast': 'Fast'
+    };
+    
+    for (const report of (data || [])) {
+      if (report.checkpoint && checkpoints[report.checkpoint]) {
+        const minutesAgo = Math.round((Date.now() - new Date(report.created_at).getTime()) / 60000);
+        
+        // Calculate freshness (0-100 scale for progress bar)
+        let freshness = 'fresh';
+        let freshnessPercent = 100;
+        if (minutesAgo > 45) {
+          freshness = 'old';
+          freshnessPercent = Math.max(10, 100 - (minutesAgo - 45) * 2);
+        } else if (minutesAgo > 25) {
+          freshness = 'aging';
+          freshnessPercent = 50 - (minutesAgo - 25);
+        } else if (minutesAgo > 10) {
+          freshness = 'recent';
+          freshnessPercent = 75 - (minutesAgo - 10);
+        }
+        
+        checkpoints[report.checkpoint].push({
+          id: report.id,
+          minutes_ago: minutesAgo,
+          freshness: freshness,
+          freshness_percent: Math.max(10, Math.min(100, freshnessPercent)),
+          queue_length: report.queue_length,
+          queue_label: queueLengthLabels[report.queue_length] || report.queue_length,
+          wait_time: report.wait_time,
+          wait_label: waitTimeLabels[report.wait_time] || report.wait_time,
+          processing_speed: report.processing_speed,
+          speed_label: speedLabels[report.processing_speed] || report.processing_speed,
+          windows_open: report.windows_open,
+          comment: report.comment,
+          created_at: report.created_at
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      checkpoints: checkpoints,
+      labels: checkpointLabels,
+      total_reports: data?.length || 0
+    });
+  } catch (err) {
+    console.error('Error in /api/reports/history:', err);
+    res.json({ success: false, message: err.message, checkpoints: {} });
   }
 });
 
