@@ -770,7 +770,10 @@ Answer only YES or NO.`
           },
           {
             type: 'text',
-            text: `Can you see a ROAD going FAR INTO THE DISTANCE with buildings/petrol station far away in the background?
+            text: `Is this a WIDE VIEW showing a PAVED ROAD going into the distance with an ENGEN petrol station or buildings visible?
+
+IMPORTANT: If the image is MOSTLY TREES, VEGETATION, or HILLSIDE - answer NO.
+Only answer YES if you can clearly see a paved road AND buildings/petrol station.
 
 Answer only YES or NO.`
           }
