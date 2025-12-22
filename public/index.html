@@ -2611,6 +2611,175 @@
       margin-bottom: 0.5rem;
     }
 
+    /* Freshness Bar Styles */
+    .freshness-bar {
+      height: 6px;
+      background: var(--bg-secondary);
+      border-radius: 3px;
+      margin-top: 0.5rem;
+      overflow: hidden;
+    }
+
+    .freshness-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .freshness-bar-fill.fresh {
+      background: linear-gradient(90deg, #22c55e, #4ade80);
+    }
+
+    .freshness-bar-fill.recent {
+      background: linear-gradient(90deg, #eab308, #facc15);
+    }
+
+    .freshness-bar-fill.aging {
+      background: linear-gradient(90deg, #f97316, #fb923c);
+    }
+
+    .freshness-bar-fill.old {
+      background: linear-gradient(90deg, #ef4444, #f87171);
+    }
+
+    .freshness-label {
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      margin-left: 0.5rem;
+    }
+
+    .freshness-label.fresh {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .freshness-label.recent {
+      background: rgba(234, 179, 8, 0.2);
+      color: #eab308;
+    }
+
+    .freshness-label.aging {
+      background: rgba(249, 115, 22, 0.2);
+      color: #f97316;
+    }
+
+    .freshness-label.old {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    /* Report History Tabs */
+    .report-tabs {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .report-tab {
+      flex: 1;
+      padding: 0.6rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .report-tab:hover {
+      border-color: var(--accent);
+    }
+
+    .report-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    /* History Section Styles */
+    .history-section {
+      padding: 1rem;
+    }
+
+    .history-checkpoint-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .history-checkpoint-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .history-checkpoint-flag {
+      font-size: 1.1rem;
+    }
+
+    .history-checkpoint-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      flex: 1;
+    }
+
+    .history-checkpoint-journey {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      background: var(--accent-light);
+      color: var(--accent);
+      border-radius: 4px;
+    }
+
+    .history-report-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .history-report-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.4rem;
+    }
+
+    .history-report-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+    }
+
+    .history-report-details {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .history-report-comment {
+      font-size: 0.75rem;
+      font-style: italic;
+      color: var(--text-muted);
+      margin-top: 0.4rem;
+      padding-top: 0.4rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .history-no-reports {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      padding: 0.5rem;
+      text-align: center;
+    }
+
     /* Report Confirmation Step */
     .report-confirmation {
       padding: 0.5rem 0;
@@ -4374,6 +4543,16 @@
         <button class="queue-report-close" onclick="closeQueueReport()">×</button>
       </div>
       
+      <!-- Tabs for Submit vs View Reports -->
+      <div class="report-tabs" id="reportTabs">
+        <button class="report-tab active" id="tabSubmitReport" onclick="showReportTab('submit')">
+          ✏️ Submit Report
+        </button>
+        <button class="report-tab" id="tabViewReports" onclick="showReportTab('view')">
+          📋 Recent Reports
+        </button>
+      </div>
+      
       <div class="queue-report-body">
         <!-- Login Required View -->
         <div class="queue-report-step" id="queueReportLoginRequired">
@@ -4559,11 +4738,11 @@
           </div>
         </div>
         
-        <!-- View Reports Section -->
+        <!-- View Reports Section (with freshness bars) -->
         <div class="queue-report-step" id="queueReportViewReports">
-          <div class="view-reports-section" id="reportsContainer">
+          <div class="history-section" id="reportsHistoryContainer">
             <div class="no-reports">
-              <div class="no-reports-icon">📭</div>
+              <div class="no-reports-icon">⏳</div>
               <p>Loading reports...</p>
             </div>
           </div>
@@ -6319,10 +6498,139 @@
       document.getElementById('waitTimeSelect').value = '';
       document.getElementById('reportComment').value = '';
       
+      // Reset tabs to Submit view
+      document.getElementById('tabSubmitReport').classList.add('active');
+      document.getElementById('tabViewReports').classList.remove('active');
+      document.getElementById('reportTabs').style.display = 'flex';
+      
       // Go directly to step 1 (user is already logged in)
       document.getElementById('queueReportStep1').classList.add('active');
       
       document.getElementById('queueReportModal').classList.add('show');
+    }
+
+    // Tab switching for report modal
+    function showReportTab(tab) {
+      // Hide all steps
+      document.querySelectorAll('.queue-report-step').forEach(s => s.classList.remove('active'));
+      document.getElementById('queueReportBack').classList.remove('show');
+      
+      if (tab === 'submit') {
+        // Show submit tab
+        document.getElementById('tabSubmitReport').classList.add('active');
+        document.getElementById('tabViewReports').classList.remove('active');
+        document.getElementById('queueReportTitle').textContent = '📊 Report Queue Status';
+        
+        // Show step 1
+        document.getElementById('queueReportStep1').classList.add('active');
+        queueReportStep = 1;
+      } else {
+        // Show view reports tab
+        document.getElementById('tabSubmitReport').classList.remove('active');
+        document.getElementById('tabViewReports').classList.add('active');
+        document.getElementById('queueReportTitle').textContent = '📋 Recent Reports';
+        
+        // Show view reports section
+        document.getElementById('queueReportViewReports').classList.add('active');
+        
+        // Load report history
+        loadReportHistory();
+      }
+    }
+
+    // Load and display report history with freshness bars
+    async function loadReportHistory() {
+      const container = document.getElementById('reportsHistoryContainer');
+      container.innerHTML = '<div class="no-reports"><div class="no-reports-icon">⏳</div><p>Loading reports...</p></div>';
+      
+      try {
+        const response = await fetch('/api/reports/history');
+        const data = await response.json();
+        
+        if (!data.success || data.total_reports === 0) {
+          container.innerHTML = `
+            <div class="no-reports">
+              <div class="no-reports-icon">📭</div>
+              <p>No reports in the last 2 hours</p>
+              <p style="font-size: 0.8rem; margin-top: 0.5rem;">Be the first to report!</p>
+            </div>
+          `;
+          return;
+        }
+        
+        const checkpointOrder = ['leaving_ls', 'entering_sa', 'leaving_sa', 'entering_ls'];
+        const labels = data.labels;
+        
+        let html = '';
+        
+        // Group by journey direction
+        html += '<div style="margin-bottom: 1rem; padding: 0.5rem; background: var(--accent-light); border-radius: 8px; text-align: center; font-size: 0.8rem;">🟢 Fresh (0-10 min) &nbsp; 🟡 Recent (10-25 min) &nbsp; 🟠 Aging (25-45 min) &nbsp; 🔴 Old (45+ min)</div>';
+        
+        for (const checkpoint of checkpointOrder) {
+          const reports = data.checkpoints[checkpoint] || [];
+          const label = labels[checkpoint];
+          
+          html += `
+            <div class="history-checkpoint-group">
+              <div class="history-checkpoint-header">
+                <span class="history-checkpoint-flag">${label.flag}</span>
+                <span class="history-checkpoint-name">${label.name}</span>
+                <span class="history-checkpoint-journey">${label.journey}</span>
+              </div>
+          `;
+          
+          if (reports.length === 0) {
+            html += '<div class="history-no-reports">No recent reports</div>';
+          } else {
+            for (const report of reports.slice(0, 3)) { // Show max 3 per checkpoint
+              const freshnessLabel = {
+                'fresh': 'Fresh',
+                'recent': 'Recent', 
+                'aging': 'Aging',
+                'old': 'Old'
+              }[report.freshness] || 'Unknown';
+              
+              html += `
+                <div class="history-report-item">
+                  <div class="history-report-top">
+                    <span class="history-report-time">
+                      ${report.minutes_ago} min ago
+                      <span class="freshness-label ${report.freshness}">${freshnessLabel}</span>
+                    </span>
+                  </div>
+                  <div class="history-report-details">
+                    ${report.queue_label} • ${report.speed_label} • ${report.windows_open} window${report.windows_open > 1 ? 's' : ''} • ${report.wait_label} wait
+                  </div>
+                  <div class="freshness-bar">
+                    <div class="freshness-bar-fill ${report.freshness}" style="width: ${report.freshness_percent}%"></div>
+                  </div>
+                  ${report.comment ? `<div class="history-report-comment">"${report.comment}"</div>` : ''}
+                </div>
+              `;
+            }
+          }
+          
+          html += '</div>';
+        }
+        
+        html += `<div style="text-align: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+          <p style="font-size: 0.8rem; color: var(--text-muted);">Reports expire after 1 hour</p>
+          <button class="queue-report-submit" onclick="showReportTab('submit')" style="margin-top: 0.75rem;">
+            ✏️ Submit Your Report
+          </button>
+        </div>`;
+        
+        container.innerHTML = html;
+        
+      } catch (err) {
+        console.error('Error loading report history:', err);
+        container.innerHTML = `
+          <div class="no-reports">
+            <div class="no-reports-icon">⚠️</div>
+            <p>Failed to load reports</p>
+          </div>
+        `;
+      }
     }
 
     function closeQueueReport() {
@@ -6524,6 +6832,9 @@
         }
         
         if (result.success) {
+          // Hide tabs on success view
+          document.getElementById('reportTabs').style.display = 'none';
+          
           // Show success
           document.getElementById('queueReportStep4').classList.remove('active');
           document.getElementById('queueReportSuccess').classList.add('active');
@@ -6553,6 +6864,7 @@
     async function retryQueueReport() {
       // Re-open the modal at confirmation step
       document.getElementById('queueReportModal').classList.add('show');
+      document.getElementById('reportTabs').style.display = 'none'; // Hide tabs during retry
       
       // Go directly to step 4 (confirmation) since data is preserved
       document.querySelectorAll('.queue-report-step').forEach(s => s.classList.remove('active'));
