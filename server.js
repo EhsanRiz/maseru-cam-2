@@ -792,7 +792,7 @@ Answer only YES or NO.`
     // STEP 2: If not USELESS or WIDE, classify between BRIDGE and PROCESSING
     const classifyResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 50,
+      max_tokens: 20,
       messages: [{
         role: 'user',
         content: [
@@ -806,32 +806,33 @@ Answer only YES or NO.`
           },
           {
             type: 'text',
-            text: `Classify this traffic camera image:
+            text: `What do you see? Answer with ONLY ONE WORD:
 
-BRIDGE:
-→ ORANGE/RED PILLAR visible on the right side
-→ Bridge structure over a river
-→ If YES → Answer: BRIDGE
+BRIDGE - if you see an ORANGE/RED PILLAR and bridge over water
+PROCESSING - if you see a GREEN METAL ROOF overhead
+USELESS - if neither
 
-PROCESSING:
-→ GREEN METAL ROOF visible overhead
-→ COVERED WALKWAY on the right side
-→ Trucks/vehicles parked in the area
-→ If YES → Answer: PROCESSING
-
-If neither matches → Answer: USELESS
-
-Answer with ONE word: BRIDGE, PROCESSING, or USELESS`
+ONE WORD ONLY:`
           }
         ],
       }],
     });
     
-    const result = classifyResponse.content[0].text.trim().toUpperCase();
-    console.log(`📷 Frame classified as: ${result}`);
+    const rawResult = classifyResponse.content[0].text.trim().toUpperCase();
     
-    if (result.includes('BRIDGE')) return ANGLE_TYPES.BRIDGE;
-    if (result.includes('PROCESSING')) return ANGLE_TYPES.PROCESSING;
+    // Extract ONLY the first word to prevent false matches from explanations
+    const firstWord = rawResult.split(/[\s\n.,!?]+/)[0];
+    console.log(`📷 Frame classified as: ${firstWord}`);
+    
+    // Use exact matching on the first word only
+    if (firstWord === 'BRIDGE') return ANGLE_TYPES.BRIDGE;
+    if (firstWord === 'PROCESSING') return ANGLE_TYPES.PROCESSING;
+    
+    // Log if we got an unexpected response for debugging
+    if (firstWord !== 'USELESS') {
+      console.log(`⚠️ Unexpected classification response: "${rawResult.substring(0, 100)}"`);
+    }
+    
     return ANGLE_TYPES.USELESS;
     
   } catch (error) {
@@ -1520,6 +1521,17 @@ Respond appropriately for this question type. Be helpful and conversational.`;
 
     // Get camera status
     const camStatus = getCameraStatusInfo();
+    
+    // Build analyzed frames info for frontend to display
+    const analyzedFrames = framesToUse.map(f => ({
+      angleType: f.angleType,
+      timestamp: f.timestamp,
+      label: f.angleType === 'bridge' ? 'Bridge' : 
+             f.angleType === 'processing' ? 'Processing' : 
+             f.angleType === 'wide' ? 'Wide/Engen' : 'Unknown',
+      // Convert buffer to base64 for frontend display
+      imageData: f.screenshot ? f.screenshot.toString('base64') : null
+    }));
 
     const analysis = {
       success: true,
@@ -1527,6 +1539,7 @@ Respond appropriately for this question type. Be helpful and conversational.`;
       timestamp: new Date().toISOString(),
       frameTimestamp: latestFrame.timestamp,
       framesAnalyzed: framesToUse.length,
+      analyzedFrames: analyzedFrames, // Include the actual frames used
       cached: false,
       cameraStatus: camStatus.status,
       cameraAlert: camStatus.message,
@@ -2183,6 +2196,19 @@ Respond appropriately. Be helpful and conversational.`;
     }
 
     content.push({ type: 'text', text: userPrompt });
+
+    // Build analyzed frames info for frontend to display
+    const analyzedFrames = framesToUse.map(f => ({
+      angleType: f.angleType,
+      timestamp: f.timestamp,
+      label: f.angleType === 'bridge' ? 'Bridge' : 
+             f.angleType === 'processing' ? 'Processing' : 
+             f.angleType === 'wide' ? 'Wide/Engen' : 'Unknown',
+      imageData: f.screenshot ? f.screenshot.toString('base64') : null
+    }));
+    
+    // Send frames info first so frontend can update carousel immediately
+    res.write(`data: ${JSON.stringify({ type: 'frames', frames: analyzedFrames })}\n\n`);
 
     // Stream the response
     const stream = await anthropic.messages.stream({
