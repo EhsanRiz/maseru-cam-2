@@ -7412,6 +7412,19 @@
                     } else if (parsed.cameraStatus === 'operational') {
                       hideCameraAlert();
                     }
+                  } else if (parsed.type === 'frames') {
+                    // Update carousel with the exact frames used in analysis
+                    if (parsed.frames && parsed.frames.length > 0) {
+                      updateCarouselWithAnalyzedFrames(parsed.frames);
+                      // Get timestamp from first frame for display
+                      if (parsed.frames[0]?.timestamp) {
+                        frameTime = new Date(parsed.frames[0].timestamp).toLocaleTimeString([], { 
+                          hour: 'numeric', 
+                          minute: '2-digit',
+                          hour12: true 
+                        });
+                      }
+                    }
                   } else if (parsed.type === 'text') {
                     fullText += parsed.text;
                     typewriterQueue += parsed.text; // Add to typewriter queue
@@ -7874,6 +7887,40 @@ https://4dcs.co.za`;
         dot.onclick = () => goToFrame(i);
         galleryDots.appendChild(dot);
       });
+    }
+    
+    // Update carousel with the exact frames used in analysis
+    function updateCarouselWithAnalyzedFrames(analyzedFrames) {
+      if (!analyzedFrames || analyzedFrames.length === 0) return;
+      
+      // Convert analyzed frames to carousel format
+      const newFrames = analyzedFrames.map(f => ({
+        angleType: f.angleType,
+        label: f.label,
+        timestamp: f.timestamp,
+        image: f.imageData,  // Already base64
+        isAnalyzed: true     // Mark as from analysis
+      }));
+      
+      // Replace carousel frames with analyzed frames
+      frames = newFrames;
+      currentFrameIndex = 0;
+      
+      // Re-render the gallery
+      renderGalleryDots();
+      updateGalleryDisplay();
+      
+      // Update the "last updated" display
+      lastUpdateTimestamp = Date.now();
+      updateLastUpdatedDisplay();
+      
+      // Visual feedback that frames are synced with analysis
+      galleryContainer.style.boxShadow = '0 0 0 2px var(--accent)';
+      setTimeout(() => {
+        galleryContainer.style.boxShadow = '';
+      }, 1500);
+      
+      console.log(`📷 Carousel updated with ${newFrames.length} analyzed frames`);
     }
 
     async function refreshCamera() {
