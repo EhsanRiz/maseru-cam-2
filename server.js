@@ -3825,6 +3825,7 @@ async function startBackgroundCapture() {
   }
   
   scheduleNext();
+}
 
 // Track last captured angle to detect camera movement
 let lastCapturedAngle = null;
