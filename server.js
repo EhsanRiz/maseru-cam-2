@@ -703,6 +703,72 @@ function isImageBlurry(imageBuffer) {
   return false;
 }
 
+// =============================================
+// FRAME DIFF CHECK
+// =============================================
+// Compare new frame to the last classified frame of the same type.
+// If they are >92% similar by pixel sampling, skip the AI classification
+// call entirely and reuse the last known angle type.
+//
+// Uses a fast 32x32 pixel grid sample (1024 points) so it adds ~0ms.
+
+let lastClassifiedFrame = null;  // { buffer, angleType, timestamp }
+
+function getFrameSimilarity(bufA, bufB) {
+  // Quick size-based pre-check: if sizes differ by >25%, frames are different
+  const sizeDiff = Math.abs(bufA.length - bufB.length) / Math.max(bufA.length, bufB.length);
+  if (sizeDiff > 0.25) return 0;
+
+  // Sample 512 byte positions spread across the file (skip JPEG headers ~200 bytes)
+  const step = Math.floor((Math.min(bufA.length, bufB.length) - 200) / 512);
+  if (step < 1) return 0;
+
+  let matching = 0;
+  for (let i = 0; i < 512; i++) {
+    const pos = 200 + i * step;
+    // Allow ±6 tolerance for JPEG compression artifacts
+    if (Math.abs(bufA[pos] - bufB[pos]) <= 6) matching++;
+  }
+  return matching / 512;
+}
+
+function isFrameSimilarToLast(imageBuffer) {
+  if (!lastClassifiedFrame) return false;
+
+  // Don't reuse if last frame is older than 10 minutes
+  const age = Date.now() - lastClassifiedFrame.timestamp;
+  if (age > 10 * 60 * 1000) return false;
+
+  const similarity = getFrameSimilarity(imageBuffer, lastClassifiedFrame.buffer);
+  console.log(`🔍 Frame similarity to last: ${(similarity * 100).toFixed(1)}%`);
+
+  return similarity >= 0.92;
+}
+
+// =============================================
+// NIGHT MODE
+// =============================================
+// Between 22:00 and 06:00 SAST (UTC+2), the border is closed.
+// Slow down capture interval to save costs.
+
+const NIGHT_CAPTURE_INTERVAL = 8 * 60 * 1000;   // 8 minutes at night
+const DAY_CAPTURE_INTERVAL   = 90 * 1000;         // 90 seconds during the day
+
+function isNightTime() {
+  // Use SAST (UTC+2)
+  const now = new Date();
+  const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const hour = sast.getUTCHours();
+  return hour >= 22 || hour < 6;
+}
+
+function getCurrentCaptureInterval() {
+  const night = isNightTime();
+  const interval = night ? NIGHT_CAPTURE_INTERVAL : DAY_CAPTURE_INTERVAL;
+  if (night) console.log(`🌙 Night mode active - capture interval: ${interval/1000}s`);
+  return interval;
+}
+
 // Classify frame angle using AI
 async function classifyFrameAngle(imageBuffer) {
   if (isClassifying) return ANGLE_TYPES.USELESS;
@@ -905,9 +971,19 @@ async function captureFrame() {
             resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
             return;
           }
-          
-          // Classify the frame angle
-          const angleType = await classifyFrameAngle(imageBuffer);
+
+          // FRAME DIFF CHECK: if this frame looks almost identical to the last
+          // classified one, reuse the cached angle type — skip the AI call entirely
+          let angleType;
+          if (isFrameSimilarToLast(imageBuffer)) {
+            angleType = lastClassifiedFrame.angleType;
+            console.log(`⚡ Frame similar to last (reusing angle: ${angleType}) - skipped AI classification`);
+          } else {
+            // Classify the frame angle (costs API call)
+            angleType = await classifyFrameAngle(imageBuffer);
+            // Store for next diff comparison
+            lastClassifiedFrame = { buffer: imageBuffer, angleType, timestamp: Date.now() };
+          }
           
           const frameData = {
             screenshot: imageBuffer,
@@ -1466,18 +1542,23 @@ REMEMBER:
 
 
     // Build content array with multiple images
+    // For off-topic questions, skip images entirely - they add cost without value
     const content = [];
     
-    framesToUse.forEach((frame, i) => {
-      content.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: 'image/jpeg',
-          data: frame.screenshot.toString('base64'),
-        },
+    if (questionType !== 'offtopic') {
+      framesToUse.forEach((frame, i) => {
+        content.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data: frame.screenshot.toString('base64'),
+          },
+        });
       });
-    });
+    } else {
+      console.log(`💰 Off-topic question - skipping image tokens`);
+    }
 
     let userPrompt;
     if (!userQuestion) {
@@ -3734,11 +3815,16 @@ async function startBackgroundCapture() {
   // Initial capture
   await captureFrame();
   
-  // Rapid sampling every 20 seconds, but only save when angle changes
-  setInterval(async () => {
-    await smartCapture();
-  }, 20000); // Check every 20 seconds
-}
+  // Use a self-rescheduling timer so we can vary interval based on time of day
+  async function scheduleNext() {
+    const interval = getCurrentCaptureInterval();
+    setTimeout(async () => {
+      await smartCapture();
+      scheduleNext();
+    }, interval);
+  }
+  
+  scheduleNext();
 
 // Track last captured angle to detect camera movement
 let lastCapturedAngle = null;
@@ -3787,9 +3873,17 @@ async function smartCapture() {
             resolve(null);
             return;
           }
-          
-          // Classify the frame angle
-          const angleType = await classifyFrameAngle(imageBuffer);
+
+          // FRAME DIFF CHECK: skip AI classification if frame is nearly identical
+          let angleType;
+          if (isFrameSimilarToLast(imageBuffer)) {
+            angleType = lastClassifiedFrame.angleType;
+            console.log(`⚡ Frame similar to last (reusing: ${angleType}) - saved classification call`);
+          } else {
+            // Classify the frame angle (costs API call)
+            angleType = await classifyFrameAngle(imageBuffer);
+            lastClassifiedFrame = { buffer: imageBuffer, angleType, timestamp: Date.now() };
+          }
           
           const timeSinceLastChange = timestamp - lastAngleChangeTime;
           const isNewAngle = angleType !== lastCapturedAngle && angleType !== 'useless';
