@@ -1,5 +1,5 @@
 import express from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import cors from 'cors';
 import compression from 'compression';
 import path from 'path';
@@ -13,7 +13,8 @@ const __dirname = path.dirname(__filename);
 
 const config = {
   port: process.env.PORT || 3000,
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY, // kept for reference (unused)
+  geminiApiKey: process.env.GEMINI_API_KEY,
   streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridge.stream_all/playlist.m3u8',
   captureInterval: 90000,        // Capture every 90 seconds (was 3 min) to catch more angles
   cacheTimeout: 120000,          // Cache analysis for 2 minutes
@@ -24,9 +25,8 @@ const config = {
   detectorUrl: process.env.DETECTOR_URL || 'https://traffic-detector-jzbg.onrender.com',
 };
 
-const anthropic = new Anthropic({
-  apiKey: config.anthropicApiKey,
-});
+const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
+const GEMINI_MODEL = 'gemini-2.0-flash';  // Vision-capable, ~30x cheaper than Claude Haiku
 
 // Initialize Supabase client (only if credentials provided)
 let supabase = null;
@@ -776,26 +776,14 @@ async function classifyFrameAngle(imageBuffer) {
   isClassifying = true;
   try {
     const imageBase64 = imageBuffer.toString('base64');
+    const imagePart = { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } };
     
     // STEP 0: Check if this is USELESS (trees/vegetation) FIRST
-    // Be aggressive - if we can't clearly see road/vehicles, it's useless
-    const uselessCheckResponse = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 10,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg',
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: `Can you see any of these in this image?
+    const uselessCheckResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        imagePart,
+        { text: `Can you see any of these in this image?
 - A ROAD where vehicles drive (even if empty)
 - A BRIDGE structure over water (look for railings, pillars, street lights in a row)
 - VEHICLES or a traffic queue
@@ -804,13 +792,12 @@ async function classifyFrameAngle(imageBuffer) {
 If the image is MOSTLY trees, vegetation, bushes, hillside, or sky - answer NO.
 If you can see a road, bridge, vehicles, or green roof structure - answer YES.
 
-Answer only YES or NO.`
-          }
-        ],
-      }],
+Answer only YES or NO.` }
+      ],
+      config: { maxOutputTokens: 10 }
     });
     
-    const uselessResult = uselessCheckResponse.content[0].text.trim().toUpperCase();
+    const uselessResult = uselessCheckResponse.text.trim().toUpperCase();
     console.log(`📷 ROAD/VEHICLES visible check: ${uselessResult}`);
     
     // If NO road/vehicles visible, it's USELESS
@@ -820,34 +807,21 @@ Answer only YES or NO.`
     }
     
     // STEP 1: Check if this is WIDE (Engen view) with a simple yes/no question
-    const wideCheckResponse = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 10,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg',
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: `Is this a WIDE VIEW showing a PAVED ROAD going into the distance with an ENGEN petrol station or buildings visible?
+    const wideCheckResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        imagePart,
+        { text: `Is this a WIDE VIEW showing a PAVED ROAD going into the distance with an ENGEN petrol station or buildings visible?
 
 IMPORTANT: If the image is MOSTLY TREES, VEGETATION, or HILLSIDE - answer NO.
 Only answer YES if you can clearly see a paved road AND buildings/petrol station.
 
-Answer only YES or NO.`
-          }
-        ],
-      }],
+Answer only YES or NO.` }
+      ],
+      config: { maxOutputTokens: 10 }
     });
     
-    const wideResult = wideCheckResponse.content[0].text.trim().toUpperCase();
+    const wideResult = wideCheckResponse.text.trim().toUpperCase();
     console.log(`📷 WIDE check: ${wideResult}`);
     
     if (wideResult.includes('YES')) {
@@ -856,35 +830,22 @@ Answer only YES or NO.`
     }
     
     // STEP 2: If not USELESS or WIDE, classify between BRIDGE and PROCESSING
-    const classifyResponse = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 20,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg',
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: `What do you see? Answer with ONLY ONE WORD:
+    const classifyResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        imagePart,
+        { text: `What do you see? Answer with ONLY ONE WORD:
 
 BRIDGE - if you see an ORANGE/RED PILLAR and bridge over water
 PROCESSING - if you see a GREEN METAL ROOF overhead
 USELESS - if neither
 
-ONE WORD ONLY:`
-          }
-        ],
-      }],
+ONE WORD ONLY:` }
+      ],
+      config: { maxOutputTokens: 20 }
     });
     
-    const rawResult = classifyResponse.content[0].text.trim().toUpperCase();
+    const rawResult = classifyResponse.text.trim().toUpperCase();
     
     // Extract ONLY the first word to prevent false matches from explanations
     const firstWord = rawResult.split(/[\s\n.,!?]+/)[0];
@@ -1548,10 +1509,8 @@ REMEMBER:
     if (questionType !== 'offtopic') {
       framesToUse.forEach((frame, i) => {
         content.push({
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: 'image/jpeg',
+          inlineData: {
+            mimeType: 'image/jpeg',
             data: frame.screenshot.toString('base64'),
           },
         });
@@ -1577,21 +1536,15 @@ User's question: "${userQuestion}"
 Respond appropriately for this question type. Be helpful and conversational.`;
     }
 
-    content.push({
-      type: 'text',
-      text: userPrompt
-    });
+    content.push({ text: userPrompt });
 
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: content,
-        },
-      ],
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: content,
+      config: {
+        systemInstruction: systemPrompt,
+        maxOutputTokens: 1024,
+      },
     });
 
     // Get timestamp of most recent frame
@@ -1616,7 +1569,7 @@ Respond appropriately for this question type. Be helpful and conversational.`;
 
     const analysis = {
       success: true,
-      message: response.content[0].text,
+      message: response.text,
       timestamp: new Date().toISOString(),
       frameTimestamp: latestFrame.timestamp,
       framesAnalyzed: framesToUse.length,
@@ -2254,10 +2207,8 @@ REMEMBER:
     const content = [];
     framesToUse.forEach((frame) => {
       content.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: 'image/jpeg',
+        inlineData: {
+          mimeType: 'image/jpeg',
           data: frame.screenshot.toString('base64'),
         },
       });
@@ -2276,7 +2227,7 @@ Give a SHORT 1-2 sentence friendly response.`;
 Respond appropriately. Be helpful and conversational.`;
     }
 
-    content.push({ type: 'text', text: userPrompt });
+    content.push({ text: userPrompt });
 
     // Build analyzed frames info for frontend to display
     const analyzedFrames = framesToUse.map(f => ({
@@ -2291,19 +2242,21 @@ Respond appropriately. Be helpful and conversational.`;
     // Send frames info first so frontend can update carousel immediately
     res.write(`data: ${JSON.stringify({ type: 'frames', frames: analyzedFrames })}\n\n`);
 
-    // Stream the response
-    const stream = await anthropic.messages.stream({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: content }],
+    // Stream the response using Gemini
+    const stream = await ai.models.generateContentStream({
+      model: GEMINI_MODEL,
+      contents: content,
+      config: {
+        systemInstruction: systemPrompt,
+        maxOutputTokens: 1024,
+      },
     });
 
     let fullText = '';
     
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        const text = event.delta.text;
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (text) {
         fullText += text;
         res.write(`data: ${JSON.stringify({ type: 'text', text: text })}\n\n`);
       }
@@ -4312,8 +4265,9 @@ app.get('/api/activity/stats', async (req, res) => {
 
 // Start server
 async function start() {
-  console.log('🌉 Maseru Bridge Traffic Bot v2.0');
+  console.log('🌉 Maseru Bridge Traffic Bot v2.1 (Gemini)');
   console.log('=================================');
+  console.log(`🤖 LLM: Gemini 2.0 Flash (was Claude Haiku)`);
   console.log(`📡 Stream URL: ${config.streamUrl}`);
   console.log(`📊 Multi-frame analysis: ${config.analysisFrames} frames`);
   
