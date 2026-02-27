@@ -26,7 +26,7 @@ const config = {
 };
 
 const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
-const GEMINI_MODEL = 'gemini-2.0-flash';  // Vision-capable, ~30x cheaper than Claude Haiku
+const GEMINI_MODEL = 'gemini-2.5-flash';  // Vision-capable, ~30x cheaper than Claude Haiku
 
 // Initialize Supabase client (only if credentials provided)
 let supabase = null;
