@@ -794,10 +794,10 @@ If you can see a road, bridge, vehicles, or green roof structure - answer YES.
 
 Answer only YES or NO.` }
       ],
-      config: { maxOutputTokens: 10 }
+      config: { maxOutputTokens: 10, thinkingConfig: { thinkingBudget: 0 } }
     });
     
-    const uselessResult = uselessCheckResponse.text.trim().toUpperCase();
+    const uselessResult = (uselessCheckResponse.text || '').trim().toUpperCase();
     console.log(`📷 ROAD/VEHICLES visible check: ${uselessResult}`);
     
     // If NO road/vehicles visible, it's USELESS
@@ -818,10 +818,10 @@ Only answer YES if you can clearly see a paved road AND buildings/petrol station
 
 Answer only YES or NO.` }
       ],
-      config: { maxOutputTokens: 10 }
+      config: { maxOutputTokens: 10, thinkingConfig: { thinkingBudget: 0 } }
     });
     
-    const wideResult = wideCheckResponse.text.trim().toUpperCase();
+    const wideResult = (wideCheckResponse.text || '').trim().toUpperCase();
     console.log(`📷 WIDE check: ${wideResult}`);
     
     if (wideResult.includes('YES')) {
@@ -842,10 +842,10 @@ USELESS - if neither
 
 ONE WORD ONLY:` }
       ],
-      config: { maxOutputTokens: 20 }
+      config: { maxOutputTokens: 20, thinkingConfig: { thinkingBudget: 0 } }
     });
     
-    const rawResult = classifyResponse.text.trim().toUpperCase();
+    const rawResult = (classifyResponse.text || '').trim().toUpperCase();
     
     // Extract ONLY the first word to prevent false matches from explanations
     const firstWord = rawResult.split(/[\s\n.,!?]+/)[0];
@@ -1569,7 +1569,7 @@ Respond appropriately for this question type. Be helpful and conversational.`;
 
     const analysis = {
       success: true,
-      message: response.text,
+      message: response.text || 'Unable to analyze traffic at this time.',
       timestamp: new Date().toISOString(),
       frameTimestamp: latestFrame.timestamp,
       framesAnalyzed: framesToUse.length,
