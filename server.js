@@ -3409,16 +3409,11 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    const { phone, countryCode, countryResidence, password, email, name, securityQ1, securityA1, securityQ2, securityA2 } = req.body;
+    const { phone, countryCode, countryResidence, password, email, name } = req.body;
 
     // Validate required fields
-    if (!phone || !countryCode || !countryResidence || !password || !securityQ1 || !securityA1 || !securityQ2 || !securityA2) {
+    if (!phone || !countryCode || !countryResidence || !password) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
-    }
-
-    // Validate security questions are different
-    if (securityQ1 === securityQ2) {
-      return res.status(400).json({ success: false, message: 'Please select two different security questions' });
     }
 
     // Validate phone format
@@ -3430,9 +3425,9 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'South Africa phone must be 10 digits' });
     }
 
-    // Validate password
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    // Validate PIN (4-6 digits)
+    if (password.length < 4 || password.length > 6 || !/^\d+$/.test(password)) {
+      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
     }
 
     // Create full phone number
@@ -3462,11 +3457,7 @@ app.post('/api/auth/register', async (req, res) => {
         country_residence: countryResidence,
         password_hash: passwordHash,
         email: email ? email.toLowerCase() : null,
-        name: name || null,
-        security_q1: securityQ1,
-        security_a1: securityA1.toLowerCase(),
-        security_q2: securityQ2,
-        security_a2: securityA2.toLowerCase()
+        name: name || null
       })
       .select('id, phone_full, country_residence, name, created_at')
       .single();
@@ -3482,7 +3473,7 @@ app.post('/api/auth/register', async (req, res) => {
     const tokenData = {
       user_id: data.id,
       phone: data.phone_full,
-      exp: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+      exp: Date.now() + (48 * 60 * 60 * 1000) // 48 hours
     };
     const accessToken = Buffer.from(JSON.stringify(tokenData)).toString('base64');
 
@@ -3549,7 +3540,7 @@ app.post('/api/auth/login', async (req, res) => {
     const tokenData = {
       user_id: user.id,
       phone: user.phone_full,
-      exp: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+      exp: Date.now() + (48 * 60 * 60 * 1000) // 48 hours
     };
     const accessToken = Buffer.from(JSON.stringify(tokenData)).toString('base64');
 
@@ -3677,8 +3668,8 @@ app.post('/api/auth/reset/complete', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    if (newPassword.length < 4 || newPassword.length > 6) {
+      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
     }
 
     const cleanPhone = phone.replace(/\s/g, '');
