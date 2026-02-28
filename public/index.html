@@ -5582,8 +5582,8 @@
         
         if (data.success) {
           saveUser(data.user);
-          showLoggedInView();
           showToast('Account created successfully! 🎉');
+          document.getElementById('authModal').classList.remove('show');
           
           // Check if there's a pending action after signup
           if (pendingActionAfterLogin) {
@@ -5643,8 +5643,8 @@
         
         if (data.success) {
           saveUser(data.user);
-          showLoggedInView();
           showToast('Welcome back! 👋');
+          document.getElementById('authModal').classList.remove('show');
           
           // Check if there's a pending action after login
           if (pendingActionAfterLogin) {
@@ -8192,6 +8192,7 @@ https://4dcs.co.za`;
           </button>
         </div>
         
+        <button class="auth-submit" onclick="closeAuthModal()" style="margin-bottom: 8px;">✓ Continue to Traffic Bot</button>
         <button class="auth-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
