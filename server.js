@@ -3571,7 +3571,7 @@ function maskEmail(email) {
   return `${maskedLocal}@${domain}`;
 }
 
-// Password Reset Step 1: Initialize (get security questions)
+// PIN Reset Step 1: Check if phone exists and whether email is on file
 app.post('/api/auth/reset/init', async (req, res) => {
   if (!supabase) {
     return res.status(503).json({ success: false, message: 'Database not available' });
@@ -3589,7 +3589,7 @@ app.post('/api/auth/reset/init', async (req, res) => {
 
     const { data: user, error } = await supabase
       .from('traffic_users')
-      .select('id, security_q1, security_q2, email')
+      .select('id, email')
       .eq('phone_full', phoneFull)
       .single();
 
@@ -3599,9 +3599,6 @@ app.post('/api/auth/reset/init', async (req, res) => {
 
     res.json({
       success: true,
-      userId: user.id,
-      securityQ1: user.security_q1,
-      securityQ2: user.security_q2,
       hasEmail: !!user.email,
       maskedEmail: user.email ? maskEmail(user.email) : null
     });
@@ -3612,50 +3609,7 @@ app.post('/api/auth/reset/init', async (req, res) => {
   }
 });
 
-// Password Reset Step 2: Verify security answers
-app.post('/api/auth/reset/verify', async (req, res) => {
-  if (!supabase) {
-    return res.status(503).json({ success: false, message: 'Database not available' });
-  }
-
-  try {
-    const { phone, countryCode, answer1, answer2 } = req.body;
-
-    if (!phone || !countryCode || !answer1 || !answer2) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
-    }
-
-    const cleanPhone = phone.replace(/\s/g, '');
-    const phoneFull = countryCode + cleanPhone;
-
-    const { data: user, error } = await supabase
-      .from('traffic_users')
-      .select('id, security_a1, security_a2')
-      .eq('phone_full', phoneFull)
-      .single();
-
-    if (error || !user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    // Check both answers (case-insensitive)
-    const answer1Correct = user.security_a1 === answer1.toLowerCase();
-    const answer2Correct = user.security_a2 === answer2.toLowerCase();
-    
-    if (answer1Correct && answer2Correct) {
-      console.log(`✅ Security questions verified for: ${phoneFull}`);
-      res.json({ success: true });
-    } else {
-      res.json({ success: false, message: 'One or both answers are incorrect' });
-    }
-
-  } catch (err) {
-    console.error('Reset verify error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// Password Reset Step 3: Complete (set new password)
+// PIN Reset Step 2: Complete (set new PIN)
 app.post('/api/auth/reset/complete', async (req, res) => {
   if (!supabase) {
     return res.status(503).json({ success: false, message: 'Database not available' });
@@ -3691,54 +3645,6 @@ app.post('/api/auth/reset/complete', async (req, res) => {
 
   } catch (err) {
     console.error('Reset complete error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// Password Reset Fallback: Send reset request to admin
-app.post('/api/auth/reset/email', async (req, res) => {
-  if (!supabase) {
-    return res.status(503).json({ success: false, message: 'Database not available' });
-  }
-
-  try {
-    const { phone, countryCode } = req.body;
-
-    if (!phone || !countryCode) {
-      return res.status(400).json({ success: false, message: 'Phone number is required' });
-    }
-
-    const cleanPhone = phone.replace(/\s/g, '');
-    const phoneFull = countryCode + cleanPhone;
-
-    // Get user details
-    const { data: user, error } = await supabase
-      .from('traffic_users')
-      .select('id, name, country_residence, created_at')
-      .eq('phone_full', phoneFull)
-      .single();
-
-    if (error || !user) {
-      // Return success anyway to prevent enumeration
-      return res.json({ success: true, message: 'Reset request sent' });
-    }
-
-    // Log the request (in production, send email to admin@4dcs.co.za)
-    console.log(`📧 Password reset request for admin@4dcs.co.za:`);
-    console.log(`   Phone: ${phoneFull}`);
-    console.log(`   Name: ${user.name || 'Not provided'}`);
-    console.log(`   Country: ${user.country_residence}`);
-    console.log(`   Registered: ${user.created_at}`);
-    
-    // TODO: Send actual email to admin@4dcs.co.za with user details
-    // Use Resend, SendGrid, or similar service
-    // Email should contain: phone number, name, country, registration date
-    // Admin can then manually verify and reset the password
-
-    res.json({ success: true, message: 'Reset request sent to support' });
-
-  } catch (err) {
-    console.error('Reset email error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
