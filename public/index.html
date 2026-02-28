@@ -5233,17 +5233,27 @@
       try {
         const stored = localStorage.getItem(AUTH_STORAGE_KEY);
         if (stored) {
-          currentUser = JSON.parse(stored);
-          updateAuthUI();
-          
-          // Start polling for new reports after a short delay (let page render first)
-          setTimeout(() => {
-            startReportPolling();
-          }, 2000);
+          const user = JSON.parse(stored);
+          // Check token validity before accepting
+          if (user.access_token) {
+            try {
+              const tokenData = JSON.parse(atob(user.access_token));
+              if (tokenData.exp > Date.now()) {
+                currentUser = user;
+                updateAuthUI();
+                setTimeout(() => { startReportPolling(); }, 2000);
+                return; // Valid session, don't show modal
+              }
+            } catch (e) { /* invalid token format */ }
+          }
+          // Token expired or invalid - clear
+          localStorage.removeItem(AUTH_STORAGE_KEY);
         }
       } catch (e) {
         console.error('Error loading stored user:', e);
       }
+      // No valid session - enforce login
+      enforceAuth();
     }
     
     // Save user to localStorage
@@ -5294,11 +5304,36 @@
       }
     }
     
-    // Close auth modal
+    // Close auth modal - only if logged in
     function closeAuthModal() {
+      if (!currentUser) return; // Can't dismiss without logging in
       document.getElementById('authModal').classList.remove('show');
       clearAuthErrors();
-      clearLoginContext(); // Clear any pending action context
+      clearLoginContext();
+    }
+    
+    // Check if token is still valid (48 hour expiry)
+    function isTokenValid() {
+      if (!currentUser || !currentUser.access_token) return false;
+      try {
+        const tokenData = JSON.parse(atob(currentUser.access_token));
+        return tokenData.exp > Date.now();
+      } catch (e) {
+        return false;
+      }
+    }
+    
+    // Enforce mandatory login - show modal if not authenticated
+    function enforceAuth() {
+      if (!currentUser || !isTokenValid()) {
+        if (currentUser && !isTokenValid()) {
+          // Token expired - clear and re-prompt
+          clearUser();
+          showToast('Session expired. Please login again.');
+        }
+        document.getElementById('authModal').classList.add('show');
+        showSignupForm();
+      }
     }
     
     // Show signup form
@@ -5327,7 +5362,7 @@
     function showResetForm() {
       hideAllAuthForms();
       document.getElementById('resetForm').style.display = 'block';
-      resetPasswordState = { phone: '', countryCode: '', attempts: 0, userId: null, hasEmail: false, maskedEmail: '' };
+      resetPasswordState = { phone: '', countryCode: '' };
       clearAuthErrors();
     }
     
@@ -5336,7 +5371,6 @@
       document.getElementById('signupForm').style.display = 'none';
       document.getElementById('loginForm').style.display = 'none';
       document.getElementById('resetForm').style.display = 'none';
-      document.getElementById('resetQuestionForm').style.display = 'none';
       document.getElementById('resetNewPasswordForm').style.display = 'none';
       document.getElementById('resetFallbackForm').style.display = 'none';
       document.getElementById('loggedInView').style.display = 'none';
@@ -5486,24 +5520,6 @@
       input.type = input.type === 'password' ? 'text' : 'password';
     }
     
-    // Prevent selecting same question twice
-    function updateSecurityOptions() {
-      const q1 = document.getElementById('signupSecurityQ1').value;
-      const q2 = document.getElementById('signupSecurityQ2').value;
-      
-      // If same question selected, reset the second one
-      if (q1 === q2) {
-        const q2Select = document.getElementById('signupSecurityQ2');
-        // Find a different option
-        for (let option of q2Select.options) {
-          if (option.value !== q1) {
-            q2Select.value = option.value;
-            break;
-          }
-        }
-      }
-    }
-    
     // Handle signup
     async function handleSignup() {
       clearAuthErrors();
@@ -5513,11 +5529,8 @@
       const phone = document.getElementById('signupPhone').value;
       const name = document.getElementById('signupName').value.trim();
       const email = document.getElementById('signupEmail').value.trim();
-      const password = document.getElementById('signupPassword').value;
-      const securityQ1 = document.getElementById('signupSecurityQ1').value;
-      const securityA1 = document.getElementById('signupSecurityA1').value.trim();
-      const securityQ2 = document.getElementById('signupSecurityQ2').value;
-      const securityA2 = document.getElementById('signupSecurityA2').value.trim();
+      const pin = document.getElementById('signupPassword').value;
+      const confirmPin = document.getElementById('signupConfirmPin').value;
       
       // Validate phone
       const cleanPhone = phone.replace(/\s/g, '');
@@ -5536,21 +5549,15 @@
         return;
       }
       
-      // Validate password
-      if (password.length < 6) {
-        showAuthError('signupError', 'Password must be at least 6 characters');
+      // Validate PIN (4-6 digits)
+      if (pin.length < 4 || pin.length > 6) {
+        showAuthError('signupError', 'PIN must be 4-6 digits');
         return;
       }
       
-      // Validate security questions are different
-      if (securityQ1 === securityQ2) {
-        showAuthError('signupError', 'Please select two different security questions');
-        return;
-      }
-      
-      // Validate security answers
-      if (!securityA1 || !securityA2) {
-        showAuthError('signupError', 'Please answer both security questions');
+      // Confirm PIN match
+      if (pin !== confirmPin) {
+        showAuthError('signupError', 'PINs do not match');
         return;
       }
       
@@ -5567,13 +5574,9 @@
             phone: cleanPhone,
             countryCode,
             countryResidence,
-            password,
+            password: pin,
             email: email || null,
-            name: name || null,
-            securityQ1,
-            securityA1: securityA1.toLowerCase(),
-            securityQ2,
-            securityA2: securityA2.toLowerCase()
+            name: name || null
           })
         });
         
@@ -5619,7 +5622,7 @@
       const password = document.getElementById('loginPassword').value;
       
       if (!phone || !password) {
-        showAuthError('loginError', 'Please enter phone and password');
+        showAuthError('loginError', 'Please enter phone and PIN');
         return;
       }
       
@@ -5671,26 +5674,13 @@
       }
     }
     
-    // Password reset state
+    // PIN reset state
     let resetPasswordState = {
       phone: '',
-      countryCode: '',
-      attempts: 0,
-      userId: null,
-      hasEmail: false,
-      maskedEmail: ''
+      countryCode: ''
     };
     
-    // Security question labels
-    const securityQuestionLabels = {
-      birth_city: 'What city were you born in?',
-      mother_maiden: "What is your mother's maiden name?",
-      first_pet: "What was your first pet's name?",
-      primary_school: 'What primary school did you attend?',
-      favorite_movie: 'What is your favorite movie?'
-    };
-    
-    // Handle reset Step 1: Enter phone number
+    // Handle reset Step 1: Enter phone number, check for email
     async function handleResetStep1() {
       clearAuthErrors();
       
@@ -5717,29 +5707,20 @@
         const data = await response.json();
         
         if (data.success) {
-          // Store state
-          resetPasswordState = {
-            phone: cleanPhone,
-            countryCode,
-            attempts: 0,
-            userId: data.userId,
-            hasEmail: data.hasEmail,
-            maskedEmail: data.maskedEmail || '',
-            securityQ1: data.securityQ1,
-            securityQ2: data.securityQ2
-          };
+          resetPasswordState = { phone: cleanPhone, countryCode };
           
-          // Show both security questions
-          document.getElementById('resetQ1Label').textContent = 
-            securityQuestionLabels[data.securityQ1] || data.securityQ1;
-          document.getElementById('resetQ2Label').textContent = 
-            securityQuestionLabels[data.securityQ2] || data.securityQ2;
-          
-          hideAllAuthForms();
-          document.getElementById('resetQuestionForm').style.display = 'block';
-          document.getElementById('resetAttempts').textContent = '';
-          document.getElementById('resetAnswer1').value = '';
-          document.getElementById('resetAnswer2').value = '';
+          if (data.hasEmail) {
+            // User has email - show set new PIN form directly
+            // (In production, you'd send an email with a reset link/code)
+            hideAllAuthForms();
+            document.getElementById('resetNewPasswordForm').style.display = 'block';
+          } else {
+            // No email on file - show fallback (WhatsApp support)
+            hideAllAuthForms();
+            document.getElementById('resetFallbackMessage').textContent = 
+              'No email found on your account. Contact us to reset your PIN:';
+            document.getElementById('resetFallbackForm').style.display = 'block';
+          }
         } else {
           showAuthError('resetError', data.message || 'Phone number not found');
         }
@@ -5751,116 +5732,26 @@
       }
     }
     
-    // Handle reset Step 2: Answer security questions
-    async function handleResetStep2() {
-      clearAuthErrors();
-      
-      const answer1 = document.getElementById('resetAnswer1').value.trim();
-      const answer2 = document.getElementById('resetAnswer2').value.trim();
-      
-      if (!answer1 || !answer2) {
-        showAuthError('resetQuestionError', 'Please answer both questions');
-        return;
-      }
-      
-      const btn = document.querySelector('#resetQuestionForm .auth-submit');
-      btn.disabled = true;
-      btn.textContent = 'Verifying...';
-      
-      try {
-        const response = await fetch('/api/auth/reset/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: resetPasswordState.phone,
-            countryCode: resetPasswordState.countryCode,
-            answer1: answer1.toLowerCase(),
-            answer2: answer2.toLowerCase()
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          // Correct answers - show new password form
-          hideAllAuthForms();
-          document.getElementById('resetNewPasswordForm').style.display = 'block';
-        } else {
-          resetPasswordState.attempts++;
-          
-          if (resetPasswordState.attempts >= 3) {
-            // Show fallback options
-            showResetFallback();
-          } else {
-            const remaining = 3 - resetPasswordState.attempts;
-            document.getElementById('resetAttempts').textContent = 
-              `Incorrect answers. ${remaining} attempt${remaining > 1 ? 's' : ''} remaining.`;
-            showAuthError('resetQuestionError', 'One or both answers are incorrect');
-          }
-        }
-      } catch (err) {
-        showAuthError('resetQuestionError', 'Connection error. Please try again.');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Verify Answers';
-        document.getElementById('resetAnswer1').value = '';
-        document.getElementById('resetAnswer2').value = '';
-      }
-    }
-    
     // Show fallback options
     function showResetFallback() {
       hideAllAuthForms();
       document.getElementById('resetFallbackForm').style.display = 'block';
-      document.getElementById('emailSentSuccess').style.display = 'none';
     }
     
-    // Handle email fallback - sends request to admin
-    async function handleEmailFallback() {
-      const btn = document.querySelector('#resetFallbackForm .auth-submit');
-      btn.disabled = true;
-      btn.textContent = 'Sending...';
-      
-      try {
-        const response = await fetch('/api/auth/reset/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: resetPasswordState.phone,
-            countryCode: resetPasswordState.countryCode
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          document.getElementById('emailSentSuccess').style.display = 'flex';
-          btn.style.display = 'none';
-        }
-      } catch (err) {
-        // Still show success to prevent enumeration
-        document.getElementById('emailSentSuccess').style.display = 'flex';
-        btn.style.display = 'none';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Send Reset Request';
-      }
-    }
-    
-    // Handle reset Step 3: Set new password
+    // Handle reset Step 3: Set new PIN
     async function handleResetStep3() {
       clearAuthErrors();
       
-      const newPassword = document.getElementById('resetNewPassword').value;
-      const confirmPassword = document.getElementById('resetConfirmPassword').value;
+      const newPin = document.getElementById('resetNewPassword').value;
+      const confirmPin = document.getElementById('resetConfirmPassword').value;
       
-      if (newPassword.length < 6) {
-        showAuthError('resetNewPasswordError', 'Password must be at least 6 characters');
+      if (newPin.length < 4 || newPin.length > 6) {
+        showAuthError('resetNewPasswordError', 'PIN must be 4-6 digits');
         return;
       }
       
-      if (newPassword !== confirmPassword) {
-        showAuthError('resetNewPasswordError', 'Passwords do not match');
+      if (newPin !== confirmPin) {
+        showAuthError('resetNewPasswordError', 'PINs do not match');
         return;
       }
       
@@ -5875,31 +5766,32 @@
           body: JSON.stringify({
             phone: resetPasswordState.phone,
             countryCode: resetPasswordState.countryCode,
-            newPassword
+            newPassword: newPin
           })
         });
         
         const data = await response.json();
         
         if (data.success) {
-          showToast('Password reset successfully! 🎉');
+          showToast('PIN reset successfully! 🎉');
           showLoginForm();
         } else {
-          showAuthError('resetNewPasswordError', data.message || 'Failed to reset password');
+          showAuthError('resetNewPasswordError', data.message || 'Failed to reset PIN');
         }
       } catch (err) {
         showAuthError('resetNewPasswordError', 'Connection error. Please try again.');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Reset Password';
+        btn.textContent = 'Reset PIN';
       }
     }
     
     // Handle logout
     function handleLogout() {
       clearUser();
-      closeAuthModal();
       showToast('Logged out successfully');
+      // Re-enforce auth - show modal since login is mandatory
+      enforceAuth();
     }
     
     // Show simple toast
@@ -8091,15 +7983,14 @@ https://4dcs.co.za`;
   <!-- Auth Modal (Sign Up / Login) -->
   <div class="auth-modal" id="authModal">
     <div class="auth-modal-content">
-      <button class="auth-close" onclick="closeAuthModal()">×</button>
       
       <!-- Sign Up Form -->
       <div class="auth-form" id="signupForm">
         <h2>Create Account</h2>
-        <p class="auth-subtitle">Get more from Traffic Bot:</p>
+        <p class="auth-subtitle">Required to use Traffic Bot:</p>
         <ul class="auth-benefits">
-          <li>✓ Save your alert preferences</li>
-          <li>✓ Report wait times (coming soon)</li>
+          <li>✓ Real-time traffic updates</li>
+          <li>✓ Report wait times</li>
           <li>✓ Personalized insights</li>
         </ul>
         
@@ -8125,47 +8016,29 @@ https://4dcs.co.za`;
         </div>
         
         <div class="auth-field">
+          <label>Set a PIN (4-6 digits)</label>
+          <div class="password-input-group">
+            <input type="password" id="signupPassword" placeholder="e.g. 1234" maxlength="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+            <button type="button" class="toggle-password" onclick="togglePassword('signupPassword')">👁</button>
+          </div>
+        </div>
+        
+        <div class="auth-field">
+          <label>Confirm PIN</label>
+          <div class="password-input-group">
+            <input type="password" id="signupConfirmPin" placeholder="Re-enter PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+            <button type="button" class="toggle-password" onclick="togglePassword('signupConfirmPin')">👁</button>
+          </div>
+        </div>
+        
+        <div class="auth-field">
           <label>Name (optional)</label>
           <input type="text" id="signupName" placeholder="Your name">
         </div>
         
         <div class="auth-field">
-          <label>Email (optional - backup for password recovery)</label>
+          <label>Email (optional - for PIN recovery)</label>
           <input type="email" id="signupEmail" placeholder="you@example.com">
-        </div>
-        
-        <div class="auth-field">
-          <label>Password</label>
-          <div class="password-input-group">
-            <input type="password" id="signupPassword" placeholder="Min 6 characters">
-            <button type="button" class="toggle-password" onclick="togglePassword('signupPassword')">👁</button>
-          </div>
-        </div>
-        
-        <div class="auth-section-title">Security Questions (for password recovery)</div>
-        
-        <div class="auth-field">
-          <label>Question 1</label>
-          <select id="signupSecurityQ1" onchange="updateSecurityOptions()">
-            <option value="birth_city">What city were you born in?</option>
-            <option value="mother_maiden">What is your mother's maiden name?</option>
-            <option value="first_pet">What was your first pet's name?</option>
-            <option value="primary_school">What primary school did you attend?</option>
-            <option value="favorite_movie">What is your favorite movie?</option>
-          </select>
-          <input type="text" id="signupSecurityA1" placeholder="Your answer" class="security-answer">
-        </div>
-        
-        <div class="auth-field">
-          <label>Question 2</label>
-          <select id="signupSecurityQ2" onchange="updateSecurityOptions()">
-            <option value="mother_maiden">What is your mother's maiden name?</option>
-            <option value="birth_city">What city were you born in?</option>
-            <option value="first_pet">What was your first pet's name?</option>
-            <option value="primary_school">What primary school did you attend?</option>
-            <option value="favorite_movie">What is your favorite movie?</option>
-          </select>
-          <input type="text" id="signupSecurityA2" placeholder="Your answer" class="security-answer">
         </div>
         
         <div class="auth-error" id="signupError"></div>
@@ -8184,7 +8057,7 @@ https://4dcs.co.za`;
         </div>
         
         <h2>Welcome Back</h2>
-        <p class="auth-subtitle">Login to your account</p>
+        <p class="auth-subtitle">Login with your phone and PIN</p>
         
         <div class="auth-field">
           <label>Phone Number</label>
@@ -8199,9 +8072,9 @@ https://4dcs.co.za`;
         </div>
         
         <div class="auth-field">
-          <label>Password</label>
+          <label>PIN</label>
           <div class="password-input-group">
-            <input type="password" id="loginPassword" placeholder="Your password">
+            <input type="password" id="loginPassword" placeholder="Your 4-6 digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
             <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')">👁</button>
           </div>
         </div>
@@ -8210,14 +8083,14 @@ https://4dcs.co.za`;
         
         <button class="auth-submit" onclick="handleLogin()">Login</button>
         
-        <p class="auth-forgot"><a href="#" onclick="showResetForm()">Forgot password?</a></p>
+        <p class="auth-forgot"><a href="#" onclick="showResetForm()">Forgot PIN?</a></p>
         <p class="auth-switch">Don't have an account? <a href="#" onclick="showSignupForm()">Sign Up</a></p>
       </div>
       
-      <!-- Password Reset Form - Step 1: Enter Phone -->
+      <!-- PIN Reset Form - Enter Phone -->
       <div class="auth-form" id="resetForm" style="display: none;">
-        <h2>Reset Password</h2>
-        <p class="auth-subtitle">Enter your phone number to continue</p>
+        <h2>Reset PIN</h2>
+        <p class="auth-subtitle">Enter your phone number. If you have an email on file, we'll help you reset your PIN.</p>
         
         <div class="auth-field">
           <label>Phone Number</label>
@@ -8237,77 +8110,42 @@ https://4dcs.co.za`;
         <p class="auth-switch"><a href="#" onclick="showLoginForm()">Back to Login</a></p>
       </div>
       
-      <!-- Password Reset Form - Step 2: Security Questions -->
-      <div class="auth-form" id="resetQuestionForm" style="display: none;">
-        <h2>Security Questions</h2>
-        <p class="auth-subtitle">Answer both questions to reset your password</p>
-        
-        <div class="auth-field">
-          <label id="resetQ1Label">Question 1</label>
-          <input type="text" id="resetAnswer1" placeholder="Your answer">
-        </div>
-        
-        <div class="auth-field">
-          <label id="resetQ2Label">Question 2</label>
-          <input type="text" id="resetAnswer2" placeholder="Your answer">
-        </div>
-        
-        <div class="reset-attempts" id="resetAttempts"></div>
-        
-        <div class="auth-error" id="resetQuestionError"></div>
-        
-        <button class="auth-submit" onclick="handleResetStep2()">Verify Answers</button>
-        
-        <p class="auth-switch"><a href="#" onclick="showResetForm()">Use different phone</a></p>
-      </div>
-      
-      <!-- Password Reset Form - Step 3: New Password -->
+      <!-- PIN Reset - Set New PIN (shown after email verification or admin approval) -->
       <div class="auth-form" id="resetNewPasswordForm" style="display: none;">
-        <h2>Create New Password</h2>
-        <p class="auth-subtitle">Enter your new password</p>
+        <h2>Set New PIN</h2>
+        <p class="auth-subtitle">Enter your new 4-6 digit PIN</p>
         
         <div class="auth-field">
-          <label>New Password</label>
+          <label>New PIN</label>
           <div class="password-input-group">
-            <input type="password" id="resetNewPassword" placeholder="Min 6 characters">
+            <input type="password" id="resetNewPassword" placeholder="4-6 digits" maxlength="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
             <button type="button" class="toggle-password" onclick="togglePassword('resetNewPassword')">👁</button>
           </div>
         </div>
         
         <div class="auth-field">
-          <label>Confirm Password</label>
+          <label>Confirm PIN</label>
           <div class="password-input-group">
-            <input type="password" id="resetConfirmPassword" placeholder="Confirm password">
+            <input type="password" id="resetConfirmPassword" placeholder="Confirm PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
             <button type="button" class="toggle-password" onclick="togglePassword('resetConfirmPassword')">👁</button>
           </div>
         </div>
         
         <div class="auth-error" id="resetNewPasswordError"></div>
         
-        <button class="auth-submit" onclick="handleResetStep3()">Reset Password</button>
+        <button class="auth-submit" onclick="handleResetStep3()">Reset PIN</button>
       </div>
       
-      <!-- Password Reset Form - Fallback (after 3 failed attempts) -->
+      <!-- PIN Reset Fallback - Contact Support -->
       <div class="auth-form" id="resetFallbackForm" style="display: none;">
         <h2>Need Help?</h2>
-        <p class="auth-subtitle">Can't remember your security answers? No problem!</p>
-        
-        <div class="fallback-email">
-          <p class="fallback-label">Request a password reset via email:</p>
-          <div class="masked-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2243464f4b4c62164641510c414d0c5843">[email&#160;protected]</a></div>
-          <button class="auth-submit" onclick="handleEmailFallback()">Send Reset Request</button>
-          <div class="auth-success" id="emailSentSuccess" style="display: none;">
-            <span>✓</span> Request sent! We'll email you shortly.
-          </div>
-          <div class="fallback-divider">or</div>
-        </div>
+        <p class="auth-subtitle" id="resetFallbackMessage">Contact us to reset your PIN:</p>
         
         <div class="fallback-whatsapp">
-          <p class="fallback-label">Contact us directly on WhatsApp:</p>
           <a href="https://wa.me/26657299369" target="_blank" class="whatsapp-btn">
             <span>💬</span> WhatsApp +266 5729 9369
           </a>
-          <p class="whatsapp-note">We'll verify your identity and help reset your password.</p>
+          <p class="whatsapp-note">We'll verify your identity and help reset your PIN.</p>
         </div>
         
         <p class="auth-switch"><a href="#" onclick="showLoginForm()">Back to Login</a></p>
