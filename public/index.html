@@ -5252,8 +5252,7 @@
       } catch (e) {
         console.error('Error loading stored user:', e);
       }
-      // No valid session - enforce login
-      enforceAuth();
+      // No valid session - will enforce auth after DOM loads
     }
     
     // Save user to localStorage
@@ -5327,7 +5326,6 @@
     function enforceAuth() {
       if (!currentUser || !isTokenValid()) {
         if (currentUser && !isTokenValid()) {
-          // Token expired - clear and re-prompt
           clearUser();
           showToast('Session expired. Please login again.');
         }
@@ -7943,6 +7941,10 @@ https://4dcs.co.za`;
       setTimeout(() => {
         if (chatMessages) {
           chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        // Enforce mandatory auth after DOM is fully loaded
+        if (!currentUser || !isTokenValid()) {
+          enforceAuth();
         }
       }, 200);
     });
