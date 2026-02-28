@@ -539,7 +539,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.8);
+      background: #0a1628;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -548,6 +548,19 @@
       visibility: hidden;
       transition: all 0.3s ease;
       padding: 1rem;
+      overflow: hidden;
+    }
+
+    .auth-bg-video {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      min-width: 100%;
+      min-height: 100%;
+      transform: translate(-50%, -50%);
+      object-fit: cover;
+      opacity: 0.45;
+      z-index: 0;
     }
 
     .auth-modal.show {
@@ -565,7 +578,9 @@
       max-height: 90vh;
       overflow-y: auto;
       position: relative;
+      z-index: 2;
       animation: slideUp 0.3s ease;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     }
 
     @keyframes slideUp {
@@ -5788,8 +5803,9 @@
     function handleLogout() {
       clearUser();
       showToast('Logged out successfully');
-      // Re-enforce auth - show modal since login is mandatory
-      enforceAuth();
+      // Re-enforce auth - show LOGIN form (not signup) since they already have an account
+      document.getElementById('authModal').classList.add('show');
+      showLoginForm();
     }
     
     // Show simple toast
@@ -7984,6 +8000,9 @@ https://4dcs.co.za`;
 
   <!-- Auth Modal (Sign Up / Login) -->
   <div class="auth-modal" id="authModal">
+    <video class="auth-bg-video" autoplay muted loop playsinline>
+      <source src="traffic-bg.mp4" type="video/mp4">
+    </video>
     <div class="auth-modal-content">
       
       <!-- Sign Up Form -->
