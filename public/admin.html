@@ -3,867 +3,828 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard | 4D Traffic Bot</title>
+  <title>Admin | Maseru Bridge Traffic Bot</title>
   <meta name="robots" content="noindex, nofollow">
   <style>
     :root {
       --bg: #0f172a;
       --bg-card: #1e293b;
+      --bg-elevated: #263348;
       --border: #334155;
       --text: #f1f5f9;
       --text-muted: #94a3b8;
       --accent: #10b981;
-      --accent-hover: #059669;
+      --accent-dim: rgba(16,185,129,0.12);
       --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.12);
       --yellow: #f59e0b;
+      --yellow-dim: rgba(245,158,11,0.12);
       --blue: #3b82f6;
+      --blue-dim: rgba(59,130,246,0.12);
       --purple: #8b5cf6;
+      --purple-dim: rgba(139,92,246,0.12);
       --orange: #f97316;
     }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
-
-    .login-screen {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 1rem;
-    }
-
-    .login-box {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 2rem;
-      width: 100%;
-      max-width: 360px;
-    }
-
-    .login-box h1 {
-      font-size: 1.5rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .login-box p {
-      color: var(--text-muted);
-      font-size: 0.875rem;
-      margin-bottom: 1.5rem;
-    }
-
-    .login-box input {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .login-box input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .login-box button {
-      width: 100%;
-      padding: 0.75rem;
-      background: var(--accent);
-      border: none;
-      border-radius: 8px;
-      color: white;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .login-box button:hover { background: var(--accent-hover); }
-
-    .login-error {
-      color: var(--red);
-      font-size: 0.875rem;
-      margin-bottom: 1rem;
-      display: none;
-    }
-
-    .dashboard {
-      display: none;
-      padding: 1rem;
-      max-width: 1400px;
-      margin: 0 auto;
-    }
-
-    .dashboard-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-
-    .dashboard-header h1 {
-      font-size: 1.5rem;
-    }
-
-    .header-controls {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .period-select {
-      padding: 0.5rem 1rem;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 0.875rem;
-      cursor: pointer;
-    }
-
-    .period-select:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .logout-btn, .refresh-btn {
-      padding: 0.5rem 1rem;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.875rem;
-    }
-
-    .logout-btn:hover { border-color: var(--red); color: var(--red); }
-    .refresh-btn:hover { border-color: var(--accent); }
-    .refresh-btn.loading svg { animation: spin 1s linear infinite; }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 0.75rem;
-      margin-bottom: 1.5rem;
-    }
-
-    .stat-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1rem;
-    }
-
-    .stat-card .label {
-      color: var(--text-muted);
-      font-size: 0.65rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 0.4rem;
-    }
-
-    .stat-card .value {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--accent);
-    }
-
-    .stat-card .subtext {
-      color: var(--text-muted);
-      font-size: 0.65rem;
-      margin-top: 0.2rem;
-    }
-
-    .stat-card.highlight {
-      border-color: var(--accent);
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%);
-    }
-
-    .charts-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-    }
-
-    @media (max-width: 500px) {
-      .charts-grid { grid-template-columns: 1fr; }
-    }
-
-    .chart-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1rem;
-    }
-
-    .chart-card h3 {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-bottom: 0.75rem;
-    }
-
-    .status-distribution {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-
-    @media (max-width: 500px) {
-      .status-distribution { grid-template-columns: 1fr; }
-    }
-
-    .direction-stats h4 {
-      font-size: 0.75rem;
-      color: var(--text);
-      margin-bottom: 0.5rem;
-    }
-
-    .status-bars {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-
-    .status-bar-row {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .status-bar-row .label {
-      width: 65px;
-      font-size: 0.65rem;
-      color: var(--text-muted);
-    }
-
-    .status-bar-row .bar-bg {
-      flex: 1;
-      height: 18px;
-      background: var(--bg);
-      border-radius: 4px;
-      overflow: visible;
-      position: relative;
-    }
-
-    .status-bar-row .bar {
-      height: 100%;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      padding-left: 0.4rem;
-      padding-right: 0.4rem;
-      font-size: 0.6rem;
-      font-weight: 600;
-      color: white;
-      white-space: nowrap;
-      min-width: fit-content;
-    }
-
-    .status-bar-row .bar.light { background: var(--accent); }
-    .status-bar-row .bar.moderate { background: var(--yellow); }
-    .status-bar-row .bar.heavy { background: var(--orange); }
-    .status-bar-row .bar.severe { background: var(--red); }
-
-    .hourly-chart {
-      display: flex;
-      align-items: flex-end;
-      gap: 2px;
-      height: 80px;
-    }
-
-    .hour-bar {
-      flex: 1;
-      background: var(--accent);
-      border-radius: 2px 2px 0 0;
-      min-height: 2px;
-      position: relative;
-      cursor: pointer;
-    }
-
-    .hour-bar:hover { background: var(--accent-hover); }
-
-    .hour-bar .tooltip {
-      position: absolute;
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--bg);
-      border: 1px solid var(--border);
-      padding: 0.2rem 0.4rem;
-      border-radius: 4px;
-      font-size: 0.6rem;
-      white-space: nowrap;
-      opacity: 0;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    .hour-bar:hover .tooltip { opacity: 1; }
-
-    .hour-labels {
-      display: flex;
-      gap: 2px;
-      margin-top: 0.4rem;
-    }
-
-    .hour-labels span {
-      flex: 1;
-      text-align: center;
-      font-size: 0.5rem;
-      color: var(--text-muted);
-    }
-
-    .daily-chart {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-
-    .daily-row {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .daily-row .day {
-      width: 80px;
-      font-size: 0.65rem;
-      color: var(--text-muted);
-    }
-
-    .daily-row .bar-container {
-      flex: 1;
-      height: 20px;
-      background: var(--bg);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    .daily-row .bar {
-      height: 100%;
-      background: var(--blue);
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      padding-left: 0.4rem;
-      font-size: 0.6rem;
-      font-weight: 600;
-    }
-
-    .feedback-section, .recent-section, .suggestions-box {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .feedback-section h3, .recent-section h3 {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-bottom: 0.75rem;
-    }
-
-    .feedback-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-
-    @media (max-width: 600px) {
-      .feedback-grid { grid-template-columns: 1fr; }
-    }
-
-    .feedback-list h4 {
-      font-size: 0.7rem;
-      color: var(--accent);
-      margin-bottom: 0.5rem;
-    }
-
-    .feedback-list.improvements h4 { color: var(--yellow); }
-
-    .feedback-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 0.4rem 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.75rem;
-    }
-
-    .feedback-item:last-child { border-bottom: none; }
-
-    .feedback-item .count {
-      background: var(--bg);
-      padding: 0.15rem 0.4rem;
-      border-radius: 10px;
-      font-size: 0.65rem;
-      font-weight: 600;
-      color: var(--accent);
-    }
-
-    .feedback-list.improvements .feedback-item .count { color: var(--yellow); }
-
-    .suggestions-box {
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
-      border-color: var(--purple);
-    }
-
-    .suggestions-box h3 {
-      font-size: 0.8rem;
-      color: var(--purple);
-      margin-bottom: 0.75rem;
-    }
-
-    .suggestion-item {
-      display: flex;
-      gap: 0.6rem;
-      padding: 0.6rem 0;
-      border-bottom: 1px solid rgba(139, 92, 246, 0.2);
-    }
-
-    .suggestion-item:last-child { border-bottom: none; }
-
-    .suggestion-item .icon { font-size: 1.1rem; }
-
-    .suggestion-item .title {
-      font-size: 0.8rem;
-      font-weight: 600;
-      margin-bottom: 0.2rem;
-    }
-
-    .suggestion-item .desc {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      line-height: 1.4;
-    }
-
-    .questions-list {
-      max-height: 400px;
-      overflow-y: auto;
-    }
-
-    .question-item {
-      padding: 0.6rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .question-item:last-child { border-bottom: none; }
-
-    .question-item .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.4rem;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-    }
-
-    .question-item .time {
-      color: var(--text-muted);
-      font-size: 0.65rem;
-    }
-
-    .question-item .status-badges {
-      display: flex;
-      gap: 0.4rem;
-    }
-
-    .question-item .badge {
-      padding: 0.1rem 0.35rem;
-      border-radius: 4px;
-      font-size: 0.55rem;
-      font-weight: 600;
-    }
-
-    .question-item .badge.light { background: rgba(16, 185, 129, 0.2); color: var(--accent); }
-    .question-item .badge.moderate { background: rgba(245, 158, 11, 0.2); color: var(--yellow); }
-    .question-item .badge.heavy { background: rgba(249, 115, 22, 0.2); color: var(--orange); }
-    .question-item .badge.severe { background: rgba(239, 68, 68, 0.2); color: var(--red); }
-
-    .question-item .summary {
-      font-size: 0.75rem;
-      line-height: 1.4;
-      color: var(--text);
-    }
-
-    .question-item .response-time {
-      color: var(--text-muted);
-      font-size: 0.6rem;
-      margin-top: 0.25rem;
-    }
-
-    .loading {
-      text-align: center;
-      padding: 3rem;
-      color: var(--text-muted);
-    }
-
-    .spinner {
-      display: inline-block;
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    .cache-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-      gap: 0.4rem;
-    }
-
-    .cache-item {
-      background: var(--bg);
-      padding: 0.4rem;
-      border-radius: 6px;
-      font-size: 0.65rem;
-      text-align: center;
-    }
-
-    .cache-item .name {
-      color: var(--text-muted);
-      margin-bottom: 0.2rem;
-      font-size: 0.6rem;
-    }
-
-    .cache-item .status { font-weight: 600; }
-    .cache-item .status.active { color: var(--accent); }
-    .cache-item .status.expired { color: var(--yellow); }
-    .cache-item .status.empty { color: var(--text-muted); }
-
-    .info-box {
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid var(--blue);
-      border-radius: 8px;
-      padding: 0.6rem 1rem;
-      margin-bottom: 1rem;
-      font-size: 0.75rem;
-      color: var(--blue);
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+    /* ─── LOGIN ─── */
+    .login-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:1rem; }
+    .login-box { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:2rem; width:100%; max-width:360px; }
+    .login-box h1 { font-size:1.4rem; margin-bottom:0.4rem; }
+    .login-box p { color:var(--text-muted); font-size:0.85rem; margin-bottom:1.5rem; }
+    .login-box input { width:100%; padding:0.75rem 1rem; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:1rem; margin-bottom:1rem; }
+    .login-box input:focus { outline:none; border-color:var(--accent); }
+    .login-box button { width:100%; padding:0.75rem; background:var(--accent); border:none; border-radius:8px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
+    .login-box button:hover { opacity:0.9; }
+    .login-error { color:var(--red); font-size:0.85rem; margin-bottom:0.75rem; display:none; }
+
+    /* ─── DASHBOARD SHELL ─── */
+    .dashboard { display:none; min-height:100vh; flex-direction:column; }
+
+    /* ─── HEADER ─── */
+    .header { background:var(--bg-card); border-bottom:1px solid var(--border); padding:0.75rem 1.25rem; display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:100; }
+    .header-left h1 { font-size:1.1rem; font-weight:700; }
+    .header-left .subtitle { font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; }
+    .header-right { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
+    .last-updated { font-size:0.7rem; color:var(--text-muted); background:var(--bg); border:1px solid var(--border); padding:0.3rem 0.6rem; border-radius:6px; white-space:nowrap; }
+    .last-updated.stale { color:var(--yellow); border-color:var(--yellow); }
+    .period-select { padding:0.4rem 0.75rem; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:0.8rem; cursor:pointer; }
+    .period-select:focus { outline:none; border-color:var(--accent); }
+    .btn { padding:0.4rem 0.75rem; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; white-space:nowrap; }
+    .btn:hover { border-color:var(--accent); color:var(--accent); }
+    .btn.danger:hover { border-color:var(--red); color:var(--red); }
+    .btn.loading svg { animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ─── TABS ─── */
+    .tabs { background:var(--bg-card); border-bottom:1px solid var(--border); display:flex; padding:0 1.25rem; gap:0; }
+    .tab { padding:0.65rem 1rem; font-size:0.82rem; cursor:pointer; color:var(--text-muted); border-bottom:2px solid transparent; transition:all 0.15s; white-space:nowrap; }
+    .tab:hover { color:var(--text); }
+    .tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+    .tab-badge { display:inline-block; background:var(--accent-dim); color:var(--accent); font-size:0.6rem; padding:0.1rem 0.35rem; border-radius:8px; margin-left:0.35rem; font-weight:700; }
+
+    /* ─── CONTENT AREA ─── */
+    .content { padding:1.25rem; max-width:1400px; margin:0 auto; width:100%; }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
+    /* ─── STAT CARDS ─── */
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:0.75rem; margin-bottom:1.25rem; }
+    .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:0.9rem 1rem; }
+    .stat-card.highlight { border-color:var(--accent); background:linear-gradient(135deg,var(--accent-dim) 0%,transparent 100%); }
+    .stat-card.warn { border-color:var(--yellow); background:var(--yellow-dim); }
+    .stat-card.danger { border-color:var(--red); background:var(--red-dim); }
+    .stat-card .label { color:var(--text-muted); font-size:0.62rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.35rem; }
+    .stat-card .value { font-size:1.6rem; font-weight:700; color:var(--accent); line-height:1; }
+    .stat-card.warn .value { color:var(--yellow); }
+    .stat-card.danger .value { color:var(--red); }
+    .stat-card .sub { color:var(--text-muted); font-size:0.62rem; margin-top:0.25rem; }
+
+    /* ─── CHART CARDS ─── */
+    .charts-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1rem; margin-bottom:1.25rem; }
+    .card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1rem; margin-bottom:1rem; }
+    .card h3 { font-size:0.78rem; color:var(--text-muted); margin-bottom:0.75rem; }
+    .card h3 span { color:var(--text); font-weight:600; }
+
+    /* ─── STATUS DISTRIBUTION ─── */
+    .status-distribution { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    @media (max-width:520px) { .status-distribution { grid-template-columns:1fr; } }
+    .direction-stats h4 { font-size:0.75rem; margin-bottom:0.5rem; }
+    .status-bars { display:flex; flex-direction:column; gap:0.4rem; }
+    .status-bar-row { display:flex; align-items:center; gap:0.4rem; }
+    .status-bar-row .lbl { width:65px; font-size:0.62rem; color:var(--text-muted); }
+    .bar-bg { flex:1; height:18px; background:var(--bg); border-radius:4px; overflow:visible; position:relative; }
+    .bar-fill { height:100%; border-radius:4px; display:flex; align-items:center; padding:0 0.4rem; font-size:0.58rem; font-weight:600; color:white; white-space:nowrap; }
+    .bar-fill.light { background:var(--accent); }
+    .bar-fill.moderate { background:var(--yellow); }
+    .bar-fill.heavy { background:var(--orange); }
+    .bar-fill.severe { background:var(--red); }
+
+    /* ─── HOURLY CHART ─── */
+    .hourly-chart { display:flex; align-items:flex-end; gap:2px; height:80px; }
+    .hour-bar { flex:1; background:var(--accent); border-radius:2px 2px 0 0; min-height:2px; position:relative; cursor:pointer; }
+    .hour-bar:hover { background:var(--blue); }
+    .hour-bar .tip { position:absolute; bottom:105%; left:50%; transform:translateX(-50%); background:var(--bg); border:1px solid var(--border); padding:0.2rem 0.4rem; border-radius:4px; font-size:0.6rem; white-space:nowrap; opacity:0; pointer-events:none; z-index:10; }
+    .hour-bar:hover .tip { opacity:1; }
+    .hour-labels { display:flex; gap:2px; margin-top:0.35rem; }
+    .hour-labels span { flex:1; text-align:center; font-size:0.5rem; color:var(--text-muted); }
+
+    /* ─── DAILY CHART ─── */
+    .daily-chart { display:flex; flex-direction:column; gap:0.35rem; }
+    .daily-row { display:flex; align-items:center; gap:0.5rem; }
+    .daily-row .day { width:80px; font-size:0.62rem; color:var(--text-muted); flex-shrink:0; }
+    .daily-row .bc { flex:1; height:20px; background:var(--bg); border-radius:4px; overflow:hidden; }
+    .daily-row .bf { height:100%; background:var(--blue); border-radius:4px; display:flex; align-items:center; padding-left:0.4rem; font-size:0.6rem; font-weight:600; }
+
+    /* ─── CACHE GRID ─── */
+    .cache-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:0.4rem; }
+    .cache-item { background:var(--bg); padding:0.5rem; border-radius:6px; font-size:0.62rem; text-align:center; }
+    .cache-item .name { color:var(--text-muted); margin-bottom:0.2rem; font-size:0.58rem; }
+    .cache-item .status { font-weight:600; }
+    .cache-item .status.active { color:var(--accent); }
+    .cache-item .status.expired { color:var(--yellow); }
+    .cache-item .status.empty { color:var(--text-muted); }
+
+    /* ─── FEEDBACK ─── */
+    .feedback-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    @media (max-width:600px) { .feedback-grid { grid-template-columns:1fr; } }
+    .feedback-list h4 { font-size:0.7rem; color:var(--accent); margin-bottom:0.5rem; }
+    .feedback-list.imp h4 { color:var(--yellow); }
+    .feedback-item { display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px solid var(--border); font-size:0.75rem; }
+    .feedback-item:last-child { border-bottom:none; }
+    .feedback-item .cnt { background:var(--bg); padding:0.1rem 0.4rem; border-radius:10px; font-size:0.62rem; font-weight:600; color:var(--accent); }
+    .feedback-list.imp .feedback-item .cnt { color:var(--yellow); }
+
+    /* ─── INSIGHTS BOX ─── */
+    .insights { background:var(--purple-dim); border:1px solid var(--purple); border-radius:12px; padding:1rem; margin-bottom:1rem; }
+    .insights h3 { font-size:0.78rem; color:var(--purple); margin-bottom:0.75rem; }
+    .insight-item { display:flex; gap:0.6rem; padding:0.5rem 0; border-bottom:1px solid rgba(139,92,246,0.2); }
+    .insight-item:last-child { border-bottom:none; }
+    .insight-item .icon { font-size:1rem; }
+    .insight-item .title { font-size:0.78rem; font-weight:600; margin-bottom:0.15rem; }
+    .insight-item .desc { font-size:0.68rem; color:var(--text-muted); line-height:1.4; }
+
+    /* ─── RECENT QUESTIONS ─── */
+    .questions-list { max-height:380px; overflow-y:auto; }
+    .q-item { padding:0.6rem; border-bottom:1px solid var(--border); }
+    .q-item:last-child { border-bottom:none; }
+    .q-item .q-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem; flex-wrap:wrap; gap:0.35rem; }
+    .q-item .q-time { color:var(--text-muted); font-size:0.62rem; }
+    .q-badges { display:flex; gap:0.35rem; }
+    .badge { padding:0.1rem 0.3rem; border-radius:4px; font-size:0.55rem; font-weight:600; }
+    .badge.light { background:var(--accent-dim); color:var(--accent); }
+    .badge.moderate { background:var(--yellow-dim); color:var(--yellow); }
+    .badge.heavy { background:rgba(249,115,22,0.15); color:var(--orange); }
+    .badge.severe { background:var(--red-dim); color:var(--red); }
+    .q-item .q-summary { font-size:0.73rem; line-height:1.4; }
+    .q-item .q-rt { color:var(--text-muted); font-size:0.58rem; margin-top:0.2rem; }
+
+    /* ─── INFO BOX ─── */
+    .info-box { background:var(--blue-dim); border:1px solid var(--blue); border-radius:8px; padding:0.5rem 0.9rem; margin-bottom:1rem; font-size:0.73rem; color:var(--blue); }
+
+    /* ─── USERS TAB ─── */
+    .user-search { width:100%; padding:0.6rem 0.9rem; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:0.85rem; margin-bottom:1rem; }
+    .user-search:focus { outline:none; border-color:var(--accent); }
+    .user-table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:0.78rem; }
+    thead { position:sticky; top:0; background:var(--bg-card); }
+    th { padding:0.5rem 0.75rem; text-align:left; color:var(--text-muted); font-size:0.65rem; text-transform:uppercase; letter-spacing:0.4px; border-bottom:1px solid var(--border); white-space:nowrap; }
+    td { padding:0.5rem 0.75rem; border-bottom:1px solid rgba(51,65,85,0.5); vertical-align:middle; }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:rgba(255,255,255,0.02); }
+    .country-bar-wrap { display:flex; flex-direction:column; gap:0.3rem; }
+    .country-row { display:flex; align-items:center; gap:0.5rem; }
+    .country-row .name { width:120px; font-size:0.7rem; color:var(--text-muted); flex-shrink:0; }
+    .country-row .bc { flex:1; height:16px; background:var(--bg); border-radius:3px; overflow:hidden; }
+    .country-row .bf { height:100%; background:var(--purple); border-radius:3px; display:flex; align-items:center; padding-left:0.35rem; font-size:0.58rem; font-weight:600; }
+    .pill { display:inline-block; padding:0.1rem 0.45rem; border-radius:10px; font-size:0.62rem; font-weight:600; }
+    .pill.ls { background:rgba(16,185,129,0.15); color:var(--accent); }
+    .pill.sa { background:rgba(59,130,246,0.15); color:var(--blue); }
+    .pill.other { background:rgba(139,92,246,0.15); color:var(--purple); }
+    .dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
+    .dot.green { background:var(--accent); }
+    .dot.gray { background:var(--border); }
+    .email-dot { font-size:0.7rem; }
+
+    /* ─── SYSTEM TAB ─── */
+    .system-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin-bottom:1rem; }
+    .cam-status { display:flex; align-items:center; gap:0.75rem; padding:0.75rem; background:var(--bg); border-radius:8px; margin-bottom:0.75rem; }
+    .cam-status .dot-lg { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+    .cam-status .dot-lg.green { background:var(--accent); box-shadow:0 0 6px var(--accent); }
+    .cam-status .dot-lg.red { background:var(--red); box-shadow:0 0 6px var(--red); }
+    .cam-status .dot-lg.yellow { background:var(--yellow); box-shadow:0 0 6px var(--yellow); }
+    .cam-status .txt { font-size:0.8rem; font-weight:600; }
+    .cam-status .sub { font-size:0.65rem; color:var(--text-muted); margin-top:0.1rem; }
+    .angle-history { display:flex; flex-wrap:wrap; gap:4px; }
+    .angle-chip { padding:0.15rem 0.45rem; border-radius:4px; font-size:0.6rem; font-weight:600; }
+    .angle-chip.bridge { background:rgba(16,185,129,0.15); color:var(--accent); }
+    .angle-chip.processing { background:rgba(59,130,246,0.15); color:var(--blue); }
+    .angle-chip.wide { background:rgba(245,158,11,0.15); color:var(--yellow); }
+    .angle-chip.unknown { background:var(--bg); color:var(--text-muted); }
+    .frame-list { display:flex; flex-direction:column; gap:0.3rem; }
+    .frame-row { display:flex; justify-content:space-between; align-items:center; padding:0.3rem 0.5rem; background:var(--bg); border-radius:5px; font-size:0.68rem; }
+    .frame-row .fa { font-size:0.6rem; color:var(--text-muted); }
+    .server-rows { display:flex; flex-direction:column; gap:0.35rem; }
+    .server-row { display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; padding:0.3rem 0; border-bottom:1px solid var(--border); }
+    .server-row:last-child { border-bottom:none; }
+    .server-row .key { color:var(--text-muted); font-size:0.68rem; }
+    .server-row .val { font-weight:600; }
+    .trend-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; }
+    .trend-item { background:var(--bg); padding:0.5rem 0.75rem; border-radius:6px; }
+    .trend-item .tk { font-size:0.6rem; color:var(--text-muted); margin-bottom:0.2rem; }
+    .trend-item .tv { font-size:0.85rem; font-weight:700; }
+    .tv.increasing { color:var(--red); }
+    .tv.decreasing { color:var(--accent); }
+    .tv.stable { color:var(--blue); }
+    .tv.unknown { color:var(--text-muted); }
+
+    /* ─── LOADING / EMPTY ─── */
+    .loading { text-align:center; padding:3rem; color:var(--text-muted); }
+    .spinner { display:inline-block; width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
+    .empty-msg { text-align:center; padding:2rem; color:var(--text-muted); font-size:0.8rem; }
+
+    @media (max-width:480px) {
+      .charts-grid { grid-template-columns:1fr; }
+      .tabs { overflow-x:auto; }
     }
   </style>
 </head>
 <body>
-  <div class="login-screen" id="loginScreen">
-    <div class="login-box">
-      <h1>🔐 Admin Login</h1>
-      <p>4D Traffic Bot Dashboard</p>
-      <div class="login-error" id="loginError">Invalid password. Please try again.</div>
-      <input type="password" id="passwordInput" placeholder="Enter admin password" onkeypress="if(event.key==='Enter')login()">
-      <button onclick="login()">Login</button>
+
+<!-- LOGIN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <h1>🔐 Admin Login</h1>
+    <p>Maseru Bridge Traffic Bot</p>
+    <div class="login-error" id="loginError">Invalid password. Please try again.</div>
+    <input type="password" id="passwordInput" placeholder="Admin password" onkeypress="if(event.key==='Enter')login()">
+    <button onclick="login()">Sign in</button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dashboard" id="dashboard">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1>🌉 Traffic Bot Admin</h1>
+      <div class="subtitle">traffic.4dcs.co.za — Maseru Bridge</div>
+    </div>
+    <div class="header-right">
+      <div class="last-updated" id="lastUpdated">Loading…</div>
+      <select class="period-select" id="periodSelect" onchange="loadOverview()">
+        <option value="today">Today</option>
+        <option value="week">This Week</option>
+        <option value="month">This Month</option>
+      </select>
+      <button class="btn" onclick="refreshAll()" id="refreshBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        Refresh
+      </button>
+      <button class="btn danger" onclick="logout()">Logout</button>
     </div>
   </div>
 
-  <div class="dashboard" id="dashboard">
-    <div class="dashboard-header">
-      <h1>📊 4D Traffic Bot Admin</h1>
-      <div class="header-controls">
-        <select class="period-select" id="periodSelect" onchange="loadStats()">
-          <option value="today">Today</option>
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-        </select>
-        <button class="refresh-btn" onclick="loadStats()" id="refreshBtn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M23 4v6h-6M1 20v-6h6"/>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-          </svg>
-          Refresh
-        </button>
-        <button class="logout-btn" onclick="logout()">Logout</button>
-      </div>
-    </div>
-    <div id="statsContent">
-      <div class="loading">
-        <div class="spinner"></div>
-        <p style="margin-top: 1rem;">Loading stats...</p>
-      </div>
-    </div>
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')" id="tab-overview">📊 Overview</div>
+    <div class="tab" onclick="switchTab('users')" id="tab-users">👥 Users <span class="tab-badge" id="usersCount">—</span></div>
+    <div class="tab" onclick="switchTab('system')" id="tab-system">⚙️ System</div>
   </div>
 
-  <script>
-    let adminToken = localStorage.getItem('adminToken');
-    if (adminToken) showDashboard();
+  <!-- Content -->
+  <div class="content">
 
-    async function login() {
-      const password = document.getElementById('passwordInput').value;
-      const errorEl = document.getElementById('loginError');
-      try {
-        const res = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password })
-        });
-        const data = await res.json();
-        if (data.success) {
-          adminToken = data.token;
-          localStorage.setItem('adminToken', adminToken);
-          errorEl.style.display = 'none';
-          showDashboard();
-        } else {
-          errorEl.style.display = 'block';
-        }
-      } catch (e) {
-        errorEl.textContent = 'Connection error. Please try again.';
-        errorEl.style.display = 'block';
+    <!-- ── OVERVIEW TAB ── -->
+    <div class="tab-panel active" id="panel-overview">
+      <div id="overviewContent">
+        <div class="loading"><div class="spinner"></div><p style="margin-top:1rem">Loading stats…</p></div>
+      </div>
+    </div>
+
+    <!-- ── USERS TAB ── -->
+    <div class="tab-panel" id="panel-users">
+      <div id="usersContent">
+        <div class="loading"><div class="spinner"></div><p style="margin-top:1rem">Loading users…</p></div>
+      </div>
+    </div>
+
+    <!-- ── SYSTEM TAB ── -->
+    <div class="tab-panel" id="panel-system">
+      <div id="systemContent">
+        <div class="loading"><div class="spinner"></div><p style="margin-top:1rem">Loading system info…</p></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let adminToken = localStorage.getItem('adminToken');
+  let lastRefreshTime = null;
+  let refreshCountdown = null;
+  const REFRESH_INTERVAL = 60000; // 60s auto-refresh
+  let activeTab = 'overview';
+
+  if (adminToken) showDashboard();
+
+  /* ─── AUTH ─── */
+  async function login() {
+    const pw = document.getElementById('passwordInput').value;
+    const errEl = document.getElementById('loginError');
+    try {
+      const res = await fetch('/api/admin/login', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ password: pw })
+      });
+      const data = await res.json();
+      if (data.success) {
+        adminToken = data.token;
+        localStorage.setItem('adminToken', adminToken);
+        errEl.style.display = 'none';
+        showDashboard();
+      } else {
+        errEl.style.display = 'block';
       }
+    } catch(e) {
+      errEl.textContent = 'Connection error. Please try again.';
+      errEl.style.display = 'block';
     }
+  }
 
-    function logout() {
-      fetch('/api/admin/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${adminToken}` } });
-      localStorage.removeItem('adminToken');
-      adminToken = null;
-      document.getElementById('loginScreen').style.display = 'flex';
-      document.getElementById('dashboard').style.display = 'none';
-    }
+  function logout() {
+    fetch('/api/admin/logout', { method:'POST', headers:{ Authorization:`Bearer ${adminToken}` } });
+    localStorage.removeItem('adminToken');
+    adminToken = null;
+    clearInterval(refreshCountdown);
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('dashboard').style.display = 'none';
+  }
 
-    function showDashboard() {
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('dashboard').style.display = 'block';
-      loadStats();
-    }
+  function showDashboard() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'flex';
+    refreshAll();
+    startCountdown();
+  }
 
-    async function loadStats() {
-      const refreshBtn = document.getElementById('refreshBtn');
-      refreshBtn.classList.add('loading');
-      const period = document.getElementById('periodSelect').value;
-      
-      try {
-        const [statsRes, questionsRes] = await Promise.all([
-          fetch(`/api/admin/stats?period=${period}`, { headers: { 'Authorization': `Bearer ${adminToken}` } }),
-          fetch(`/api/admin/questions?period=${period}&limit=30`, { headers: { 'Authorization': `Bearer ${adminToken}` } })
-        ]);
-        if (statsRes.status === 401) { logout(); return; }
-        const statsData = await statsRes.json();
-        const questionsData = await questionsRes.json();
-        if (statsData.success) renderStats(statsData.stats, questionsData.questions || [], statsData.period);
-      } catch (e) {
-        console.error('Failed to load stats:', e);
-      } finally {
-        refreshBtn.classList.remove('loading');
+  /* ─── TABS ─── */
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    document.getElementById(`panel-${tab}`).classList.add('active');
+    if (tab === 'users') loadUsers();
+    if (tab === 'system') loadSystem();
+  }
+
+  /* ─── REFRESH ─── */
+  function startCountdown() {
+    clearInterval(refreshCountdown);
+    let seconds = Math.round(REFRESH_INTERVAL / 1000);
+    refreshCountdown = setInterval(() => {
+      if (!adminToken) return;
+      seconds--;
+      updateLastUpdatedLabel();
+      if (seconds <= 0) {
+        if (document.visibilityState === 'visible') refreshAll();
+        seconds = Math.round(REFRESH_INTERVAL / 1000);
       }
+    }, 1000);
+  }
+
+  function updateLastUpdatedLabel() {
+    const el = document.getElementById('lastUpdated');
+    if (!lastRefreshTime) { el.textContent = 'Loading…'; return; }
+    const ago = Math.round((Date.now() - lastRefreshTime) / 1000);
+    const nextIn = Math.round(REFRESH_INTERVAL / 1000) - ago;
+    el.textContent = `Updated ${ago}s ago · next in ${Math.max(nextIn,0)}s`;
+    el.className = 'last-updated' + (ago > 90 ? ' stale' : '');
+  }
+
+  async function refreshAll() {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.add('loading');
+    await Promise.all([loadOverview(), loadUsers(), loadSystem()]);
+    lastRefreshTime = Date.now();
+    updateLastUpdatedLabel();
+    btn.classList.remove('loading');
+  }
+
+  /* ─── OVERVIEW ─── */
+  async function loadOverview() {
+    const period = document.getElementById('periodSelect').value;
+    try {
+      const [statsRes, qRes] = await Promise.all([
+        fetch(`/api/admin/stats?period=${period}`, { headers:{ Authorization:`Bearer ${adminToken}` } }),
+        fetch(`/api/admin/questions?period=${period}&limit=30`, { headers:{ Authorization:`Bearer ${adminToken}` } })
+      ]);
+      if (statsRes.status === 401) { logout(); return; }
+      const sd = await statsRes.json();
+      const qd = await qRes.json();
+      if (sd.success) renderOverview(sd.stats, qd.questions || [], period);
+    } catch(e) {
+      console.error('Overview load error:', e);
     }
+  }
 
-    function renderStats(stats, questions, period) {
-      const content = document.getElementById('statsContent');
-      const uptime = stats.server.uptime;
-      const hours = Math.floor(uptime / 3600);
-      const mins = Math.floor((uptime % 3600) / 60);
-      const uptimeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-      const periodLabels = { today: 'Today', week: 'This Week', month: 'This Month' };
-      const periodLabel = periodLabels[period] || 'Today';
-      const suggestions = generateSuggestions(stats);
+  function renderOverview(stats, questions, period) {
+    const uptime = stats.server.uptime;
+    const h = Math.floor(uptime/3600), m = Math.floor((uptime%3600)/60);
+    const uptimeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    const pl = { today:'Today', week:'This Week', month:'This Month' }[period] || 'Today';
+    const suggestions = buildSuggestions(stats);
 
-      content.innerHTML = `
-        <div class="info-box">ℹ️ Showing data for: <strong>${periodLabel}</strong> (${stats.questions.selectedPeriod} questions)</div>
-        
-        <div class="stats-grid">
-          <div class="stat-card highlight">
-            <div class="label">${periodLabel}</div>
-            <div class="value">${stats.questions.selectedPeriod}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">Today</div>
-            <div class="value">${stats.questions.today}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">This Week</div>
-            <div class="value">${stats.questions.thisWeek}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">This Month</div>
-            <div class="value">${stats.questions.thisMonth}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">All Time</div>
-            <div class="value">${stats.questions.total}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">Avg Response</div>
-            <div class="value">${stats.avgResponseTimeMs > 0 ? (stats.avgResponseTimeMs / 1000).toFixed(1) + 's' : 'N/A'}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">Uptime</div>
-            <div class="value">${uptimeStr}</div>
-            <div class="subtext">${stats.server.bufferSize} frames</div>
+    document.getElementById('overviewContent').innerHTML = `
+      <div class="info-box">Showing data for: <strong>${pl}</strong> — ${stats.questions.selectedPeriod} traffic checks</div>
+
+      <div class="stats-grid">
+        <div class="stat-card highlight">
+          <div class="label">${pl}</div>
+          <div class="value">${stats.questions.selectedPeriod}</div>
+        </div>
+        <div class="stat-card"><div class="label">Today</div><div class="value">${stats.questions.today}</div></div>
+        <div class="stat-card"><div class="label">This Week</div><div class="value">${stats.questions.thisWeek}</div></div>
+        <div class="stat-card"><div class="label">This Month</div><div class="value">${stats.questions.thisMonth}</div></div>
+        <div class="stat-card"><div class="label">All Time</div><div class="value">${stats.questions.total}</div></div>
+        <div class="stat-card">
+          <div class="label">Avg Response</div>
+          <div class="value">${stats.avgResponseTimeMs > 0 ? (stats.avgResponseTimeMs/1000).toFixed(1)+'s' : 'N/A'}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Uptime</div>
+          <div class="value">${uptimeStr}</div>
+          <div class="sub">${stats.server.bufferSize} frames buffered</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🚦 Traffic Status Distribution — <span>${pl}</span></h3>
+        <div class="status-distribution">${renderStatusDist(stats.statusDistribution)}</div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="card"><h3>📈 Activity by Hour</h3>${renderHourly(stats.hourlyDistribution)}</div>
+        <div class="card"><h3>📅 Daily Trend (Last 7 Days)</h3>${renderDaily(stats.dailyDistribution)}</div>
+      </div>
+
+      <div class="card">
+        <h3>💾 Response Cache</h3>
+        <div class="cache-grid">${renderCache(stats.cache)}</div>
+      </div>
+
+      ${suggestions.length ? `
+      <div class="insights">
+        <h3>💡 Insights & Suggestions</h3>
+        ${suggestions.map(s=>`<div class="insight-item"><div class="icon">${s.icon}</div><div><div class="title">${s.title}</div><div class="desc">${s.desc}</div></div></div>`).join('')}
+      </div>` : ''}
+
+      <div class="card">
+        <h3>💬 User Feedback — <span>${stats.feedback.total} responses</span></h3>
+        <div class="feedback-grid">
+          <div class="feedback-list"><h4>👍 What Users Like</h4>${renderFeedback(stats.feedback.likes)}</div>
+          <div class="feedback-list imp"><h4>💡 Improvements Wanted</h4>${renderFeedback(stats.feedback.improvements)}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🕐 Recent Traffic Checks</h3>
+        <div class="questions-list">${renderQuestions(questions)}</div>
+      </div>
+    `;
+  }
+
+  function renderStatusDist(data) {
+    const statuses = ['LIGHT','MODERATE','HEAVY','SEVERE'];
+    const dir = (d, label, flag) => {
+      const total = Object.values(d).reduce((a,b)=>a+b,0) || 1;
+      return `<div class="direction-stats"><h4>${flag} ${label}</h4><div class="status-bars">
+        ${statuses.map(s=>{
+          const c = d[s]||0, p = Math.round((c/total)*100);
+          return `<div class="status-bar-row"><div class="lbl">${s}</div><div class="bar-bg"><div class="bar-fill ${s.toLowerCase()}" style="width:${Math.max(p, c>0?8:0)}%">${c>0?`${c} (${p}%)`:'—'}</div></div></div>`;
+        }).join('')}
+      </div></div>`;
+    };
+    return dir(data.lsToSa,'LS → SA','🇱🇸') + dir(data.saToLs,'SA → LS','🇿🇦');
+  }
+
+  function renderHourly(data) {
+    const max = Math.max(...Object.values(data), 1);
+    let bars='', labels='';
+    for (let h=0; h<24; h++) {
+      const c = data[h]||0, ht = (c/max)*100;
+      bars += `<div class="hour-bar" style="height:${Math.max(ht,3)}%"><div class="tip">${h}:00 — ${c}</div></div>`;
+      labels += h%4===0 ? `<span>${h}</span>` : '<span></span>';
+    }
+    return `<div class="hourly-chart">${bars}</div><div class="hour-labels">${labels}</div>`;
+  }
+
+  function renderDaily(data) {
+    const days = Object.keys(data).sort().slice(-7);
+    if (!days.length) return '<div class="empty-msg">No data yet</div>';
+    const max = Math.max(...Object.values(data),1);
+    return `<div class="daily-chart">${days.map(d=>{
+      const c=data[d], w=(c/max)*100;
+      const name = new Date(d).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      return `<div class="daily-row"><div class="day">${name}</div><div class="bc"><div class="bf" style="width:${Math.max(w,5)}%">${c}</div></div></div>`;
+    }).join('')}</div>`;
+  }
+
+  function renderCache(cache) {
+    const lbl = { status:'Status', good_time:'Good Time', queue:'Queue', ls_to_sa:'LS→SA', sa_to_ls:'SA→LS' };
+    return Object.entries(cache).map(([k,v])=>{
+      let cls, txt;
+      if (!v) { cls='empty'; txt='Empty'; }
+      else if (v.valid) { cls='active'; txt=`${v.ageSeconds}s ago`; }
+      else { cls='expired'; txt='Expired'; }
+      return `<div class="cache-item"><div class="name">${lbl[k]||k}</div><div class="status ${cls}">${txt}</div></div>`;
+    }).join('');
+  }
+
+  function renderFeedback(data) {
+    const lbl = { easy:'Easy to use', fast:'Fast updates', accurate:'Accurate info', design:'Clean design', whatsapp:'WhatsApp share', offline:'Works offline', faster:'Faster loading', waittime:'Wait time estimates', languages:'More languages', notifications:'Push notifications', predictions:'Best time predictions', queue:'Queue in mins' };
+    if (!Object.keys(data).length) return '<div class="empty-msg" style="padding:0.5rem">No feedback yet</div>';
+    return Object.entries(data).sort((a,b)=>b[1]-a[1]).map(([k,c])=>`<div class="feedback-item"><span>${lbl[k]||k}</span><span class="cnt">${c}</span></div>`).join('');
+  }
+
+  function renderQuestions(questions) {
+    if (!questions?.length) return '<div class="empty-msg">No traffic checks for this period</div>';
+    return questions.map(q=>{
+      const time = new Date(q.timestamp).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false});
+      const ls=q.ls_to_sa_status, sa=q.sa_to_ls_status;
+      const rt=q.response_time_ms ? `${(q.response_time_ms/1000).toFixed(1)}s` : '';
+      return `<div class="q-item">
+        <div class="q-header">
+          <span class="q-time">${time}</span>
+          <div class="q-badges">
+            ${ls?`<span class="badge ${ls.toLowerCase()}">LS→SA: ${ls}</span>`:''}
+            ${sa?`<span class="badge ${sa.toLowerCase()}">SA→LS: ${sa}</span>`:''}
           </div>
         </div>
+        <div class="q-summary">${q.traffic_summary||'—'}</div>
+        ${rt?`<div class="q-rt">⚡ ${rt}</div>`:''}
+      </div>`;
+    }).join('');
+  }
 
-        <div class="chart-card" style="margin-bottom: 1rem;">
-          <h3>🚦 Traffic Status Distribution (${periodLabel})</h3>
-          <div class="status-distribution">${renderStatusDistribution(stats.statusDistribution)}</div>
+  function buildSuggestions(stats) {
+    const s = [];
+    const peaks = Object.entries(stats.hourlyDistribution).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([h])=>`${h}:00`);
+    if (peaks.length) s.push({ icon:'⏰', title:'Peak Hours', desc:`Most checks at ${peaks.join(', ')} — great window for notifications or promotions.` });
+    const lsLight = stats.statusDistribution.lsToSa.LIGHT||0;
+    const lsTotal = Object.values(stats.statusDistribution.lsToSa).reduce((a,b)=>a+b,0);
+    if (lsTotal > 10) {
+      const pct = Math.round((lsLight/lsTotal)*100);
+      if (pct > 70) s.push({ icon:'🟢', title:'Mostly Light Traffic', desc:`${pct}% light traffic LS→SA. Users would benefit from "best time to cross" alerts.` });
+      else if (pct < 40) s.push({ icon:'🔴', title:'Heavy Border Period', desc:`Only ${pct}% light traffic. Consider surfacing wait time estimates.` });
+    }
+    const topImp = Object.entries(stats.feedback.improvements||{}).sort((a,b)=>b[1]-a[1])[0];
+    if (topImp) {
+      const lbl = { notifications:'Push Notifications', waittime:'Wait Time Estimates', languages:'More Languages', predictions:'Best Time Predictions' };
+      s.push({ icon:'📣', title:'Top User Request', desc:`${topImp[1]} users want "${lbl[topImp[0]]||topImp[0]}". Consider prioritizing.` });
+    }
+    if (stats.avgResponseTimeMs > 5000) s.push({ icon:'⚡', title:'Slow Responses', desc:`Avg ${(stats.avgResponseTimeMs/1000).toFixed(1)}s — review caching strategy.` });
+    return s;
+  }
+
+  /* ─── USERS ─── */
+  let allUsers = [];
+
+  async function loadUsers() {
+    try {
+      const res = await fetch('/api/admin/users', { headers:{ Authorization:`Bearer ${adminToken}` } });
+      if (res.status === 401) { logout(); return; }
+      const data = await res.json();
+      if (data.success) {
+        allUsers = data.users;
+        renderUsers(data.summary, data.users);
+        document.getElementById('usersCount').textContent = data.summary.total;
+      }
+    } catch(e) { console.error('Users load error:', e); }
+  }
+
+  function renderUsers(summary, users) {
+    const byCountry = Object.entries(summary.byCountry).sort((a,b)=>b[1]-a[1]);
+    const maxC = byCountry[0]?.[1] || 1;
+
+    document.getElementById('usersContent').innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card highlight"><div class="label">Total Users</div><div class="value">${summary.total}</div></div>
+        <div class="stat-card"><div class="label">New Today</div><div class="value">${summary.newToday}</div></div>
+        <div class="stat-card"><div class="label">New This Week</div><div class="value">${summary.newThisWeek}</div></div>
+        <div class="stat-card">
+          <div class="label">With Email</div>
+          <div class="value">${summary.withEmail}</div>
+          <div class="sub">${Math.round((summary.withEmail/Math.max(summary.total,1))*100)}% of users</div>
         </div>
+        <div class="stat-card">
+          <div class="label">No Email</div>
+          <div class="value">${summary.total - summary.withEmail}</div>
+          <div class="sub">WhatsApp reset only</div>
+        </div>
+      </div>
 
-        <div class="charts-grid">
-          <div class="chart-card">
-            <h3>📈 Activity by Hour</h3>
-            ${renderHourlyChart(stats.hourlyDistribution)}
+      <div class="charts-grid">
+        <div class="card">
+          <h3>🌍 Users by Country</h3>
+          <div class="country-bar-wrap">
+            ${byCountry.map(([c,n])=>`
+              <div class="country-row">
+                <div class="name">${c}</div>
+                <div class="bc"><div class="bf" style="width:${Math.round((n/maxC)*100)}%">${n}</div></div>
+              </div>`).join('') || '<div class="empty-msg">No data</div>'}
           </div>
-          <div class="chart-card">
-            <h3>📅 Daily Trend</h3>
-            ${renderDailyChart(stats.dailyDistribution)}
-          </div>
         </div>
-
-        <div class="chart-card" style="margin-bottom: 1rem;">
-          <h3>💾 Response Cache</h3>
-          <div class="cache-grid">${renderCacheStatus(stats.cache)}</div>
+        <div class="card">
+          <h3>📋 Registrations — Last 14 Days</h3>
+          ${renderRegChart(users)}
         </div>
+      </div>
 
-        ${suggestions.length > 0 ? `
-        <div class="suggestions-box">
-          <h3>💡 Insights & Suggestions</h3>
-          ${suggestions.map(s => `
-            <div class="suggestion-item">
-              <div class="icon">${s.icon}</div>
-              <div>
-                <div class="title">${s.title}</div>
-                <div class="desc">${s.desc}</div>
-              </div>
+      <div class="card">
+        <h3>👤 User List <span style="color:var(--text-muted);font-weight:400;font-size:0.7rem">(${users.length} total)</span></h3>
+        <input class="user-search" type="text" placeholder="Search by name or country…" oninput="filterUsers(this.value)">
+        <div class="user-table-wrap" id="userTableWrap">
+          ${buildUserTable(users)}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderRegChart(users) {
+    if (!users.length) return '<div class="empty-msg">No users yet</div>';
+    const byDay = {};
+    const now = new Date();
+    for (let i=13; i>=0; i--) {
+      const d = new Date(now); d.setDate(d.getDate()-i);
+      byDay[d.toISOString().split('T')[0]] = 0;
+    }
+    users.forEach(u => {
+      const d = u.createdAt?.split('T')[0];
+      if (d && byDay[d] !== undefined) byDay[d]++;
+    });
+    const days = Object.keys(byDay);
+    const max = Math.max(...Object.values(byDay), 1);
+    return `<div class="daily-chart">${days.map(d=>{
+      const c=byDay[d], w=(c/max)*100;
+      const name = new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      return `<div class="daily-row"><div class="day">${name}</div><div class="bc"><div class="bf" style="width:${Math.max(w,c>0?6:0)}%;background:var(--purple)">${c||''}</div></div></div>`;
+    }).join('')}</div>`;
+  }
+
+  function buildUserTable(users) {
+    if (!users.length) return '<div class="empty-msg">No users found</div>';
+    const rows = users.map(u => {
+      const regDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-ZA',{timeZone:'Africa/Johannesburg'}) : '—';
+      const lastSeen = u.lastSeen ? timeAgo(new Date(u.lastSeen)) : '<span style="color:var(--text-muted)">Never</span>';
+      const cc = u.countryCode === '+266' ? 'ls' : u.countryCode === '+27' ? 'sa' : 'other';
+      const ccLabel = u.countryCode === '+266' ? '🇱🇸 LS' : u.countryCode === '+27' ? '🇿🇦 SA' : u.countryCode || '—';
+      return `<tr>
+        <td>${u.name || '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td><span class="pill ${cc}">${ccLabel}</span></td>
+        <td>${u.country || '—'}</td>
+        <td>${u.hasEmail ? '<span class="email-dot" title="Has email">✅</span>' : '<span class="email-dot" title="No email — WhatsApp reset only">📵</span>'}</td>
+        <td>${regDate}</td>
+        <td>${lastSeen}</td>
+      </tr>`;
+    }).join('');
+    return `<table>
+      <thead><tr>
+        <th>Name</th><th>Code</th><th>Country</th><th>Email</th><th>Registered</th><th>Last Seen</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  function filterUsers(query) {
+    const q = query.toLowerCase();
+    const filtered = allUsers.filter(u =>
+      (u.name||'').toLowerCase().includes(q) ||
+      (u.country||'').toLowerCase().includes(q)
+    );
+    document.getElementById('userTableWrap').innerHTML = buildUserTable(filtered);
+  }
+
+  /* ─── SYSTEM ─── */
+  async function loadSystem() {
+    try {
+      const res = await fetch('/api/admin/system', { headers:{ Authorization:`Bearer ${adminToken}` } });
+      if (res.status === 401) { logout(); return; }
+      const data = await res.json();
+      if (data.success) renderSystem(data);
+    } catch(e) { console.error('System load error:', e); }
+  }
+
+  function renderSystem(d) {
+    const cam = d.camera;
+    const camDot = cam.status === 'operational' ? 'green' : cam.status === 'stuck_on_angle' ? 'yellow' : 'red';
+    const camLabel = cam.status === 'operational' ? 'Operational' : cam.status === 'stuck_on_angle' ? `Stuck on ${cam.stuckAngle}` : 'Down';
+
+    const lastCapture = cam.lastSuccessfulCapture
+      ? timeAgo(new Date(cam.lastSuccessfulCapture))
+      : 'Never';
+
+    const angleCounts = d.buffer.angleCounts;
+    const totalFrames = Object.values(angleCounts).reduce((a,b)=>a+b,0) || 1;
+    const angleNames = { bridge:'Bridge View', processing:'Processing Area', wide:'Wide / Engen' };
+
+    const uptime = d.server.uptime;
+    const h=Math.floor(uptime/3600), m=Math.floor((uptime%3600)/60), s=uptime%60;
+    const uptimeStr = h>0 ? `${h}h ${m}m` : m>0 ? `${m}m ${s}s` : `${s}s`;
+
+    const trends = d.trafficTrends;
+    const trendVal = (t) => `<span class="tv ${t}">${t}</span>`;
+    const capInterval = Math.round(d.capture.intervalMs/1000);
+
+    document.getElementById('systemContent').innerHTML = `
+      <div class="system-grid">
+
+        <!-- Camera Status -->
+        <div class="card">
+          <h3>📷 Camera Feed</h3>
+          <div class="cam-status">
+            <div class="dot-lg ${camDot}"></div>
+            <div>
+              <div class="txt">${camLabel}</div>
+              <div class="sub">Last capture: ${lastCapture} · ${cam.consecutiveFailures} consecutive failures</div>
             </div>
-          `).join('')}
-        </div>` : ''}
-
-        <div class="feedback-section">
-          <h3>💬 User Feedback (${stats.feedback.total} responses)</h3>
-          <div class="feedback-grid">
-            <div class="feedback-list">
-              <h4>👍 What Users Like</h4>
-              ${renderFeedbackItems(stats.feedback.likes)}
-            </div>
-            <div class="feedback-list improvements">
-              <h4>💡 Improvements Requested</h4>
-              ${renderFeedbackItems(stats.feedback.improvements)}
-            </div>
+          </div>
+          ${cam.message ? `<div class="info-box" style="margin-bottom:0">${cam.message}</div>` : ''}
+          <h3 style="margin-top:0.75rem">Recent Angle History</h3>
+          <div class="angle-history">
+            ${(d.angleHistory||[]).slice(-20).map(a=>`<div class="angle-chip ${a}">${a}</div>`).join('') || '<div style="color:var(--text-muted);font-size:0.7rem">No history yet</div>'}
           </div>
         </div>
 
-        <div class="recent-section">
-          <h3>🕐 Recent Questions</h3>
-          <div class="questions-list">${renderQuestions(questions)}</div>
-        </div>
-      `;
-    }
-
-    function renderStatusDistribution(data) {
-      const statuses = ['LIGHT', 'MODERATE', 'HEAVY', 'SEVERE'];
-      const renderDir = (d, label, flag) => {
-        const total = Object.values(d).reduce((a, b) => a + b, 0) || 1;
-        return `<div class="direction-stats"><h4>${flag} ${label}</h4><div class="status-bars">
-          ${statuses.map(s => {
-            const c = d[s] || 0;
-            const p = Math.round((c / total) * 100);
-            return `<div class="status-bar-row"><div class="label">${s}</div><div class="bar-bg"><div class="bar ${s.toLowerCase()}" style="width:${Math.max(p, c > 0 ? 8 : 0)}%">${c > 0 ? `${c} (${p}%)` : ''}</div></div></div>`;
-          }).join('')}
-        </div></div>`;
-      };
-      return renderDir(data.lsToSa, 'LS → SA', '🇱🇸') + renderDir(data.saToLs, 'SA → LS', '🇿🇦');
-    }
-
-    function renderHourlyChart(data) {
-      const max = Math.max(...Object.values(data), 1);
-      let bars = '', labels = '';
-      for (let h = 0; h < 24; h++) {
-        const c = data[h] || 0;
-        const ht = (c / max) * 100;
-        bars += `<div class="hour-bar" style="height:${Math.max(ht, 3)}%"><div class="tooltip">${h}:00 - ${c}</div></div>`;
-        labels += h % 4 === 0 ? `<span>${h}</span>` : '<span></span>';
-      }
-      return `<div class="hourly-chart">${bars}</div><div class="hour-labels">${labels}</div>`;
-    }
-
-    function renderDailyChart(data) {
-      const days = Object.keys(data).sort().slice(-7);
-      if (!days.length) return '<p style="color:var(--text-muted);font-size:0.75rem">No data yet</p>';
-      const max = Math.max(...Object.values(data), 1);
-      return `<div class="daily-chart">${days.map(d => {
-        const c = data[d], w = (c / max) * 100;
-        const name = new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        return `<div class="daily-row"><div class="day">${name}</div><div class="bar-container"><div class="bar" style="width:${Math.max(w, 5)}%">${c}</div></div></div>`;
-      }).join('')}</div>`;
-    }
-
-    function renderCacheStatus(cache) {
-      const labels = { status: 'Status', good_time: 'Good Time', queue: 'Queue', ls_to_sa: 'LS→SA', sa_to_ls: 'SA→LS' };
-      return Object.entries(cache).map(([k, v]) => {
-        let cls, txt;
-        if (!v) { cls = 'empty'; txt = 'Empty'; }
-        else if (v.valid) { cls = 'active'; txt = `${v.ageSeconds}s ago`; }
-        else { cls = 'expired'; txt = 'Expired'; }
-        return `<div class="cache-item"><div class="name">${labels[k] || k}</div><div class="status ${cls}">${txt}</div></div>`;
-      }).join('');
-    }
-
-    function renderFeedbackItems(data) {
-      const labels = { easy: 'Easy to use', fast: 'Fast updates', accurate: 'Accurate info', design: 'Clean design', whatsapp: 'WhatsApp sharing', offline: 'Works offline', faster: 'Faster loading', waittime: 'Wait time estimates', languages: 'More languages', notifications: 'Push notifications', predictions: 'Best time predictions', queue: 'Queue length in mins' };
-      if (!Object.keys(data).length) return '<p style="color:var(--text-muted);font-size:0.75rem">No feedback yet</p>';
-      return Object.entries(data).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<div class="feedback-item"><span>${labels[k] || k}</span><span class="count">${c}</span></div>`).join('');
-    }
-
-    function renderQuestions(questions) {
-      if (!questions?.length) return '<p style="color:var(--text-muted);font-size:0.75rem">No questions</p>';
-      return questions.map(q => {
-        const time = new Date(q.timestamp).toLocaleString();
-        const summary = q.traffic_summary || 'No summary';
-        const ls = q.ls_to_sa_status, sa = q.sa_to_ls_status;
-        const rt = q.response_time_ms ? `${(q.response_time_ms / 1000).toFixed(1)}s` : '';
-        return `<div class="question-item">
-          <div class="header">
-            <span class="time">${time}</span>
-            <div class="status-badges">
-              ${ls ? `<span class="badge ${ls.toLowerCase()}">LS→SA: ${ls}</span>` : ''}
-              ${sa ? `<span class="badge ${sa.toLowerCase()}">SA→LS: ${sa}</span>` : ''}
-            </div>
+        <!-- Frame Buffer -->
+        <div class="card">
+          <h3>🖼️ Frame Buffer — <span>${d.buffer.size} / ${d.buffer.max}</span></h3>
+          ${Object.entries(angleCounts).map(([angle, count])=>{
+            const pct = Math.round((count/totalFrames)*100);
+            return `<div class="country-row" style="margin-bottom:0.3rem">
+              <div class="name">${angleNames[angle]||angle}</div>
+              <div class="bc"><div class="bf" style="width:${pct}%;background:var(--blue)">${count} (${pct}%)</div></div>
+            </div>`;
+          }).join('') || '<div class="empty-msg">Buffer empty</div>'}
+          <h3 style="margin-top:0.85rem">Most Recent Frames</h3>
+          <div class="frame-list">
+            ${d.buffer.recentFrames.slice().reverse().map(f=>{
+              const t = new Date(f.timestamp).toLocaleTimeString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false});
+              return `<div class="frame-row"><span>${t} — <strong>${f.angleType}</strong></span><span class="fa">${f.sizeKB} KB</span></div>`;
+            }).join('') || '<div class="empty-msg" style="padding:0.5rem">No frames</div>'}
           </div>
-          <div class="summary">${summary}</div>
-          ${rt ? `<div class="response-time">Response: ${rt}</div>` : ''}
-        </div>`;
-      }).join('');
-    }
+        </div>
 
-    function generateSuggestions(stats) {
-      const suggestions = [];
-      const peaks = Object.entries(stats.hourlyDistribution).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([h]) => `${h}:00`);
-      if (peaks.length) suggestions.push({ icon: '⏰', title: 'Peak Hours', desc: `Most traffic checks at ${peaks.join(', ')}. Great times for promotions!` });
-      
-      const lsLight = stats.statusDistribution.lsToSa.LIGHT || 0;
-      const lsTotal = Object.values(stats.statusDistribution.lsToSa).reduce((a, b) => a + b, 0);
-      if (lsTotal > 10) {
-        const pct = Math.round((lsLight / lsTotal) * 100);
-        if (pct > 70) suggestions.push({ icon: '🟢', title: 'Mostly Light Traffic', desc: `${pct}% light traffic LS→SA. Users benefit from knowing best crossing times.` });
-        else if (pct < 40) suggestions.push({ icon: '🔴', title: 'Busy Border', desc: `Only ${pct}% light traffic. Consider adding wait time estimates.` });
-      }
-      
-      const topImp = Object.entries(stats.feedback.improvements || {}).sort((a, b) => b[1] - a[1])[0];
-      if (topImp) {
-        const labels = { notifications: 'Push Notifications', waittime: 'Wait Time Estimates', languages: 'More Languages', predictions: 'Best Time Predictions' };
-        suggestions.push({ icon: '📣', title: 'Top Request', desc: `${topImp[1]} users want "${labels[topImp[0]] || topImp[0]}". Consider prioritizing!` });
-      }
-      
-      if (stats.avgResponseTimeMs > 5000) suggestions.push({ icon: '⚡', title: 'Slow Responses', desc: `Avg ${(stats.avgResponseTimeMs / 1000).toFixed(1)}s response. Consider more caching.` });
-      
-      return suggestions;
-    }
+        <!-- Traffic Trends -->
+        <div class="card">
+          <h3>📈 Live Traffic Trends</h3>
+          <div class="trend-grid">
+            <div class="trend-item"><div class="tk">LS → SA</div><div>${trendVal(trends.lsToSa?.trend||'unknown')}</div></div>
+            <div class="trend-item"><div class="tk">SA → LS</div><div>${trendVal(trends.saToLs?.trend||'unknown')}</div></div>
+            <div class="trend-item"><div class="tk">Overall</div><div>${trendVal(trends.overall||'unknown')}</div></div>
+            <div class="trend-item"><div class="tk">Flow Speed</div><div class="tv">${trends.flowSpeed||'—'}</div></div>
+          </div>
+          <div class="info-box" style="margin-top:0.75rem;margin-bottom:0">
+            Confidence: <strong>${trends.confidence||'—'}</strong>
+            ${trends.timePeriod ? ` · Based on last ${trends.timePeriod} min` : ''}
+          </div>
+        </div>
 
-    setInterval(() => { if (adminToken && document.visibilityState === 'visible') loadStats(); }, 60000);
-  </script>
+        <!-- Server & Services -->
+        <div class="card">
+          <h3>🖥️ Server & Services</h3>
+          <div class="server-rows">
+            <div class="server-row"><span class="key">Uptime</span><span class="val">${uptimeStr}</span></div>
+            <div class="server-row"><span class="key">Gemini Model</span><span class="val">${d.server.geminiModel}</span></div>
+            <div class="server-row"><span class="key">Supabase</span><span class="val" style="color:${d.server.supabaseConnected?'var(--accent)':'var(--red)'}">${d.server.supabaseConnected?'Connected':'Disconnected'}</span></div>
+            <div class="server-row"><span class="key">Capture Interval</span><span class="val">${capInterval}s</span></div>
+            <div class="server-row"><span class="key">Capturing Now</span><span class="val">${d.capture.isCapturing?'🔄 Yes':'⏸ No'}</span></div>
+            <div class="server-row"><span class="key">Classifying Now</span><span class="val">${d.capture.isClassifying?'🔍 Yes':'⏸ No'}</span></div>
+            <div class="server-row"><span class="key">YOLO Detector</span><span class="val" style="font-size:0.65rem;word-break:break-all">${d.detector.url}</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Cache -->
+      <div class="card">
+        <h3>💾 Response Cache</h3>
+        <div class="cache-grid">${renderCacheSys(d.cache)}</div>
+      </div>
+    `;
+  }
+
+  function renderCacheSys(cache) {
+    const lbl = { status:'Status', good_time:'Good Time', queue:'Queue', ls_to_sa:'LS→SA', sa_to_ls:'SA→LS' };
+    return Object.entries(cache).map(([k,v])=>{
+      let cls, txt;
+      if (!v) { cls='empty'; txt='Empty'; }
+      else if (v.valid) { cls='active'; txt=`${v.ageSeconds}s · ${v.expiresIn}s left`; }
+      else { cls='expired'; txt='Expired'; }
+      return `<div class="cache-item"><div class="name">${lbl[k]||k}</div><div class="status ${cls}">${txt}</div></div>`;
+    }).join('');
+  }
+
+  /* ─── UTILS ─── */
+  function timeAgo(date) {
+    const diff = Math.round((Date.now() - date) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.round(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.round(diff/3600)}h ago`;
+    return `${Math.round(diff/86400)}d ago`;
+  }
+
+  // Auto-refresh
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && adminToken) {
+      const ago = Date.now() - (lastRefreshTime||0);
+      if (ago > REFRESH_INTERVAL) refreshAll();
+    }
+  });
+</script>
 </body>
 </html>
