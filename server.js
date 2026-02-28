@@ -2744,6 +2744,112 @@ app.get('/api/admin/questions', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: User management
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  if (!supabase) return res.status(503).json({ success: false, message: 'Database not connected' });
+
+  try {
+    const now = new Date();
+    const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+    // All users (no phone_full in response — show only country/name/dates)
+    const { data: users, error } = await supabase
+      .from('traffic_users')
+      .select('id, name, country_code, country_residence, email, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Latest activity per user
+    const { data: activity } = await supabase
+      .from('user_activity')
+      .select('user_id, created_at')
+      .order('created_at', { ascending: false });
+
+    const lastSeenMap = {};
+    activity?.forEach(a => {
+      if (!lastSeenMap[a.user_id]) lastSeenMap[a.user_id] = a.created_at;
+    });
+
+    // Country breakdown
+    const byCountry = {};
+    users?.forEach(u => {
+      const c = u.country_residence || 'Unknown';
+      byCountry[c] = (byCountry[c] || 0) + 1;
+    });
+
+    res.json({
+      success: true,
+      summary: {
+        total: users?.length || 0,
+        newToday: users?.filter(u => u.created_at >= todayStart).length || 0,
+        newThisWeek: users?.filter(u => u.created_at >= weekAgo).length || 0,
+        withEmail: users?.filter(u => u.email).length || 0,
+        byCountry
+      },
+      users: users?.map(u => ({
+        id: u.id,
+        name: u.name || null,
+        country: u.country_residence,
+        countryCode: u.country_code,
+        hasEmail: !!u.email,
+        createdAt: u.created_at,
+        lastSeen: lastSeenMap[u.id] || null
+      })) || []
+    });
+
+  } catch (err) {
+    console.error('Admin users error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch users' });
+  }
+});
+
+// Admin: System health
+app.get('/api/admin/system', requireAdmin, (req, res) => {
+  const now = Date.now();
+
+  const angleCounts = screenshotBuffer.reduce((acc, f) => {
+    acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+    return acc;
+  }, {});
+
+  const cacheStatus = {};
+  for (const [category, cached] of Object.entries(responseCache)) {
+    if (cached) {
+      const age = Math.round((now - cached.timestamp) / 1000);
+      const isValid = age < (CACHE_TTL / 1000);
+      cacheStatus[category] = { ageSeconds: age, valid: isValid, expiresIn: isValid ? Math.round((CACHE_TTL / 1000) - age) : 0 };
+    } else {
+      cacheStatus[category] = null;
+    }
+  }
+
+  res.json({
+    success: true,
+    camera: getCameraStatusInfo(),
+    angleHistory: cameraStatus.angleHistory.slice(-20),
+    buffer: {
+      size: screenshotBuffer.length,
+      max: config.maxBufferSize,
+      angleCounts,
+      recentFrames: screenshotBuffer.slice(-8).map(f => ({
+        timestamp: new Date(f.timestamp).toISOString(),
+        angleType: f.angleType,
+        sizeKB: Math.round(f.screenshot.length / 1024)
+      }))
+    },
+    capture: { isCapturing, isClassifying, intervalMs: config.captureInterval },
+    detector: { url: config.detectorUrl },
+    server: {
+      uptime: Math.round(process.uptime()),
+      supabaseConnected: !!supabase,
+      geminiModel: GEMINI_MODEL
+    },
+    trafficTrends: trafficHistory.analyzeTrends()
+  });
+});
+
 app.get('/api/debug', (req, res) => {
   // Count frames by angle type
   const angleCounts = screenshotBuffer.reduce((acc, f) => {
