@@ -258,6 +258,34 @@
     .tv.slow, .tv.very_slow { color:var(--yellow); }
     .tv.normal { color:var(--blue); }
 
+    /* ── LIVE FRAMES ── */
+    .live-frames-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0.75rem; margin-bottom:1.25rem; }
+    @media(max-width:700px) { .live-frames-grid { grid-template-columns:1fr; } }
+    .live-frame-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; overflow:hidden; position:relative; }
+    .live-frame-card.fresh-frame { border-color:var(--accent); }
+    .live-frame-card.aging-frame { border-color:var(--yellow); }
+    .live-frame-card.stale-frame { border-color:var(--red); }
+    .live-frame-card.unavailable-frame { border-color:var(--border); opacity:0.6; }
+    .live-frame-img { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:var(--bg); }
+    .live-frame-img-placeholder { width:100%; aspect-ratio:16/9; background:var(--bg); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:0.5rem; color:var(--text-muted); font-size:0.75rem; }
+    .live-frame-img-placeholder .icon { font-size:2rem; opacity:0.4; }
+    .live-frame-meta { padding:0.6rem 0.75rem; }
+    .live-frame-meta .angle-name { font-size:0.78rem; font-weight:700; margin-bottom:0.2rem; display:flex; align-items:center; gap:0.4rem; }
+    .live-frame-meta .angle-name .dot-sm { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .live-frame-meta .angle-name .dot-sm.bridge { background:var(--accent); }
+    .live-frame-meta .angle-name .dot-sm.processing { background:var(--blue); }
+    .live-frame-meta .angle-name .dot-sm.wide { background:var(--yellow); }
+    .live-frame-meta .frame-time { font-size:0.65rem; color:var(--text-muted); }
+    .live-frame-meta .frame-age { font-size:0.62rem; font-weight:600; margin-top:0.15rem; }
+    .live-frame-meta .frame-age.fresh { color:var(--accent); }
+    .live-frame-meta .frame-age.aging { color:var(--yellow); }
+    .live-frame-meta .frame-age.stale { color:var(--red); }
+    .live-frame-badge { position:absolute; top:0.4rem; right:0.4rem; padding:0.15rem 0.45rem; border-radius:10px; font-size:0.6rem; font-weight:700; backdrop-filter:blur(4px); }
+    .live-frame-badge.fresh { background:rgba(16,185,129,0.85); color:white; }
+    .live-frame-badge.aging { background:rgba(245,158,11,0.85); color:white; }
+    .live-frame-badge.stale { background:rgba(239,68,68,0.85); color:white; }
+    .frames-loading { display:flex; align-items:center; justify-content:center; gap:0.5rem; padding:2rem; color:var(--text-muted); font-size:0.8rem; }
+
     /* ── LOADING ── */
     .loading { text-align:center; padding:3rem; color:var(--text-muted); }
     .spinner { display:inline-block; width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
@@ -434,7 +462,7 @@
     document.getElementById(`tab-${tab}`).classList.add('active');
     document.getElementById(`panel-${tab}`).classList.add('active');
     if (tab === 'users') loadUsers();
-    if (tab === 'camera') loadCamera();
+    if (tab === 'camera') { loadCamera(); }
     if (tab === 'system') loadSystem();
   }
 
@@ -734,15 +762,22 @@
 
   /* ─── CAMERA ─── */
   let lastCamData = null;
+  let lastFrameData = null;
+
   async function loadCamera() {
     try {
-      const res = await fetch('/api/admin/system', { headers:{ Authorization:`Bearer ${adminToken}` } });
-      if (res.status===401) { logout(); return; }
-      const data = await res.json();
-      if (data.success) {
-        lastCamData = data;
-        updateCameraBadge(data.camera);
-        if (activeTab === 'camera') renderCamera(data);
+      const [sysRes, framesRes] = await Promise.all([
+        fetch('/api/admin/system', { headers:{ Authorization:`Bearer ${adminToken}` } }),
+        fetch('/api/admin/frames',  { headers:{ Authorization:`Bearer ${adminToken}` } })
+      ]);
+      if (sysRes.status===401) { logout(); return; }
+      const sysData    = await sysRes.json();
+      const framesData = framesRes.ok ? await framesRes.json() : null;
+      if (sysData.success) {
+        lastCamData   = sysData;
+        lastFrameData = framesData?.success ? framesData.frames : null;
+        updateCameraBadge(sysData.camera);
+        if (activeTab === 'camera') renderCamera(sysData, lastFrameData);
       }
     } catch(e) { console.error('Camera error:', e); }
   }
@@ -758,7 +793,7 @@
     }
   }
 
-  function renderCamera(d) {
+  function renderCamera(d, frames) {
     const cam = d.camera;
     const angleHistory = d.angleHistory || [];
     const buffer = d.buffer;
@@ -797,6 +832,9 @@
     const timelineHtml = buildAngleTimeline(angleHistory);
 
     document.getElementById('cameraContent').innerHTML = `
+      <!-- Live Frame Images -->
+      ${buildLiveFrames(frames)}
+
       <!-- Status Banner -->
       <div class="cam-banner ${bannerClass}">
         <div class="cam-pulse ${pulseClass}"></div>
@@ -875,6 +913,73 @@
         📷 Auto-refreshes every 15 seconds. Last updated: <strong>${new Date().toLocaleTimeString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false})} SAST</strong>
       </div>
     `;
+  }
+
+  function buildLiveFrames(frames) {
+    if (!frames) {
+      return `<div class="card" style="margin-bottom:1.25rem">
+        <h3>📸 Live Camera Frames</h3>
+        <div class="frames-loading"><div class="spinner" style="width:20px;height:20px;border-width:2px"></div> Loading frames…</div>
+      </div>`;
+    }
+
+    const ANGLE_ORDER = ['bridge', 'processing', 'wide'];
+    const sorted = ANGLE_ORDER.map(a => frames.find(f => f.angle === a)).filter(Boolean);
+
+    const cards = sorted.map(f => {
+      if (!f.available) {
+        return `<div class="live-frame-card unavailable-frame">
+          <div class="live-frame-img-placeholder">
+            <div class="icon">📷</div>
+            <div>${f.label}</div>
+            <div style="font-size:0.65rem">No frame captured yet</div>
+          </div>
+          <div class="live-frame-meta">
+            <div class="angle-name"><div class="dot-sm ${f.angle}"></div>${f.label}</div>
+            <div class="frame-time">—</div>
+            <div class="frame-age stale">Not available</div>
+          </div>
+        </div>`;
+      }
+
+      const ageMin  = Math.round(f.ageSeconds / 60);
+      const ageSec  = f.ageSeconds;
+      const ageCls  = ageSec < 120 ? 'fresh' : ageSec < 300 ? 'aging' : 'stale';
+      const ageLabel = ageSec < 60 ? `${ageSec}s ago` : `${ageMin}m ago`;
+      const badgeTxt = ageSec < 120 ? 'LIVE' : ageSec < 300 ? `${ageMin}m old` : `${ageMin}m old`;
+      const cardCls  = ageCls + '-frame';
+
+      const captureTime = new Date(f.timestamp).toLocaleTimeString('en-ZA',{
+        timeZone:'Africa/Johannesburg', hour12:false
+      });
+
+      return `<div class="live-frame-card ${cardCls}">
+        <img class="live-frame-img"
+             src="data:image/jpeg;base64,${f.imageBase64}"
+             alt="${f.label}"
+             loading="lazy">
+        <div class="live-frame-badge ${ageCls}">${badgeTxt}</div>
+        <div class="live-frame-meta">
+          <div class="angle-name"><div class="dot-sm ${f.angle}"></div>${f.label}</div>
+          <div class="frame-time">Captured at ${captureTime} SAST</div>
+          <div class="frame-age ${ageCls}">Updated ${ageLabel}</div>
+        </div>
+      </div>`;
+    });
+
+    const allFresh = sorted.filter(f=>f.available).every(f=>f.ageSeconds<300);
+    const noneAvail = sorted.every(f=>!f.available);
+    const statusNote = noneAvail
+      ? `<div class="info-box danger" style="margin-top:0.75rem;margin-bottom:0">No frames available — camera may be offline or server just restarted</div>`
+      : allFresh
+        ? `<div class="info-box ok" style="margin-top:0.75rem;margin-bottom:0">✅ All frames fresh — refreshes every 15 seconds</div>`
+        : `<div class="info-box warn" style="margin-top:0.75rem;margin-bottom:0">⚠️ Some frames are aging — camera may be cycling slowly or stuck</div>`;
+
+    return `<div class="card" style="margin-bottom:1.25rem">
+      <h3>📸 Live Camera Frames <span style="font-weight:400;color:var(--text-muted)">— best preserved frame per angle</span></h3>
+      <div class="live-frames-grid">${cards.join('')}</div>
+      ${statusNote}
+    </div>`;
   }
 
   function buildAngleTimeline(history) {
