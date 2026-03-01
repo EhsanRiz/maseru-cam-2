@@ -2850,6 +2850,35 @@ app.get('/api/admin/system', requireAdmin, (req, res) => {
   });
 });
 
+// Admin: Live frame images (one per angle, base64-encoded)
+app.get('/api/admin/frames', requireAdmin, (req, res) => {
+  const ANGLE_LABELS = {
+    bridge: 'Bridge View',
+    processing: 'Processing Area',
+    wide: 'Wide / Engen'
+  };
+
+  const frames = Object.entries(preservedFrames).map(([angle, frame]) => {
+    if (!frame || !frame.screenshot) {
+      return { angle, label: ANGLE_LABELS[angle], available: false, timestamp: null, ageSeconds: null };
+    }
+    const ageSeconds = Math.round((Date.now() - new Date(frame.timestamp)) / 1000);
+    const base64 = Buffer.isBuffer(frame.screenshot)
+      ? frame.screenshot.toString('base64')
+      : frame.screenshot; // already base64 if restored from Supabase
+    return {
+      angle,
+      label: ANGLE_LABELS[angle],
+      available: true,
+      timestamp: new Date(frame.timestamp).toISOString(),
+      ageSeconds,
+      imageBase64: base64
+    };
+  });
+
+  res.json({ success: true, frames, servedAt: new Date().toISOString() });
+});
+
 app.get('/api/debug', (req, res) => {
   // Count frames by angle type
   const angleCounts = screenshotBuffer.reduce((acc, f) => {
