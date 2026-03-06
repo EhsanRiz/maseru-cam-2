@@ -355,6 +355,67 @@
       <div id="cameraContent">
         <div class="loading"><div class="spinner"></div><p style="margin-top:1rem">Loading camera info…</p></div>
       </div>
+
+      <!-- ── PERSISTENT TOOLS (not wiped by auto-refresh) ── -->
+
+      <!-- Debug Detection Overlay -->
+      <div class="card" style="margin-top:0" id="debugDetectorCard">
+        <h3>🔬 Debug Lane Detection</h3>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem">
+          Sends the current frame to the detector and shows lane polygons + vehicle assignments overlaid.
+          Use this to verify and calibrate <code style="background:var(--bg);padding:0.1rem 0.3rem;border-radius:4px">lane_config.json</code>.
+        </p>
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.85rem">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <label style="font-size:0.78rem;color:var(--text-muted)">View:</label>
+            <select id="debugView" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.35rem 0.6rem;font-size:0.78rem;cursor:pointer">
+              <option value="bridge" selected>Bridge</option>
+              <option value="canopy">Processing / Canopy</option>
+              <option value="engen">Wide / Engen</option>
+            </select>
+          </div>
+          <button id="debugDetectorBtn" onclick="debugDetector()"
+            style="background:var(--blue);color:white;border:none;border-radius:8px;padding:0.45rem 1.1rem;font-size:0.8rem;font-weight:600;cursor:pointer;transition:opacity 0.15s">
+            🔬 Run Debug
+          </button>
+          <div id="debugDetectorStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
+        </div>
+        <div id="debugDetectorResult" style="display:none">
+          <div id="debugCounts" style="font-size:0.75rem;margin-bottom:0.6rem;padding:0.5rem 0.75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)"></div>
+          <img id="debugAnnotatedImg" src="" alt="Debug overlay"
+            style="width:100%;border-radius:8px;border:1px solid var(--border);display:block" />
+          <div style="font-size:0.65rem;color:var(--text-muted);margin-top:0.4rem">
+            🟢 Green = SA→LS &nbsp;|&nbsp; 🔴 Red = LS→SA &nbsp;|&nbsp; 🟡 Yellow = Unassigned &nbsp;|&nbsp; 🟠 Orange = Parked
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual Video Capture -->
+      <div class="card" style="margin-top:0" id="videoCaptureCard">
+        <h3>🎬 Manual Video Capture</h3>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem">
+          Capture a live clip from the HLS stream and save to Cloudflare R2.
+          Useful for reviewing traffic conditions or verifying direction detection.
+        </p>
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <label style="font-size:0.78rem;color:var(--text-muted)">Duration:</label>
+            <select id="videoDuration" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.35rem 0.6rem;font-size:0.78rem;cursor:pointer">
+              <option value="5">5 seconds</option>
+              <option value="8" selected>8 seconds</option>
+              <option value="12">12 seconds</option>
+              <option value="15">15 seconds</option>
+            </select>
+          </div>
+          <button id="captureVideoBtn" onclick="captureVideoManual()"
+            style="background:var(--accent);color:white;border:none;border-radius:8px;padding:0.45rem 1.1rem;font-size:0.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem;transition:opacity 0.15s">
+            🎬 Capture Video
+          </button>
+          <div id="captureVideoStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
+        </div>
+        <div id="captureVideoResult" style="display:none;margin-top:0.85rem;padding:0.65rem 0.85rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)"></div>
+      </div>
+
     </div>
 
     <!-- SYSTEM -->
@@ -1026,64 +1087,6 @@
           </div>
         </div>
 
-      </div>
-
-      <!-- Debug Detection Overlay -->
-      <div class="card" style="margin-top:0">
-        <h3>🔬 Debug Lane Detection</h3>
-        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem">
-          Sends the current frame to the detector and shows lane polygons + vehicle assignments overlaid.
-          Use this to verify and calibrate <code style="background:var(--bg);padding:0.1rem 0.3rem;border-radius:4px">lane_config.json</code>.
-        </p>
-        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.85rem">
-          <div style="display:flex;align-items:center;gap:0.5rem">
-            <label style="font-size:0.78rem;color:var(--text-muted)">View:</label>
-            <select id="debugView" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.35rem 0.6rem;font-size:0.78rem;cursor:pointer">
-              <option value="bridge" selected>Bridge</option>
-              <option value="canopy">Processing / Canopy</option>
-              <option value="engen">Wide / Engen</option>
-            </select>
-          </div>
-          <button id="debugDetectorBtn" onclick="debugDetector()"
-            style="background:var(--blue);color:white;border:none;border-radius:8px;padding:0.45rem 1.1rem;font-size:0.8rem;font-weight:600;cursor:pointer;transition:opacity 0.15s">
-            🔬 Run Debug
-          </button>
-          <div id="debugDetectorStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
-        </div>
-        <div id="debugDetectorResult" style="display:none">
-          <div id="debugCounts" style="font-size:0.75rem;margin-bottom:0.6rem;padding:0.5rem 0.75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)"></div>
-          <img id="debugAnnotatedImg" src="" alt="Debug overlay"
-            style="width:100%;border-radius:8px;border:1px solid var(--border);display:block" />
-          <div style="font-size:0.65rem;color:var(--text-muted);margin-top:0.4rem">
-            🟢 Green = SA→LS &nbsp;|&nbsp; 🔴 Red = LS→SA &nbsp;|&nbsp; 🟡 Yellow = Unassigned &nbsp;|&nbsp; 🟠 Orange = Parked
-          </div>
-        </div>
-      </div>
-
-      <!-- Manual Video Capture -->
-      <div class="card" style="margin-top:0">
-        <h3>🎬 Manual Video Capture</h3>
-        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem">
-          Capture a live clip from the HLS stream and save to Cloudflare R2.
-          Useful for reviewing traffic conditions or verifying direction detection.
-        </p>
-        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:0.5rem">
-            <label style="font-size:0.78rem;color:var(--text-muted)">Duration:</label>
-            <select id="videoDuration" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.35rem 0.6rem;font-size:0.78rem;cursor:pointer">
-              <option value="5">5 seconds</option>
-              <option value="8" selected>8 seconds</option>
-              <option value="12">12 seconds</option>
-              <option value="15">15 seconds</option>
-            </select>
-          </div>
-          <button id="captureVideoBtn" onclick="captureVideoManual()"
-            style="background:var(--accent);color:white;border:none;border-radius:8px;padding:0.45rem 1.1rem;font-size:0.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem;transition:opacity 0.15s">
-            🎬 Capture Video
-          </button>
-          <div id="captureVideoStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
-        </div>
-        <div id="captureVideoResult" style="display:none;margin-top:0.85rem;padding:0.65rem 0.85rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)"></div>
       </div>
 
       <div class="info-box" style="margin-top:0">
