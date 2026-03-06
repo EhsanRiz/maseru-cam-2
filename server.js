@@ -489,7 +489,7 @@ async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
 // =============================================
 // Captures a short MP4 clip from the HLS stream and uploads to R2.
 // Triggered manually via /api/admin/capture-video, or automatically
-// when direction_uncertain fires (TODO: wire up automatic trigger once tested).
+// when direction_uncertain fires — now active after manual testing confirmed quality.
 
 async function captureVideo(durationSeconds = 8, label = 'manual') {
   if (isCapturingVideo) {
@@ -625,7 +625,7 @@ async function logVideoClip(url, trigger, timestamp, durationSeconds, fileSizeKB
 // Call this function from the analysis loop when direction_uncertain fires:
 //
 //   if (detectorCounts?.direction_uncertain) {
-//     captureVideo(8, 'direction_uncertain');  // non-blocking, no await
+//     captureVideo(8, 'direction_uncertain');  // ✅ Now wired up in main analysis loop
 //   }
 //
 // This is intentionally left as a comment until manual testing is complete.
@@ -1380,6 +1380,15 @@ async function analyzeTraffic(userQuestion = null) {
       }
     } else if (detectorCounts?.direction_uncertain) {
       console.log(`⚠️ Direction uncertain - too many unassigned vehicles`);
+      // Automatically capture a video clip to help review direction manually
+      // Runs non-blocking so it doesn't delay the analysis response
+      if (r2Client) {
+        captureVideo(8, 'direction_uncertain').then(result => {
+          if (result) {
+            console.log(`🎬 Auto video clip saved for direction review: ${result.url}`);
+          }
+        });
+      }
     }
 
     // =============================================
@@ -1996,6 +2005,43 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Streaming chat endpoint for faster perceived response
+// =============================================
+// SMART VIDEO TRIGGER FOR CHAT QUERIES
+// =============================================
+// Checks 3 conditions before triggering video capture on a chat query:
+//   1. Query is about live traffic (not FAQ or off-topic)
+//   2. Most recent frame is stale (>5 minutes old) OR direction_uncertain fired
+//   3. R2 is available and no video capture already in progress
+//
+// Returns the video URL if captured, or null if conditions not met.
+
+const LIVE_TRAFFIC_CATEGORIES = new Set(['status', 'ls_to_sa', 'sa_to_ls', 'good_time', 'queue']);
+const VIDEO_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
+async function shouldCaptureVideoForChat(questionCategory, latestFrameTimestamp, lastDetectorCounts) {
+  // Condition 1: Only for live traffic queries
+  if (!LIVE_TRAFFIC_CATEGORIES.has(questionCategory)) return false;
+
+  // Condition 2a: Frame is stale
+  const frameAge = Date.now() - latestFrameTimestamp;
+  const isStale = frameAge > VIDEO_STALE_THRESHOLD_MS;
+
+  // Condition 2b: Last analysis had direction uncertainty
+  const isUncertain = lastDetectorCounts?.direction_uncertain === true;
+
+  if (!isStale && !isUncertain) return false;
+
+  // Condition 3: R2 available and not already capturing
+  if (!r2Client || isCapturingVideo) return false;
+
+  const reason = isStale
+    ? `stale frame (${Math.round(frameAge / 60000)}m old)`
+    : 'direction was uncertain';
+
+  console.log(`🎬 Chat video trigger: ${reason} for "${questionCategory}" query`);
+  return true;
+}
+
 app.post('/api/chat/stream', async (req, res) => {
   try {
     const { message } = req.body;
@@ -2103,7 +2149,25 @@ app.post('/api/chat/stream', async (req, res) => {
     
     // Add to traffic history for time-series analysis
     trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
-    
+
+    // =============================================
+    // SMART VIDEO CAPTURE (chat queries)
+    // =============================================
+    // Trigger a video clip if: live traffic query + (stale frame OR direction uncertain)
+    // Runs non-blocking — doesn't delay the Gemini response
+    const chatVideoTrigger = await shouldCaptureVideoForChat(
+      questionCategory,
+      latestFrame.timestamp,
+      detectorCounts
+    );
+    if (chatVideoTrigger) {
+      captureVideo(8, 'chat_query').then(result => {
+        if (result) {
+          console.log(`🎬 Chat video clip saved: ${result.url}`);
+        }
+      });
+    }
+
     // Get trend analysis
     const trendSummary = trafficHistory.getTrendSummary();
     
