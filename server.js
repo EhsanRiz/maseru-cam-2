@@ -3179,7 +3179,10 @@ app.get('/api/admin/frames', requireAdmin, (req, res) => {
 //
 app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
   const view = req.query.view || 'bridge';
+  // preservedFrames uses: bridge | processing | wide
   const angleKey = view === 'bridge' ? 'bridge' : view === 'processing' ? 'processing' : 'wide';
+  // Python detector lane_config.json uses: bridge | canopy | engen
+  const detectorView = view === 'processing' ? 'canopy' : view === 'wide' ? 'engen' : 'bridge';
 
   const frame = preservedFrames[angleKey];
   if (!frame || !frame.screenshot) {
@@ -3194,7 +3197,7 @@ app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
     const debugRes = await fetch(`${config.detectorUrl}/debug`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: imageBase64, camera_view: view })
+      body: JSON.stringify({ image: imageBase64, camera_view: detectorView })
     });
 
     if (!debugRes.ok) {
