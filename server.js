@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +24,12 @@ const config = {
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
   detectorUrl: process.env.DETECTOR_URL || 'https://traffic-detector-jzbg.onrender.com',
+  // Cloudflare R2 Storage (replaces Supabase Storage for frames/videos)
+  r2AccountId: process.env.R2_ACCOUNT_ID,
+  r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
+  r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  r2BucketName: process.env.R2_BUCKET_NAME || 'maseru-traffic-frames',
+  r2PublicUrl: process.env.R2_PUBLIC_URL, // e.g. https://pub-xxx.r2.dev or custom domain
 };
 
 const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
@@ -35,6 +42,26 @@ if (config.supabaseUrl && config.supabaseServiceKey) {
   console.log('✅ Supabase client initialized');
 } else {
   console.log('⚠️ Supabase credentials not found - running without persistence');
+}
+
+// =============================================
+// CLOUDFLARE R2 STORAGE CLIENT (S3-compatible)
+// =============================================
+// Replaces Supabase Storage for frames and videos.
+// Zero egress fees — ideal for media served frequently.
+let r2Client = null;
+if (config.r2AccountId && config.r2AccessKeyId && config.r2SecretAccessKey) {
+  r2Client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${config.r2AccountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: config.r2AccessKeyId,
+      secretAccessKey: config.r2SecretAccessKey,
+    },
+  });
+  console.log('✅ Cloudflare R2 client initialized');
+} else {
+  console.log('⚠️ R2 credentials not found - frame persistence disabled');
 }
 
 // =============================================
@@ -422,39 +449,36 @@ const ANGLE_TYPES = {
 };
 
 // =============================================
-// SUPABASE HELPER FUNCTIONS
+// STORAGE HELPER FUNCTIONS (Cloudflare R2)
 // =============================================
+// Supabase is used for DATABASE only (readings, users, reports).
+// All media (frames, videos) is stored in Cloudflare R2 — zero egress fees.
 
-// Upload frame to Supabase Storage
+// Upload frame to Cloudflare R2
 async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
-  if (!supabase) return null;
-  
+  if (!r2Client) return null;
+
   try {
     const fileName = `${angleType}/${timestamp}.jpg`;
-    
-    console.log(`📤 Uploading ${angleType} frame to Supabase...`);
-    
-    const { data, error } = await supabase.storage
-      .from('frames')
-      .upload(fileName, imageBuffer, {
-        contentType: 'image/jpeg',
-        upsert: true
-      });
-    
-    if (error) {
-      console.error('❌ Storage upload error:', error.message);
-      return null;
-    }
-    
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('frames')
-      .getPublicUrl(fileName);
-    
-    console.log(`✅ Uploaded ${angleType} frame to Supabase: ${fileName}`);
-    return urlData?.publicUrl || fileName;
+
+    console.log(`📤 Uploading ${angleType} frame to R2...`);
+
+    await r2Client.send(new PutObjectCommand({
+      Bucket: config.r2BucketName,
+      Key: fileName,
+      Body: imageBuffer,
+      ContentType: 'image/jpeg',
+    }));
+
+    // Build public URL (R2 public bucket URL or custom domain)
+    const publicUrl = config.r2PublicUrl
+      ? `${config.r2PublicUrl}/${fileName}`
+      : `https://${config.r2AccountId}.r2.cloudflarestorage.com/${config.r2BucketName}/${fileName}`;
+
+    console.log(`✅ Uploaded ${angleType} frame to R2: ${fileName}`);
+    return publicUrl;
   } catch (err) {
-    console.error('❌ Storage upload failed:', err.message);
+    console.error('❌ R2 upload failed:', err.message);
     return null;
   }
 }
@@ -602,7 +626,7 @@ async function logTrafficReading(analysisResult, framesUsed, responseTimeMs) {
 
 // Load preserved frames from database on startup
 async function loadPreservedFramesFromDB() {
-  if (!supabase) return;
+  if (!supabase || !r2Client) return; // Need DB for paths + R2 for frame data
   
   try {
     const { data, error } = await supabase
@@ -624,19 +648,27 @@ async function loadPreservedFramesFromDB() {
       if (!row.frame_path) continue;
       
       try {
-        // Download from storage
-        const { data: fileData, error: downloadError } = await supabase.storage
-          .from('frames')
-          .download(row.frame_path.replace(/^.*\/frames\//, ''));
-        
-        if (downloadError || !fileData) {
-          console.log(`⚠️ Could not download ${row.angle_type} frame`);
+        // Download from R2 (extract key from stored URL or use path directly)
+        const r2Key = row.frame_path.includes('r2.dev') || row.frame_path.includes('cloudflarestorage.com')
+          ? row.frame_path.split('/').slice(-2).join('/')  // e.g. "bridge/1234567890.jpg"
+          : row.frame_path.replace(/^\//, '');
+
+        const r2Response = await r2Client.send(new GetObjectCommand({
+          Bucket: config.r2BucketName,
+          Key: r2Key,
+        }));
+
+        if (!r2Response.Body) {
+          console.log(`⚠️ Could not download ${row.angle_type} frame from R2`);
           continue;
         }
-        
-        // Convert to buffer
-        const arrayBuffer = await fileData.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+
+        // Convert stream to buffer
+        const chunks = [];
+        for await (const chunk of r2Response.Body) {
+          chunks.push(chunk);
+        }
+        const buffer = Buffer.concat(chunks);
         
         // Restore to memory
         preservedFrames[row.angle_type] = {
