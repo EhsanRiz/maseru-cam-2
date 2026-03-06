@@ -1283,8 +1283,9 @@ Understanding the camera views and traffic flow:
      the car lanes. Don't count stationary trucks as traffic delays!
 
 📷 WIDE/ENGEN VIEW:
-   • Shows the approach road from Lesotho side
-   • If cars are queued here, SA→LS traffic is severely backed up
+   • Shows the approach road on the Lesotho side, near the exit checkpoint
+   • Vehicles here are LEAVING Lesotho heading to South Africa (LS→SA)
+   • If cars are queued here, LS→SA traffic is severely backed up
 
 ═══════════════════════════════════════════════════════════════
 CROSS-VIEW VALIDATION (use this to confirm traffic severity):
@@ -1297,7 +1298,7 @@ CROSS-VIEW VALIDATION (use this to confirm traffic severity):
 🔍 To confirm SA→LS traffic:
    1. Check bridge: vehicles on near side (by orange pillar)
    2. Check canopy: cars ENTERING/queuing in the canopy (1-2 rows)
-   3. Check wide/Engen: if backed up here, SA→LS is SEVERE
+   3. Check wide/Engen: if backed up here, LS→SA is SEVERE (Engen is on the LS exit side)
    4. If bridge AND canopy show SA→LS queues → Confirmed congestion
 
 ═══════════════════════════════════════════════════════════════
@@ -2050,8 +2051,9 @@ Understanding the camera views and traffic flow:
      the car lanes. Don't count stationary trucks as traffic delays!
 
 📷 WIDE/ENGEN VIEW:
-   • Shows the approach road from Lesotho side
-   • If cars are queued here, SA→LS traffic is severely backed up
+   • Shows the approach road on the Lesotho side, near the exit checkpoint
+   • Vehicles here are LEAVING Lesotho heading to South Africa (LS→SA)
+   • If cars are queued here, LS→SA traffic is severely backed up
 
 ═══════════════════════════════════════════════════════════════
 CROSS-VIEW VALIDATION (use this to confirm traffic severity):
@@ -2064,7 +2066,7 @@ CROSS-VIEW VALIDATION (use this to confirm traffic severity):
 🔍 To confirm SA→LS traffic:
    1. Check bridge: vehicles on near side (by orange pillar)
    2. Check canopy: cars ENTERING/queuing in the canopy (1-2 rows)
-   3. Check wide/Engen: if backed up here, SA→LS is SEVERE
+   3. Check wide/Engen: if backed up here, LS→SA is SEVERE (Engen is on the LS exit side)
    4. If bridge AND canopy show SA→LS queues → Confirmed congestion
 
 ═══════════════════════════════════════════════════════════════
