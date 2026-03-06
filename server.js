@@ -3169,6 +3169,66 @@ app.get('/api/admin/frames', requireAdmin, (req, res) => {
 });
 
 // =============================================
+// CALIBRATE DETECTOR ENDPOINT (Admin only)
+// =============================================
+// Proxies polygon updates to the Python detector's /calibrate endpoint.
+// Updates take effect IMMEDIATELY in the running container — no rebuild needed.
+// Also uploads the full config to R2 so future deploys pick it up automatically.
+//
+// POST /api/admin/calibrate-detector
+// Body: { camera_view, lane_name, polygon }
+//
+app.post('/api/admin/calibrate-detector', requireAdmin, async (req, res) => {
+  const { camera_view, lane_name, polygon } = req.body;
+
+  if (!camera_view || !lane_name || !polygon) {
+    return res.status(400).json({ success: false, message: 'camera_view, lane_name, and polygon are required' });
+  }
+
+  try {
+    // 1. Push to live detector (immediate effect)
+    const calibRes = await fetch(`${config.detectorUrl}/calibrate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ camera_view, lane_name, polygon })
+    });
+
+    if (!calibRes.ok) {
+      const text = await calibRes.text();
+      return res.status(502).json({ success: false, message: `Detector returned ${calibRes.status}: ${text}` });
+    }
+
+    // 2. Fetch the full updated config from the detector
+    const configRes = await fetch(`${config.detectorUrl}/config`);
+    if (configRes.ok) {
+      const configData = await configRes.json();
+      const configJson = JSON.stringify(configData.config, null, 2);
+
+      // 3. Upload updated config to R2 for persistence across deploys
+      if (r2Client) {
+        try {
+          const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+          await r2Client.send(new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME || 'maseru-traffic-frames',
+            Key: 'config/lane_config.json',
+            Body: configJson,
+            ContentType: 'application/json'
+          }));
+          console.log('✅ lane_config.json synced to R2');
+        } catch (r2err) {
+          console.warn('⚠️ R2 sync failed (non-fatal):', r2err.message);
+        }
+      }
+    }
+
+    return res.json({ success: true, message: `Updated ${lane_name} in ${camera_view} — live immediately` });
+  } catch (err) {
+    console.error('❌ Calibrate detector error:', err.message);
+    return res.status(502).json({ success: false, message: `Could not reach detector: ${err.message}` });
+  }
+});
+
+// =============================================
 // DEBUG DETECTOR ENDPOINT (Admin only)
 // =============================================
 // Sends the current bridge (or any) frame to the Python detector's /debug
