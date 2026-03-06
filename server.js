@@ -253,6 +253,7 @@ let latestAnalysis = null;
 let lastAnalysisTime = 0;
 let isCapturing = false;
 let isClassifying = false;
+let isCapturingVideo = false; // Prevents concurrent video captures
 
 // =============================================
 // CAMERA STATUS TRACKING
@@ -482,6 +483,152 @@ async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
     return null;
   }
 }
+
+// =============================================
+// VIDEO CAPTURE & UPLOAD (Cloudflare R2)
+// =============================================
+// Captures a short MP4 clip from the HLS stream and uploads to R2.
+// Triggered manually via /api/admin/capture-video, or automatically
+// when direction_uncertain fires (TODO: wire up automatic trigger once tested).
+
+async function captureVideo(durationSeconds = 8, label = 'manual') {
+  if (isCapturingVideo) {
+    console.log('⏳ Video capture already in progress');
+    return null;
+  }
+
+  isCapturingVideo = true;
+  const timestamp = Date.now();
+  const outputPath = `/tmp/clip_${timestamp}.mp4`;
+
+  console.log(`🎬 Capturing ${durationSeconds}s video clip (trigger: ${label})...`);
+
+  return new Promise((resolve) => {
+    const ffmpeg = spawn('ffmpeg', [
+      '-y',
+      '-i', config.streamUrl,
+      '-t', String(durationSeconds),  // Duration in seconds
+      '-vf', 'scale=800:-1',          // Match frame resolution
+      '-c:v', 'libx264',              // H.264 encoding
+      '-preset', 'fast',              // Fast encoding, acceptable quality
+      '-crf', '28',                   // Quality (lower = better, 28 is good balance)
+      '-an',                          // No audio needed
+      '-movflags', '+faststart',      // Optimise for web streaming
+      outputPath
+    ], {
+      timeout: (durationSeconds + 30) * 1000  // Generous timeout
+    });
+
+    let stderr = '';
+    ffmpeg.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    ffmpeg.on('close', async (code) => {
+      isCapturingVideo = false;
+
+      if (code === 0 && fs.existsSync(outputPath)) {
+        try {
+          const videoBuffer = fs.readFileSync(outputPath);
+          const fileSizeKB = Math.round(videoBuffer.length / 1024);
+          console.log(`✅ Video clip captured (${fileSizeKB} KB)`);
+
+          // Upload to R2 under videos/label/timestamp.mp4
+          const r2Url = await uploadVideoToR2(videoBuffer, label, timestamp);
+
+          // Clean up temp file
+          fs.unlinkSync(outputPath);
+
+          if (r2Url) {
+            // Log to Supabase for tracking (non-blocking)
+            logVideoClip(r2Url, label, timestamp, durationSeconds, fileSizeKB);
+            resolve({ url: r2Url, timestamp, durationSeconds, fileSizeKB, label });
+          } else {
+            resolve(null);
+          }
+        } catch (err) {
+          console.error('❌ Failed to process video clip:', err.message);
+          isCapturingVideo = false;
+          resolve(null);
+        }
+      } else {
+        console.error(`❌ ffmpeg video capture failed with code ${code}`);
+        isCapturingVideo = false;
+        resolve(null);
+      }
+    });
+
+    ffmpeg.on('error', (err) => {
+      isCapturingVideo = false;
+      console.error('❌ ffmpeg video error:', err.message);
+      resolve(null);
+    });
+
+    // Hard timeout — kill if it takes too long
+    setTimeout(() => {
+      if (isCapturingVideo) {
+        ffmpeg.kill('SIGKILL');
+        isCapturingVideo = false;
+        console.error('❌ Video capture timed out');
+        resolve(null);
+      }
+    }, (durationSeconds + 35) * 1000);
+  });
+}
+
+// Upload video clip to Cloudflare R2
+async function uploadVideoToR2(videoBuffer, label, timestamp) {
+  if (!r2Client) return null;
+
+  try {
+    const key = `videos/${label}/${timestamp}.mp4`;
+
+    await r2Client.send(new PutObjectCommand({
+      Bucket: config.r2BucketName,
+      Key: key,
+      Body: videoBuffer,
+      ContentType: 'video/mp4',
+    }));
+
+    const publicUrl = config.r2PublicUrl
+      ? `${config.r2PublicUrl}/${key}`
+      : `https://${config.r2AccountId}.r2.cloudflarestorage.com/${config.r2BucketName}/${key}`;
+
+    console.log(`✅ Video uploaded to R2: ${key}`);
+    return publicUrl;
+  } catch (err) {
+    console.error('❌ R2 video upload failed:', err.message);
+    return null;
+  }
+}
+
+// Log video clip to Supabase for tracking
+async function logVideoClip(url, trigger, timestamp, durationSeconds, fileSizeKB) {
+  if (!supabase) return;
+  try {
+    await supabase.from('video_clips').insert({
+      url,
+      trigger,
+      captured_at: new Date(timestamp).toISOString(),
+      duration_seconds: durationSeconds,
+      file_size_kb: fileSizeKB
+    });
+    console.log(`📝 Video clip logged to Supabase`);
+  } catch (err) {
+    // Non-critical — don't crash if table doesn't exist yet
+    console.log(`⚠️ Could not log video clip to Supabase (table may not exist yet): ${err.message}`);
+  }
+}
+
+// =============================================
+// AUTOMATIC VIDEO TRIGGER (direction_uncertain)
+// =============================================
+// TODO: Wire this up once manual testing confirms video capture is working.
+// Call this function from the analysis loop when direction_uncertain fires:
+//
+//   if (detectorCounts?.direction_uncertain) {
+//     captureVideo(8, 'direction_uncertain');  // non-blocking, no await
+//   }
+//
+// This is intentionally left as a comment until manual testing is complete.
 
 // Log frame to history table (keeps 7 days of history)
 async function logFrameHistory(angleType, framePath, timestamp) {
@@ -2911,6 +3058,61 @@ app.get('/api/admin/frames', requireAdmin, (req, res) => {
   });
 
   res.json({ success: true, frames, servedAt: new Date().toISOString() });
+});
+
+// =============================================
+// MANUAL VIDEO CAPTURE ENDPOINT (Admin only)
+// =============================================
+// Trigger a video clip manually from the admin dashboard.
+// Used to test video capture before enabling automatic triggers.
+//
+// POST /api/admin/capture-video
+// Body: { duration: 8 }  (optional, default 8 seconds, max 15)
+//
+app.post('/api/admin/capture-video', requireAdmin, async (req, res) => {
+  if (!r2Client) {
+    return res.status(503).json({ success: false, error: 'R2 storage not configured' });
+  }
+
+  if (isCapturingVideo) {
+    return res.status(409).json({ success: false, error: 'Video capture already in progress' });
+  }
+
+  const duration = Math.min(parseInt(req.body?.duration) || 8, 15); // Cap at 15s
+
+  console.log(`🎬 Manual video capture triggered by admin (${duration}s)`);
+
+  // Respond immediately — capture runs async so admin doesn't time out
+  res.json({ success: true, message: `Capturing ${duration}s video clip... check R2 bucket in ~30 seconds.`, duration });
+
+  // Run capture non-blocking
+  captureVideo(duration, 'manual').then(result => {
+    if (result) {
+      console.log(`✅ Manual video clip ready: ${result.url}`);
+    } else {
+      console.error('❌ Manual video capture failed');
+    }
+  });
+});
+
+// GET version for quick browser testing
+app.get('/api/admin/capture-video', requireAdmin, async (req, res) => {
+  if (!r2Client) {
+    return res.status(503).json({ success: false, error: 'R2 storage not configured' });
+  }
+  if (isCapturingVideo) {
+    return res.status(409).json({ success: false, error: 'Video capture already in progress' });
+  }
+  const duration = Math.min(parseInt(req.query?.duration) || 8, 15);
+  console.log(`🎬 Manual video capture triggered via GET (${duration}s)`);
+  res.json({ success: true, message: `Capturing ${duration}s video clip... check R2 bucket in ~30 seconds.`, duration });
+  captureVideo(duration, 'manual').then(result => {
+    if (result) {
+      console.log(`✅ Manual video clip ready: ${result.url}`);
+    } else {
+      console.error('❌ Manual video capture failed');
+    }
+  });
 });
 
 app.get('/api/debug', (req, res) => {
