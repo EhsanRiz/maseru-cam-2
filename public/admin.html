@@ -764,6 +764,76 @@
   let lastCamData = null;
   let lastFrameData = null;
 
+  async function captureVideoManual() {
+    const btn    = document.getElementById('captureVideoBtn');
+    const status = document.getElementById('captureVideoStatus');
+    const result = document.getElementById('captureVideoResult');
+    const duration = document.getElementById('videoDuration')?.value || 8;
+
+    if (!btn) return;
+
+    // Disable button and show capturing state
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    btn.innerHTML = '⏳ Capturing…';
+    status.textContent = `Capturing ${duration}s clip — check back in ~${parseInt(duration)+25}s`;
+    status.style.color = 'var(--yellow)';
+    result.style.display = 'none';
+
+    try {
+      const res = await fetch(`/api/admin/capture-video?duration=${duration}`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        status.textContent = '✅ Capture triggered — processing in background…';
+        status.style.color = 'var(--accent)';
+
+        // Poll for completion every 3s for up to 45s
+        let attempts = 0;
+        const maxAttempts = 15;
+        const poll = setInterval(async () => {
+          attempts++;
+          // Check R2 videos via system endpoint isn't feasible,
+          // so just show the expected URL after enough time has passed
+          if (attempts >= Math.ceil((parseInt(duration) + 20) / 3)) {
+            clearInterval(poll);
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.innerHTML = '🎬 Capture Video';
+            status.textContent = 'Done — check R2 bucket for videos/manual/';
+            status.style.color = 'var(--text-muted)';
+            result.style.display = 'block';
+            result.innerHTML = `
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem">
+                📁 Saved to Cloudflare R2 under <code style="background:var(--bg-card);padding:0.1rem 0.3rem;border-radius:4px">videos/manual/</code>
+              </div>
+              <div style="font-size:0.72rem;color:var(--text-muted)">
+                View in your 
+                <a href="https://dash.cloudflare.com" target="_blank" style="color:var(--accent)">Cloudflare R2 dashboard</a>
+                → maseru-traffic-frames → videos/manual/
+              </div>`;
+          }
+        }, 3000);
+
+      } else {
+        status.textContent = `❌ ${data.message || 'Capture failed'}`;
+        status.style.color = 'var(--red)';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.innerHTML = '🎬 Capture Video';
+      }
+    } catch(e) {
+      status.textContent = '❌ Network error — check console';
+      status.style.color = 'var(--red)';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.innerHTML = '🎬 Capture Video';
+      console.error('captureVideoManual error:', e);
+    }
+  }
+
   async function loadCamera() {
     try {
       const [sysRes, framesRes] = await Promise.all([
@@ -907,6 +977,32 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Manual Video Capture -->
+      <div class="card" style="margin-top:0">
+        <h3>🎬 Manual Video Capture</h3>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem">
+          Capture a live clip from the HLS stream and save to Cloudflare R2.
+          Useful for reviewing traffic conditions or verifying direction detection.
+        </p>
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <label style="font-size:0.78rem;color:var(--text-muted)">Duration:</label>
+            <select id="videoDuration" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.35rem 0.6rem;font-size:0.78rem;cursor:pointer">
+              <option value="5">5 seconds</option>
+              <option value="8" selected>8 seconds</option>
+              <option value="12">12 seconds</option>
+              <option value="15">15 seconds</option>
+            </select>
+          </div>
+          <button id="captureVideoBtn" onclick="captureVideoManual()"
+            style="background:var(--accent);color:white;border:none;border-radius:8px;padding:0.45rem 1.1rem;font-size:0.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem;transition:opacity 0.15s">
+            🎬 Capture Video
+          </button>
+          <div id="captureVideoStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
+        </div>
+        <div id="captureVideoResult" style="display:none;margin-top:0.85rem;padding:0.65rem 0.85rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)"></div>
       </div>
 
       <div class="info-box" style="margin-top:0">
