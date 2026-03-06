@@ -4971,6 +4971,7 @@
 
     let isLoading = false;
     let welcomeShown = true;
+    let pendingUserMessage = ''; // Tracks user's message for server-side chat saving
     
     // Gallery state
     let frames = [];
@@ -4983,8 +4984,9 @@
     const CHAT_STORAGE_KEY = 'maseru_traffic_chat_history';
     const MAX_STORED_MESSAGES = 50; // Limit stored messages
     
-    // Save chat history to localStorage
+    // Save chat history to localStorage (guests only — logged-in users use server)
     function saveChatHistory() {
+      if (currentUser) return; // Server handles persistence for logged-in users
       try {
         const messages = [];
         const messageElements = chatMessages.querySelectorAll('.message');
@@ -5009,9 +5011,84 @@
         console.log('Could not save chat history:', e);
       }
     }
+
+    // Save a user+assistant pair to server (called after each exchange)
+    async function saveChatToServer(userMessage, assistantMessage) {
+      if (!currentUser?.access_token) return;
+      try {
+        await fetch('/api/chat/history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentUser.access_token}`
+          },
+          body: JSON.stringify({ userMessage, assistantMessage })
+        });
+      } catch (e) {
+        console.log('Could not save chat to server:', e);
+      }
+    }
+
+    // Load chat history from server (logged-in users)
+    async function loadChatHistoryFromServer() {
+      if (!currentUser?.access_token) return false;
+      try {
+        const res = await fetch('/api/chat/history', {
+          headers: { 'Authorization': `Bearer ${currentUser.access_token}` }
+        });
+        const data = await res.json();
+        if (!data.success || !data.messages || data.messages.length === 0) return false;
+
+        // Clear UI and localStorage for this user
+        chatMessages.querySelectorAll('.message').forEach(m => m.remove());
+        localStorage.removeItem(CHAT_STORAGE_KEY);
+
+        const welcome = document.querySelector('.welcome-message');
+        if (welcome) welcome.style.display = 'none';
+        welcomeShown = false;
+
+        data.messages.forEach(msg => {
+          const type = msg.role === 'user' ? 'user' : 'bot';
+          const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const messageDiv = document.createElement('div');
+          messageDiv.className = `message ${type}`;
+          const avatarHtml = type === 'bot'
+            ? '<svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>'
+            : '👤';
+          const contentHtml = type === 'bot'
+            ? msg.content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            : msg.content;
+          messageDiv.innerHTML = `
+            <div class="message-avatar">${avatarHtml}</div>
+            <div>
+              <div class="message-content">${contentHtml}</div>
+              <div class="message-time">${time}</div>
+            </div>
+          `;
+          chatMessages.appendChild(messageDiv);
+        });
+
+        requestAnimationFrame(() => {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          setTimeout(() => { chatMessages.scrollTop = chatMessages.scrollHeight; }, 100);
+        });
+
+        return true;
+      } catch (e) {
+        console.log('Could not load chat from server:', e);
+        return false;
+      }
+    }
     
-    // Load chat history from localStorage
-    function loadChatHistory() {
+    // Load chat history — server for logged-in users, localStorage for guests
+    async function loadChatHistory() {
+      // If logged in, prefer server history
+      if (currentUser?.access_token) {
+        const loaded = await loadChatHistoryFromServer();
+        if (loaded) return true;
+      }
+
+      // Fall back to localStorage
       try {
         const stored = localStorage.getItem(CHAT_STORAGE_KEY);
         if (!stored) return false;
@@ -5079,10 +5156,22 @@
       }
     }
     
-    // Clear chat history
-    function clearChatHistory() {
+    // Clear chat history — server + UI for logged-in, localStorage + UI for guests
+    async function clearChatHistory() {
       if (!confirm('Clear all chat history?')) return;
-      
+
+      // Clear from server if logged in
+      if (currentUser?.access_token) {
+        try {
+          await fetch('/api/chat/history', {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${currentUser.access_token}` }
+          });
+        } catch (e) {
+          console.log('Could not clear server history:', e);
+        }
+      }
+
       localStorage.removeItem(CHAT_STORAGE_KEY);
       
       // Remove all messages except welcome
@@ -5599,6 +5688,7 @@
           saveUser(data.user);
           showToast('Account created successfully! 🎉');
           document.getElementById('authModal').classList.remove('show');
+          loadChatHistoryFromServer(); // Start fresh server history for new user
           
           // Check if there's a pending action after signup
           if (pendingActionAfterLogin) {
@@ -5660,6 +5750,7 @@
           saveUser(data.user);
           showToast('Welcome back! 👋');
           document.getElementById('authModal').classList.remove('show');
+          loadChatHistoryFromServer(); // Load this user's chat history
           
           // Check if there's a pending action after login
           if (pendingActionAfterLogin) {
@@ -5802,6 +5893,12 @@
     // Handle logout
     function handleLogout() {
       clearUser();
+      // Clear chat UI — next user must not see previous user's messages
+      chatMessages.querySelectorAll('.message').forEach(m => m.remove());
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+      const welcome = document.querySelector('.welcome-message');
+      if (welcome) welcome.style.display = 'block';
+      welcomeShown = true;
       showToast('Logged out successfully');
       // Re-enforce auth - show LOGIN form (not signup) since they already have an account
       document.getElementById('authModal').classList.add('show');
@@ -7145,6 +7242,8 @@
       const message = chatInput.value.trim();
       if (!message || isLoading) return;
 
+      pendingUserMessage = message; // Store for server-side chat history saving
+
       if (welcomeShown) {
         const welcome = document.querySelector('.welcome-message');
         if (welcome) welcome.remove();
@@ -7464,6 +7563,11 @@
       
       // Save chat history AFTER message is finalized (no streaming cursor)
       saveChatHistory();
+      // Save to server for logged-in users
+      if (currentUser && pendingUserMessage && fullText) {
+        saveChatToServer(pendingUserMessage, fullText);
+        pendingUserMessage = '';
+      }
     }
     
     // Generate inline camera alert HTML for mobile
@@ -8696,5 +8800,3 @@ https://4dcs.co.za`;
       if (type === 'bot' && frameTime && !notificationPromptShown) {
         setTimeout(showNotificationPrompt, 1000);
       }
-      
-      
