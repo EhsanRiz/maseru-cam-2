@@ -7,7 +7,6 @@ import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,12 +23,6 @@ const config = {
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
   detectorUrl: process.env.DETECTOR_URL || 'https://traffic-detector-jzbg.onrender.com',
-  // Cloudflare R2 Storage (replaces Supabase Storage for frames/videos)
-  r2AccountId: process.env.R2_ACCOUNT_ID,
-  r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
-  r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-  r2BucketName: process.env.R2_BUCKET_NAME || 'maseru-traffic-frames',
-  r2PublicUrl: process.env.R2_PUBLIC_URL, // e.g. https://pub-xxx.r2.dev or custom domain
 };
 
 const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
@@ -42,26 +35,6 @@ if (config.supabaseUrl && config.supabaseServiceKey) {
   console.log('✅ Supabase client initialized');
 } else {
   console.log('⚠️ Supabase credentials not found - running without persistence');
-}
-
-// =============================================
-// CLOUDFLARE R2 STORAGE CLIENT (S3-compatible)
-// =============================================
-// Replaces Supabase Storage for frames and videos.
-// Zero egress fees — ideal for media served frequently.
-let r2Client = null;
-if (config.r2AccountId && config.r2AccessKeyId && config.r2SecretAccessKey) {
-  r2Client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${config.r2AccountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: config.r2AccessKeyId,
-      secretAccessKey: config.r2SecretAccessKey,
-    },
-  });
-  console.log('✅ Cloudflare R2 client initialized');
-} else {
-  console.log('⚠️ R2 credentials not found - frame persistence disabled');
 }
 
 // =============================================
@@ -253,7 +226,6 @@ let latestAnalysis = null;
 let lastAnalysisTime = 0;
 let isCapturing = false;
 let isClassifying = false;
-let isCapturingVideo = false; // Prevents concurrent video captures
 
 // =============================================
 // CAMERA STATUS TRACKING
@@ -406,23 +378,14 @@ function categorizeQuestion(question) {
 }
 
 // Check if cached response is still valid
-const MIN_VALID_RESPONSE_LENGTH = 120; // Anything shorter is likely truncated
-
 function getCachedResponse(category) {
   if (!category || !responseCache[category]) return null;
   
   const cached = responseCache[category];
   const age = Date.now() - cached.timestamp;
-
-  // Discard truncated responses — don't serve them to users
-  if (!cached.response || cached.response.length < MIN_VALID_RESPONSE_LENGTH) {
-    console.log(`🗑️ Cache DISCARDED for "${category}" — response too short (${cached.response?.length || 0} chars), likely truncated`);
-    delete responseCache[category];
-    return null;
-  }
   
   if (age < CACHE_TTL) {
-    console.log(`✅ Cache HIT for "${category}" (${Math.round(age/1000)}s old, ${cached.response.length} chars)`);
+    console.log(`✅ Cache HIT for "${category}" (${Math.round(age/1000)}s old)`);
     return cached;
   }
   
@@ -459,185 +422,42 @@ const ANGLE_TYPES = {
 };
 
 // =============================================
-// STORAGE HELPER FUNCTIONS (Cloudflare R2)
+// SUPABASE HELPER FUNCTIONS
 // =============================================
-// Supabase is used for DATABASE only (readings, users, reports).
-// All media (frames, videos) is stored in Cloudflare R2 — zero egress fees.
 
-// Upload frame to Cloudflare R2
+// Upload frame to Supabase Storage
 async function uploadFrameToStorage(imageBuffer, angleType, timestamp) {
-  if (!r2Client) return null;
-
+  if (!supabase) return null;
+  
   try {
     const fileName = `${angleType}/${timestamp}.jpg`;
-
-    console.log(`📤 Uploading ${angleType} frame to R2...`);
-
-    await r2Client.send(new PutObjectCommand({
-      Bucket: config.r2BucketName,
-      Key: fileName,
-      Body: imageBuffer,
-      ContentType: 'image/jpeg',
-    }));
-
-    // Build public URL (R2 public bucket URL or custom domain)
-    const publicUrl = config.r2PublicUrl
-      ? `${config.r2PublicUrl}/${fileName}`
-      : `https://${config.r2AccountId}.r2.cloudflarestorage.com/${config.r2BucketName}/${fileName}`;
-
-    console.log(`✅ Uploaded ${angleType} frame to R2: ${fileName}`);
-    return publicUrl;
+    
+    console.log(`📤 Uploading ${angleType} frame to Supabase...`);
+    
+    const { data, error } = await supabase.storage
+      .from('frames')
+      .upload(fileName, imageBuffer, {
+        contentType: 'image/jpeg',
+        upsert: true
+      });
+    
+    if (error) {
+      console.error('❌ Storage upload error:', error.message);
+      return null;
+    }
+    
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('frames')
+      .getPublicUrl(fileName);
+    
+    console.log(`✅ Uploaded ${angleType} frame to Supabase: ${fileName}`);
+    return urlData?.publicUrl || fileName;
   } catch (err) {
-    console.error('❌ R2 upload failed:', err.message);
+    console.error('❌ Storage upload failed:', err.message);
     return null;
   }
 }
-
-// =============================================
-// VIDEO CAPTURE & UPLOAD (Cloudflare R2)
-// =============================================
-// Captures a short MP4 clip from the HLS stream and uploads to R2.
-// Triggered manually via /api/admin/capture-video, or automatically
-// when direction_uncertain fires — now active after manual testing confirmed quality.
-
-async function captureVideo(durationSeconds = 8, label = 'manual') {
-  if (isCapturingVideo) {
-    console.log('⏳ Video capture already in progress');
-    return null;
-  }
-
-  isCapturingVideo = true;
-  const timestamp = Date.now();
-  const outputPath = `/tmp/clip_${timestamp}.mp4`;
-
-  console.log(`🎬 Capturing ${durationSeconds}s video clip (trigger: ${label})...`);
-
-  return new Promise((resolve) => {
-    const ffmpeg = spawn('ffmpeg', [
-      '-y',
-      '-i', config.streamUrl,
-      '-t', String(durationSeconds),  // Duration in seconds
-      '-vf', 'scale=800:-1',          // Match frame resolution
-      '-c:v', 'libx264',              // H.264 encoding
-      '-preset', 'fast',              // Fast encoding, acceptable quality
-      '-crf', '28',                   // Quality (lower = better, 28 is good balance)
-      '-an',                          // No audio needed
-      '-movflags', '+faststart',      // Optimise for web streaming
-      outputPath
-    ], {
-      timeout: (durationSeconds + 30) * 1000  // Generous timeout
-    });
-
-    let stderr = '';
-    ffmpeg.stderr.on('data', (data) => { stderr += data.toString(); });
-
-    ffmpeg.on('close', async (code) => {
-      isCapturingVideo = false;
-
-      if (code === 0 && fs.existsSync(outputPath)) {
-        try {
-          const videoBuffer = fs.readFileSync(outputPath);
-          const fileSizeKB = Math.round(videoBuffer.length / 1024);
-          console.log(`✅ Video clip captured (${fileSizeKB} KB)`);
-
-          // Upload to R2 under videos/label/timestamp.mp4
-          const r2Url = await uploadVideoToR2(videoBuffer, label, timestamp);
-
-          // Clean up temp file
-          fs.unlinkSync(outputPath);
-
-          if (r2Url) {
-            // Log to Supabase for tracking (non-blocking)
-            logVideoClip(r2Url, label, timestamp, durationSeconds, fileSizeKB);
-            resolve({ url: r2Url, timestamp, durationSeconds, fileSizeKB, label });
-          } else {
-            resolve(null);
-          }
-        } catch (err) {
-          console.error('❌ Failed to process video clip:', err.message);
-          isCapturingVideo = false;
-          resolve(null);
-        }
-      } else {
-        console.error(`❌ ffmpeg video capture failed with code ${code}`);
-        isCapturingVideo = false;
-        resolve(null);
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      isCapturingVideo = false;
-      console.error('❌ ffmpeg video error:', err.message);
-      resolve(null);
-    });
-
-    // Hard timeout — kill if it takes too long
-    setTimeout(() => {
-      if (isCapturingVideo) {
-        ffmpeg.kill('SIGKILL');
-        isCapturingVideo = false;
-        console.error('❌ Video capture timed out');
-        resolve(null);
-      }
-    }, (durationSeconds + 35) * 1000);
-  });
-}
-
-// Upload video clip to Cloudflare R2
-async function uploadVideoToR2(videoBuffer, label, timestamp) {
-  if (!r2Client) return null;
-
-  try {
-    const key = `videos/${label}/${timestamp}.mp4`;
-
-    await r2Client.send(new PutObjectCommand({
-      Bucket: config.r2BucketName,
-      Key: key,
-      Body: videoBuffer,
-      ContentType: 'video/mp4',
-    }));
-
-    const publicUrl = config.r2PublicUrl
-      ? `${config.r2PublicUrl}/${key}`
-      : `https://${config.r2AccountId}.r2.cloudflarestorage.com/${config.r2BucketName}/${key}`;
-
-    console.log(`✅ Video uploaded to R2: ${key}`);
-    return publicUrl;
-  } catch (err) {
-    console.error('❌ R2 video upload failed:', err.message);
-    return null;
-  }
-}
-
-// Log video clip to Supabase for tracking
-async function logVideoClip(url, trigger, timestamp, durationSeconds, fileSizeKB) {
-  if (!supabase) return;
-  try {
-    await supabase.from('video_clips').insert({
-      url,
-      trigger,
-      captured_at: new Date(timestamp).toISOString(),
-      duration_seconds: durationSeconds,
-      file_size_kb: fileSizeKB
-    });
-    console.log(`📝 Video clip logged to Supabase`);
-  } catch (err) {
-    // Non-critical — don't crash if table doesn't exist yet
-    console.log(`⚠️ Could not log video clip to Supabase (table may not exist yet): ${err.message}`);
-  }
-}
-
-// =============================================
-// AUTOMATIC VIDEO TRIGGER (direction_uncertain)
-// =============================================
-// TODO: Wire this up once manual testing confirms video capture is working.
-// Call this function from the analysis loop when direction_uncertain fires:
-//
-//   if (detectorCounts?.direction_uncertain) {
-//     captureVideo(8, 'direction_uncertain');  // ✅ Now wired up in main analysis loop
-//   }
-//
-// This is intentionally left as a comment until manual testing is complete.
 
 // Log frame to history table (keeps 7 days of history)
 async function logFrameHistory(angleType, framePath, timestamp) {
@@ -782,7 +602,7 @@ async function logTrafficReading(analysisResult, framesUsed, responseTimeMs) {
 
 // Load preserved frames from database on startup
 async function loadPreservedFramesFromDB() {
-  if (!supabase || !r2Client) return; // Need DB for paths + R2 for frame data
+  if (!supabase) return;
   
   try {
     const { data, error } = await supabase
@@ -804,27 +624,19 @@ async function loadPreservedFramesFromDB() {
       if (!row.frame_path) continue;
       
       try {
-        // Download from R2 (extract key from stored URL or use path directly)
-        const r2Key = row.frame_path.includes('r2.dev') || row.frame_path.includes('cloudflarestorage.com')
-          ? row.frame_path.split('/').slice(-2).join('/')  // e.g. "bridge/1234567890.jpg"
-          : row.frame_path.replace(/^\//, '');
-
-        const r2Response = await r2Client.send(new GetObjectCommand({
-          Bucket: config.r2BucketName,
-          Key: r2Key,
-        }));
-
-        if (!r2Response.Body) {
-          console.log(`⚠️ Could not download ${row.angle_type} frame from R2`);
+        // Download from storage
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('frames')
+          .download(row.frame_path.replace(/^.*\/frames\//, ''));
+        
+        if (downloadError || !fileData) {
+          console.log(`⚠️ Could not download ${row.angle_type} frame`);
           continue;
         }
-
-        // Convert stream to buffer
-        const chunks = [];
-        for await (const chunk of r2Response.Body) {
-          chunks.push(chunk);
-        }
-        const buffer = Buffer.concat(chunks);
+        
+        // Convert to buffer
+        const arrayBuffer = await fileData.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
         
         // Restore to memory
         preservedFrames[row.angle_type] = {
@@ -1292,37 +1104,51 @@ async function analyzeTraffic(userQuestion = null) {
     // STEP 1: Call YOLO detector for vehicle counts
     // =============================================
     // Direction is determined by GEOMETRY, not language inference
-    // All three detectors run in PARALLEL — they're fully independent
+    let detectorCounts = null;
+    let canopyDetectorCounts = null;
+    let wideDetectorCounts = null;
+    
+    // Find the bridge frame and call detector
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
-    const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
-    const wideFrame   = framesToUse.find(f => f.angleType === ANGLE_TYPES.WIDE);
-
-    console.log(`🔍 Looking for WIDE frame. Found: ${wideFrame ? 'YES' : 'NO'}, framesToUse angles: ${framesToUse.map(f => f.angleType).join(', ')}`);
-
-    const [detectorCounts, canopyDetectorCounts, wideDetectorCounts] = await Promise.all([
-      bridgeFrame
-        ? detectVehicles(bridgeFrame.screenshot.toString('base64'), 'bridge')
-        : Promise.resolve(null),
-      canopyFrame
-        ? detectVehicles(canopyFrame.screenshot.toString('base64'), 'canopy')
-        : Promise.resolve(null),
-      wideFrame
-        ? detectVehicles(wideFrame.screenshot.toString('base64'), 'engen')
-        : Promise.resolve(null),
-    ]);
-
-    if (canopyDetectorCounts) {
-      console.log(`🎯 Canopy Detector: SA→LS queue: ${canopyDetectorCounts.SA_to_LS || 0}, LS→SA area: ${canopyDetectorCounts.LS_to_SA || 0}`);
+    if (bridgeFrame) {
+      detectorCounts = await detectVehicles(
+        bridgeFrame.screenshot.toString('base64'),
+        'bridge'
+      );
     }
-
-    // Check Engen queue from wide frame result
+    
+    // Find the canopy/processing frame and call detector for SA→LS queue
+    const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
+    if (canopyFrame) {
+      canopyDetectorCounts = await detectVehicles(
+        canopyFrame.screenshot.toString('base64'),
+        'canopy'
+      );
+      if (canopyDetectorCounts) {
+        console.log(`🎯 Canopy Detector: SA→LS queue: ${canopyDetectorCounts.SA_to_LS || 0}, LS→SA area: ${canopyDetectorCounts.LS_to_SA || 0}`);
+      }
+    }
+    
+    // Find the wide/Engen frame and check for queue backup (informational only)
+    const wideFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.WIDE);
     let engenQueueDetected = false;
-    if (wideDetectorCounts) {
-      const engenVehicles = wideDetectorCounts.LS_to_SA || wideDetectorCounts.total || 0;
-      console.log(`🎯 Engen Detector: ${engenVehicles} vehicles in queue area`);
-      if (engenVehicles >= 2) {
-        engenQueueDetected = true;
-        console.log(`📍 Queue stretches past Engen (${engenVehicles} vehicles detected)`);
+    
+    console.log(`🔍 Looking for WIDE frame. Found: ${wideFrame ? 'YES' : 'NO'}, framesToUse angles: ${framesToUse.map(f => f.angleType).join(', ')}`);
+    
+    if (wideFrame) {
+      wideDetectorCounts = await detectVehicles(
+        wideFrame.screenshot.toString('base64'),
+        'engen'
+      );
+      if (wideDetectorCounts) {
+        const engenVehicles = wideDetectorCounts.LS_to_SA || wideDetectorCounts.total || 0;
+        console.log(`🎯 Engen Detector: ${engenVehicles} vehicles in queue area`);
+        
+        // If 2+ vehicles detected at Engen, queue has stretched past Engen
+        if (engenVehicles >= 2) {
+          engenQueueDetected = true;
+          console.log(`📍 Queue stretches past Engen (${engenVehicles} vehicles detected)`);
+        }
       }
     }
     
@@ -1358,52 +1184,23 @@ async function analyzeTraffic(userQuestion = null) {
     const combinedLsToSa = lsToSaCount + lsToSaCanopyCount;  // NEW: Include canopy right side
     
     if (detectorCounts && !detectorCounts.direction_uncertain) {
-      // ── CALIBRATED THRESHOLDS ──────────────────────────────────────────
-      // LIGHT:    0-7  vehicles  (5 vehicles is normal, not yet congested)
-      // MODERATE: 8-14 vehicles  (~10 vehicles = noticeable queue)
-      // HEAVY:    15+  vehicles  OR queue present in BOTH bridge AND canopy
-      //           (queue spreading across both zones = real congestion)
-      // SEVERE:   Engen/approach road backed up (set separately below)
-      // ──────────────────────────────────────────────────────────────────
-
-      // LS→SA status
-      const lsToSaBothZones = lsToSaCount > 2 && lsToSaCanopyCount > 4; // queue in both zones
-      if (combinedLsToSa >= 15 || lsToSaBothZones) lsToSaStatus = 'HEAVY';
-      else if (combinedLsToSa >= 8) lsToSaStatus = 'MODERATE';
-      else lsToSaStatus = 'LIGHT';
-
-      // SA→LS status
-      const saToLsBothZones = saToLsCount > 2 && saToLsCanopyCount > 4; // queue in both zones
-      if (combinedSaToLs >= 15 || saToLsBothZones) saToLsStatus = 'HEAVY';
-      else if (combinedSaToLs >= 8) saToLsStatus = 'MODERATE';
-      else saToLsStatus = 'LIGHT';
-
+      // Determine status levels using COMBINED counts
+      if (combinedLsToSa <= 3) lsToSaStatus = 'LIGHT';
+      else if (combinedLsToSa <= 8) lsToSaStatus = 'MODERATE';
+      else lsToSaStatus = 'HEAVY';
+      
+      // SA→LS uses COMBINED count (bridge + canopy)
+      if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
+      else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
+      else saToLsStatus = 'HEAVY';
+      
       console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (bridge: ${lsToSaCount}, canopy: ${lsToSaCanopyCount}, combined: ${combinedLsToSa}${engenQueueDetected ? ', queue at Engen!' : ''}), SA→LS: ${saToLsStatus} (bridge: ${saToLsCount}, canopy: ${saToLsCanopyCount}, combined: ${combinedSaToLs})`);
-
-      // 🎬 Video trigger: capture when HEAVY or SEVERE — queue is serious enough to warrant a clip
-      const isHeavyOrSevere = lsToSaStatus === 'HEAVY' || lsToSaStatus === 'SEVERE' ||
-                               saToLsStatus === 'HEAVY' || saToLsStatus === 'SEVERE';
-      if (isHeavyOrSevere && r2Client && !isCapturingVideo) {
-        console.log(`🎬 Heavy traffic detected — auto-capturing video clip`);
-        captureVideo(8, 'heavy_traffic').then(result => {
-          if (result) console.log(`🎬 Heavy traffic clip saved: ${result.url}`);
-        });
-      }
       
       if (trendSummary) {
         console.log(`📈 Trend: ${trendSummary}`);
       }
     } else if (detectorCounts?.direction_uncertain) {
       console.log(`⚠️ Direction uncertain - too many unassigned vehicles`);
-      // Automatically capture a video clip to help review direction manually
-      // Runs non-blocking so it doesn't delay the analysis response
-      if (r2Client) {
-        captureVideo(8, 'direction_uncertain').then(result => {
-          if (result) {
-            console.log(`🎬 Auto video clip saved for direction review: ${result.url}`);
-          }
-        });
-      }
     }
 
     // =============================================
@@ -1486,9 +1283,8 @@ Understanding the camera views and traffic flow:
      the car lanes. Don't count stationary trucks as traffic delays!
 
 📷 WIDE/ENGEN VIEW:
-   • Shows the approach road on the Lesotho side, near the exit checkpoint
-   • Vehicles here are LEAVING Lesotho heading to South Africa (LS→SA)
-   • If cars are queued here, LS→SA traffic is severely backed up
+   • Shows the approach road from Lesotho side
+   • If cars are queued here, SA→LS traffic is severely backed up
 
 ═══════════════════════════════════════════════════════════════
 CROSS-VIEW VALIDATION (use this to confirm traffic severity):
@@ -1501,7 +1297,7 @@ CROSS-VIEW VALIDATION (use this to confirm traffic severity):
 🔍 To confirm SA→LS traffic:
    1. Check bridge: vehicles on near side (by orange pillar)
    2. Check canopy: cars ENTERING/queuing in the canopy (1-2 rows)
-   3. Check wide/Engen: if backed up here, LS→SA is SEVERE (Engen is on the LS exit side)
+   3. Check wide/Engen: if backed up here, SA→LS is SEVERE
    4. If bridge AND canopy show SA→LS queues → Confirmed congestion
 
 ═══════════════════════════════════════════════════════════════
@@ -1544,23 +1340,22 @@ TRAFFIC LEVELS (assess EACH direction separately):
 ═══════════════════════════════════════════════════════════════
 
 For LS→SA (Lesotho to South Africa):
-• LIGHT: 0-7 vehicles — free flow, no meaningful queue (5 vehicles = normal, still LIGHT)
-• MODERATE: 8-14 vehicles — noticeable queue building on bridge or canopy right side
-• HEAVY: 15+ vehicles OR queue present in BOTH bridge far lane AND canopy right side simultaneously
-• SEVERE: Queue extends to Engen/approach road — long waits, consider delaying trip
+• LIGHT: 0-3 vehicles, no queue on bridge far lane or canopy right side
+• MODERATE: 4-8 vehicles, some queue visible on bridge or canopy right
+• HEAVY: 8+ vehicles, clear queue on bridge AND canopy right side
+• SEVERE: Queue extends significantly, long waits expected
 
 For SA→LS (South Africa to Lesotho):
-• LIGHT: 0-7 vehicles — free flow, cars moving through canopy without waiting
-• MODERATE: 8-14 vehicles — single row of cars queuing into canopy
-• HEAVY: 15+ vehicles OR cars backed up in BOTH bridge near lane AND canopy left side simultaneously
+• LIGHT: 0-3 vehicles, no cars entering canopy
+• MODERATE: 4-8 vehicles, single row of cars queuing into canopy
+• HEAVY: 8+ vehicles, cars in 2 ROWS entering canopy, bridge lane backed up
 • SEVERE: Queue backs up to Engen/approach road (visible in WIDE view)
 
 ⚠️ IMPORTANT NOTES:
-• 5 vehicles is LIGHT — do not report this as busy or moderate
 • Trucks in canopy area do NOT automatically mean delays - they process elsewhere
 • Only count trucks as causing delays if they are blocking car lanes
-• Queue in BOTH bridge AND canopy = definite HEAVY regardless of exact count
-• If Engen/approach road shows queue = SEVERE for that direction
+• 2 rows of cars entering canopy = definite HEAVY traffic for SA→LS
+• If Engen/approach road shows queue = SEVERE for SA→LS
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -2021,43 +1816,6 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Streaming chat endpoint for faster perceived response
-// =============================================
-// SMART VIDEO TRIGGER FOR CHAT QUERIES
-// =============================================
-// Checks 3 conditions before triggering video capture on a chat query:
-//   1. Query is about live traffic (not FAQ or off-topic)
-//   2. Most recent frame is stale (>5 minutes old) OR direction_uncertain fired
-//   3. R2 is available and no video capture already in progress
-//
-// Returns the video URL if captured, or null if conditions not met.
-
-const LIVE_TRAFFIC_CATEGORIES = new Set(['status', 'ls_to_sa', 'sa_to_ls', 'good_time', 'queue']);
-const VIDEO_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
-
-async function shouldCaptureVideoForChat(questionCategory, latestFrameTimestamp, lastDetectorCounts) {
-  // Condition 1: Only for live traffic queries
-  if (!LIVE_TRAFFIC_CATEGORIES.has(questionCategory)) return false;
-
-  // Condition 2a: Frame is stale
-  const frameAge = Date.now() - latestFrameTimestamp;
-  const isStale = frameAge > VIDEO_STALE_THRESHOLD_MS;
-
-  // Condition 2b: Last analysis had direction uncertainty
-  const isUncertain = lastDetectorCounts?.direction_uncertain === true;
-
-  if (!isStale && !isUncertain) return false;
-
-  // Condition 3: R2 available and not already capturing
-  if (!r2Client || isCapturingVideo) return false;
-
-  const reason = isStale
-    ? `stale frame (${Math.round(frameAge / 60000)}m old)`
-    : 'direction was uncertain';
-
-  console.log(`🎬 Chat video trigger: ${reason} for "${questionCategory}" query`);
-  return true;
-}
-
 app.post('/api/chat/stream', async (req, res) => {
   try {
     const { message } = req.body;
@@ -2071,20 +1829,6 @@ app.post('/api/chat/stream', async (req, res) => {
     const cached = getCachedResponse(questionCategory);
     
     if (cached) {
-      // Even on cache hits, check if frames are stale and trigger video silently
-      // This ensures we capture footage even when serving cached text responses
-      const cachedFrameAge = cached.frameTimestamp ? Date.now() - cached.frameTimestamp : Infinity;
-      if (
-        LIVE_TRAFFIC_CATEGORIES.has(questionCategory) &&
-        cachedFrameAge > VIDEO_STALE_THRESHOLD_MS &&
-        r2Client && !isCapturingVideo
-      ) {
-        console.log(`🎬 Cache hit but frame is stale (${Math.round(cachedFrameAge/60000)}m) — triggering background video`);
-        captureVideo(8, 'chat_query').then(result => {
-          if (result) console.log(`🎬 Background video saved: ${result.url}`);
-        });
-      }
-
       // Return cached response as instant JSON (no streaming needed)
       return res.json({
         success: true,
@@ -2096,20 +1840,7 @@ app.post('/api/chat/stream', async (req, res) => {
     }
 
     // Capture frame first
-    // Only capture a new frame if buffer is empty or all frames are stale (>60s)
-    // The background loop captures every 90s — no need to block the user waiting for ffmpeg
-    const CHAT_FRAME_MAX_AGE_MS = 60 * 1000; // 60 seconds
-    const newestBufferFrame = screenshotBuffer.length > 0
-      ? screenshotBuffer[screenshotBuffer.length - 1]
-      : null;
-    const bufferFrameAge = newestBufferFrame ? Date.now() - newestBufferFrame.timestamp : Infinity;
-
-    if (bufferFrameAge > CHAT_FRAME_MAX_AGE_MS) {
-      console.log(`📸 Chat: buffer frame is ${Math.round(bufferFrameAge/1000)}s old — capturing fresh frame`);
-      await captureFrame();
-    } else {
-      console.log(`⚡ Chat: using buffered frame (${Math.round(bufferFrameAge/1000)}s old) — skipping capture`);
-    }
+    await captureFrame();
     
     // Check if we have frames
     if (screenshotBuffer.length === 0) {
@@ -2169,41 +1900,30 @@ app.post('/api/chat/stream', async (req, res) => {
 
     // =============================================
     // STEP 1: Call YOLO detector for vehicle counts
-    // Run bridge + canopy detection in PARALLEL — they're independent
     // =============================================
+    let detectorCounts = null;
+    let canopyDetectorCounts = null;
+    
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
+    if (bridgeFrame) {
+      detectorCounts = await detectVehicles(
+        bridgeFrame.screenshot.toString('base64'),
+        'bridge'
+      );
+    }
+    
+    // Find the canopy/processing frame and call detector for SA→LS queue
     const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
-
-    const [detectorCounts, canopyDetectorCounts] = await Promise.all([
-      bridgeFrame
-        ? detectVehicles(bridgeFrame.screenshot.toString('base64'), 'bridge')
-        : Promise.resolve(null),
-      canopyFrame
-        ? detectVehicles(canopyFrame.screenshot.toString('base64'), 'canopy')
-        : Promise.resolve(null),
-    ]);
-
+    if (canopyFrame) {
+      canopyDetectorCounts = await detectVehicles(
+        canopyFrame.screenshot.toString('base64'),
+        'canopy'
+      );
+    }
+    
     // Add to traffic history for time-series analysis
     trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
-
-    // =============================================
-    // SMART VIDEO CAPTURE (chat queries)
-    // =============================================
-    // Trigger a video clip if: live traffic query + (stale frame OR direction uncertain)
-    // Runs non-blocking — doesn't delay the Gemini response
-    const chatVideoTrigger = await shouldCaptureVideoForChat(
-      questionCategory,
-      latestFrame.timestamp,
-      detectorCounts
-    );
-    if (chatVideoTrigger) {
-      captureVideo(8, 'chat_query').then(result => {
-        if (result) {
-          console.log(`🎬 Chat video clip saved: ${result.url}`);
-        }
-      });
-    }
-
+    
     // Get trend analysis
     const trendSummary = trafficHistory.getTrendSummary();
     
@@ -2232,16 +1952,15 @@ app.post('/api/chat/stream', async (req, res) => {
     const combinedLsToSa = lsToSaCount + lsToSaCanopyCount;  // NEW: Include canopy right side
     
     if (detectorCounts && !detectorCounts.direction_uncertain) {
-      // ── CALIBRATED THRESHOLDS (matches analyzeTraffic) ────────────────
-      const lsToSaBothZones = lsToSaCount > 2 && lsToSaCanopyCount > 4;
-      if (combinedLsToSa >= 15 || lsToSaBothZones) lsToSaStatus = 'HEAVY';
-      else if (combinedLsToSa >= 8) lsToSaStatus = 'MODERATE';
-      else lsToSaStatus = 'LIGHT';
-
-      const saToLsBothZones = saToLsCount > 2 && saToLsCanopyCount > 4;
-      if (combinedSaToLs >= 15 || saToLsBothZones) saToLsStatus = 'HEAVY';
-      else if (combinedSaToLs >= 8) saToLsStatus = 'MODERATE';
-      else saToLsStatus = 'LIGHT';
+      // Use COMBINED counts for status
+      if (combinedLsToSa <= 3) lsToSaStatus = 'LIGHT';
+      else if (combinedLsToSa <= 8) lsToSaStatus = 'MODERATE';
+      else lsToSaStatus = 'HEAVY';
+      
+      // SA→LS uses COMBINED count
+      if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
+      else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
+      else saToLsStatus = 'HEAVY';
     }
 
     // Extract breakdown if available
@@ -2331,9 +2050,8 @@ Understanding the camera views and traffic flow:
      the car lanes. Don't count stationary trucks as traffic delays!
 
 📷 WIDE/ENGEN VIEW:
-   • Shows the approach road on the Lesotho side, near the exit checkpoint
-   • Vehicles here are LEAVING Lesotho heading to South Africa (LS→SA)
-   • If cars are queued here, LS→SA traffic is severely backed up
+   • Shows the approach road from Lesotho side
+   • If cars are queued here, SA→LS traffic is severely backed up
 
 ═══════════════════════════════════════════════════════════════
 CROSS-VIEW VALIDATION (use this to confirm traffic severity):
@@ -2346,7 +2064,7 @@ CROSS-VIEW VALIDATION (use this to confirm traffic severity):
 🔍 To confirm SA→LS traffic:
    1. Check bridge: vehicles on near side (by orange pillar)
    2. Check canopy: cars ENTERING/queuing in the canopy (1-2 rows)
-   3. Check wide/Engen: if backed up here, LS→SA is SEVERE (Engen is on the LS exit side)
+   3. Check wide/Engen: if backed up here, SA→LS is SEVERE
    4. If bridge AND canopy show SA→LS queues → Confirmed congestion
 
 ═══════════════════════════════════════════════════════════════
@@ -2530,7 +2248,7 @@ Respond appropriately. Be helpful and conversational.`;
       contents: content,
       config: {
         systemInstruction: systemPrompt,
-        maxOutputTokens: 2048,  // Increased from 1024 — prevents mid-sentence truncation
+        maxOutputTokens: 1024,
       },
     });
 
@@ -2548,16 +2266,9 @@ Respond appropriately. Be helpful and conversational.`;
     res.write(`data: ${JSON.stringify({ type: 'done', fullText: fullText })}\n\n`);
     res.write('data: [DONE]\n\n');
     
-    // Only cache if the response is complete (not truncated mid-sentence)
+    // Cache the response for future similar questions
     const latestFrameTimestamp = framesToUse[framesToUse.length - 1]?.timestamp;
-    const endsCleanly = fullText.length >= MIN_VALID_RESPONSE_LENGTH &&
-      /[.!?🚦✅⚠️🟢🟡🔴]$/.test(fullText.trimEnd());
-    
-    if (endsCleanly) {
-      cacheResponse(questionCategory, fullText, latestFrameTimestamp);
-    } else {
-      console.log(`⚠️ Response not cached — may be truncated (${fullText.length} chars, ends: "${fullText.slice(-30)}")`);
-    }
+    cacheResponse(questionCategory, fullText, latestFrameTimestamp);
     
     // Log to database (async, don't wait)
     logTrafficReading(
@@ -3168,172 +2879,6 @@ app.get('/api/admin/frames', requireAdmin, (req, res) => {
   res.json({ success: true, frames, servedAt: new Date().toISOString() });
 });
 
-// =============================================
-// CALIBRATE DETECTOR ENDPOINT (Admin only)
-// =============================================
-// Proxies polygon updates to the Python detector's /calibrate endpoint.
-// Updates take effect IMMEDIATELY in the running container — no rebuild needed.
-// Also uploads the full config to R2 so future deploys pick it up automatically.
-//
-// POST /api/admin/calibrate-detector
-// Body: { camera_view, lane_name, polygon }
-//
-app.post('/api/admin/calibrate-detector', requireAdmin, async (req, res) => {
-  const { camera_view, lane_name, polygon } = req.body;
-
-  if (!camera_view || !lane_name || !polygon) {
-    return res.status(400).json({ success: false, message: 'camera_view, lane_name, and polygon are required' });
-  }
-
-  try {
-    // 1. Push to live detector (immediate effect)
-    const calibRes = await fetch(`${config.detectorUrl}/calibrate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ camera_view, lane_name, polygon })
-    });
-
-    if (!calibRes.ok) {
-      const text = await calibRes.text();
-      return res.status(502).json({ success: false, message: `Detector returned ${calibRes.status}: ${text}` });
-    }
-
-    // 2. Fetch the full updated config from the detector
-    const configRes = await fetch(`${config.detectorUrl}/config`);
-    if (configRes.ok) {
-      const configData = await configRes.json();
-      const configJson = JSON.stringify(configData.config, null, 2);
-
-      // 3. Upload updated config to R2 for persistence across deploys
-      if (r2Client) {
-        try {
-          const { PutObjectCommand } = await import('@aws-sdk/client-s3');
-          await r2Client.send(new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME || 'maseru-traffic-frames',
-            Key: 'config/lane_config.json',
-            Body: configJson,
-            ContentType: 'application/json'
-          }));
-          console.log('✅ lane_config.json synced to R2');
-        } catch (r2err) {
-          console.warn('⚠️ R2 sync failed (non-fatal):', r2err.message);
-        }
-      }
-    }
-
-    return res.json({ success: true, message: `Updated ${lane_name} in ${camera_view} — live immediately` });
-  } catch (err) {
-    console.error('❌ Calibrate detector error:', err.message);
-    return res.status(502).json({ success: false, message: `Could not reach detector: ${err.message}` });
-  }
-});
-
-// =============================================
-// DEBUG DETECTOR ENDPOINT (Admin only)
-// =============================================
-// Sends the current bridge (or any) frame to the Python detector's /debug
-// endpoint and returns an annotated image showing lane polygons + vehicle assignments.
-// Use this to visually calibrate lane_config.json.
-//
-// GET /api/admin/debug-detector?view=bridge  (bridge | processing | engen)
-//
-app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
-  const view = req.query.view || 'bridge';
-  // preservedFrames uses: bridge | processing | wide
-  const angleKey = view === 'bridge' ? 'bridge' : view === 'processing' ? 'processing' : 'wide';
-  // Python detector lane_config.json uses: bridge | canopy | engen
-  const detectorView = view === 'processing' ? 'canopy' : view === 'wide' ? 'engen' : 'bridge';
-
-  const frame = preservedFrames[angleKey];
-  if (!frame || !frame.screenshot) {
-    return res.status(404).json({ success: false, message: `No ${view} frame available yet — wait for background capture` });
-  }
-
-  const imageBase64 = Buffer.isBuffer(frame.screenshot)
-    ? frame.screenshot.toString('base64')
-    : frame.screenshot;
-
-  try {
-    const debugRes = await fetch(`${config.detectorUrl}/debug`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: imageBase64, camera_view: detectorView })
-    });
-
-    if (!debugRes.ok) {
-      const text = await debugRes.text();
-      return res.status(502).json({ success: false, message: `Detector returned ${debugRes.status}: ${text}` });
-    }
-
-    const data = await debugRes.json();
-    return res.json({
-      success: true,
-      annotated_image: data.annotated_image,
-      counts: data.counts,
-      frame_timestamp: new Date(frame.timestamp).toISOString(),
-      view
-    });
-  } catch (err) {
-    console.error('❌ Debug detector error:', err.message);
-    return res.status(502).json({ success: false, message: `Could not reach detector: ${err.message}` });
-  }
-});
-
-// =============================================
-// MANUAL VIDEO CAPTURE ENDPOINT (Admin only)
-// =============================================
-// Trigger a video clip manually from the admin dashboard.
-// Used to test video capture before enabling automatic triggers.
-//
-// POST /api/admin/capture-video
-// Body: { duration: 8 }  (optional, default 8 seconds, max 15)
-//
-app.post('/api/admin/capture-video', requireAdmin, async (req, res) => {
-  if (!r2Client) {
-    return res.status(503).json({ success: false, error: 'R2 storage not configured' });
-  }
-
-  if (isCapturingVideo) {
-    return res.status(409).json({ success: false, error: 'Video capture already in progress' });
-  }
-
-  const duration = Math.min(parseInt(req.body?.duration) || 8, 15); // Cap at 15s
-
-  console.log(`🎬 Manual video capture triggered by admin (${duration}s)`);
-
-  // Respond immediately — capture runs async so admin doesn't time out
-  res.json({ success: true, message: `Capturing ${duration}s video clip... check R2 bucket in ~30 seconds.`, duration });
-
-  // Run capture non-blocking
-  captureVideo(duration, 'manual').then(result => {
-    if (result) {
-      console.log(`✅ Manual video clip ready: ${result.url}`);
-    } else {
-      console.error('❌ Manual video capture failed');
-    }
-  });
-});
-
-// GET version for quick browser testing
-app.get('/api/admin/capture-video', requireAdmin, async (req, res) => {
-  if (!r2Client) {
-    return res.status(503).json({ success: false, error: 'R2 storage not configured' });
-  }
-  if (isCapturingVideo) {
-    return res.status(409).json({ success: false, error: 'Video capture already in progress' });
-  }
-  const duration = Math.min(parseInt(req.query?.duration) || 8, 15);
-  console.log(`🎬 Manual video capture triggered via GET (${duration}s)`);
-  res.json({ success: true, message: `Capturing ${duration}s video clip... check R2 bucket in ~30 seconds.`, duration });
-  captureVideo(duration, 'manual').then(result => {
-    if (result) {
-      console.log(`✅ Manual video clip ready: ${result.url}`);
-    } else {
-      console.error('❌ Manual video capture failed');
-    }
-  });
-});
-
 app.get('/api/debug', (req, res) => {
   // Count frames by angle type
   const angleCounts = screenshotBuffer.reduce((acc, f) => {
@@ -3712,6 +3257,86 @@ app.get('/api/reports/history', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/reports/history:', err);
     res.json({ success: false, message: err.message, checkpoints: {} });
+  }
+});
+
+// ─── Helper: extract & verify user from Bearer token ───────────────────────
+async function extractUserFromToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.split(' ')[1];
+  try {
+    const tokenData = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+    if (!tokenData.user_id || !tokenData.exp || Date.now() > tokenData.exp) return null;
+    return { user_id: tokenData.user_id };
+  } catch {
+    return null;
+  }
+}
+
+// ─── GET /api/chat/history ─ fetch last 50 messages for logged-in user ──────
+app.get('/api/chat/history', async (req, res) => {
+  if (!supabase) return res.status(503).json({ success: false, message: 'Database not available' });
+  const user = await extractUserFromToken(req);
+  if (!user) return res.status(401).json({ success: false, message: 'Login required' });
+
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('id, role, content, created_at')
+      .eq('user_id', user.user_id)
+      .order('created_at', { ascending: true })
+      .limit(50);
+
+    if (error) throw error;
+    res.json({ success: true, messages: data || [] });
+  } catch (err) {
+    console.error('❌ Failed to fetch chat history:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch chat history' });
+  }
+});
+
+// ─── POST /api/chat/history ─ save a pair of messages (user + assistant) ────
+app.post('/api/chat/history', async (req, res) => {
+  if (!supabase) return res.status(503).json({ success: false, message: 'Database not available' });
+  const user = await extractUserFromToken(req);
+  if (!user) return res.status(401).json({ success: false, message: 'Login required' });
+
+  const { userMessage, assistantMessage } = req.body;
+  if (!userMessage || !assistantMessage) {
+    return res.status(400).json({ success: false, message: 'Missing messages' });
+  }
+
+  try {
+    const rows = [
+      { user_id: user.user_id, role: 'user', content: userMessage },
+      { user_id: user.user_id, role: 'assistant', content: assistantMessage }
+    ];
+    const { error } = await supabase.from('chat_messages').insert(rows);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Failed to save chat messages:', err);
+    res.status(500).json({ success: false, message: 'Failed to save messages' });
+  }
+});
+
+// ─── DELETE /api/chat/history ─ clear all chat history for logged-in user ───
+app.delete('/api/chat/history', async (req, res) => {
+  if (!supabase) return res.status(503).json({ success: false, message: 'Database not available' });
+  const user = await extractUserFromToken(req);
+  if (!user) return res.status(401).json({ success: false, message: 'Login required' });
+
+  try {
+    const { error } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('user_id', user.user_id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Failed to clear chat history:', err);
+    res.status(500).json({ success: false, message: 'Failed to clear history' });
   }
 });
 
