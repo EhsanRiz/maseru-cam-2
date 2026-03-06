@@ -1292,51 +1292,37 @@ async function analyzeTraffic(userQuestion = null) {
     // STEP 1: Call YOLO detector for vehicle counts
     // =============================================
     // Direction is determined by GEOMETRY, not language inference
-    let detectorCounts = null;
-    let canopyDetectorCounts = null;
-    let wideDetectorCounts = null;
-    
-    // Find the bridge frame and call detector
+    // All three detectors run in PARALLEL — they're fully independent
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
-    if (bridgeFrame) {
-      detectorCounts = await detectVehicles(
-        bridgeFrame.screenshot.toString('base64'),
-        'bridge'
-      );
-    }
-    
-    // Find the canopy/processing frame and call detector for SA→LS queue
     const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
-    if (canopyFrame) {
-      canopyDetectorCounts = await detectVehicles(
-        canopyFrame.screenshot.toString('base64'),
-        'canopy'
-      );
-      if (canopyDetectorCounts) {
-        console.log(`🎯 Canopy Detector: SA→LS queue: ${canopyDetectorCounts.SA_to_LS || 0}, LS→SA area: ${canopyDetectorCounts.LS_to_SA || 0}`);
-      }
-    }
-    
-    // Find the wide/Engen frame and check for queue backup (informational only)
-    const wideFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.WIDE);
-    let engenQueueDetected = false;
-    
+    const wideFrame   = framesToUse.find(f => f.angleType === ANGLE_TYPES.WIDE);
+
     console.log(`🔍 Looking for WIDE frame. Found: ${wideFrame ? 'YES' : 'NO'}, framesToUse angles: ${framesToUse.map(f => f.angleType).join(', ')}`);
-    
-    if (wideFrame) {
-      wideDetectorCounts = await detectVehicles(
-        wideFrame.screenshot.toString('base64'),
-        'engen'
-      );
-      if (wideDetectorCounts) {
-        const engenVehicles = wideDetectorCounts.LS_to_SA || wideDetectorCounts.total || 0;
-        console.log(`🎯 Engen Detector: ${engenVehicles} vehicles in queue area`);
-        
-        // If 2+ vehicles detected at Engen, queue has stretched past Engen
-        if (engenVehicles >= 2) {
-          engenQueueDetected = true;
-          console.log(`📍 Queue stretches past Engen (${engenVehicles} vehicles detected)`);
-        }
+
+    const [detectorCounts, canopyDetectorCounts, wideDetectorCounts] = await Promise.all([
+      bridgeFrame
+        ? detectVehicles(bridgeFrame.screenshot.toString('base64'), 'bridge')
+        : Promise.resolve(null),
+      canopyFrame
+        ? detectVehicles(canopyFrame.screenshot.toString('base64'), 'canopy')
+        : Promise.resolve(null),
+      wideFrame
+        ? detectVehicles(wideFrame.screenshot.toString('base64'), 'engen')
+        : Promise.resolve(null),
+    ]);
+
+    if (canopyDetectorCounts) {
+      console.log(`🎯 Canopy Detector: SA→LS queue: ${canopyDetectorCounts.SA_to_LS || 0}, LS→SA area: ${canopyDetectorCounts.LS_to_SA || 0}`);
+    }
+
+    // Check Engen queue from wide frame result
+    let engenQueueDetected = false;
+    if (wideDetectorCounts) {
+      const engenVehicles = wideDetectorCounts.LS_to_SA || wideDetectorCounts.total || 0;
+      console.log(`🎯 Engen Detector: ${engenVehicles} vehicles in queue area`);
+      if (engenVehicles >= 2) {
+        engenQueueDetected = true;
+        console.log(`📍 Queue stretches past Engen (${engenVehicles} vehicles detected)`);
       }
     }
     
@@ -2110,7 +2096,20 @@ app.post('/api/chat/stream', async (req, res) => {
     }
 
     // Capture frame first
-    await captureFrame();
+    // Only capture a new frame if buffer is empty or all frames are stale (>60s)
+    // The background loop captures every 90s — no need to block the user waiting for ffmpeg
+    const CHAT_FRAME_MAX_AGE_MS = 60 * 1000; // 60 seconds
+    const newestBufferFrame = screenshotBuffer.length > 0
+      ? screenshotBuffer[screenshotBuffer.length - 1]
+      : null;
+    const bufferFrameAge = newestBufferFrame ? Date.now() - newestBufferFrame.timestamp : Infinity;
+
+    if (bufferFrameAge > CHAT_FRAME_MAX_AGE_MS) {
+      console.log(`📸 Chat: buffer frame is ${Math.round(bufferFrameAge/1000)}s old — capturing fresh frame`);
+      await captureFrame();
+    } else {
+      console.log(`⚡ Chat: using buffered frame (${Math.round(bufferFrameAge/1000)}s old) — skipping capture`);
+    }
     
     // Check if we have frames
     if (screenshotBuffer.length === 0) {
@@ -2170,27 +2169,20 @@ app.post('/api/chat/stream', async (req, res) => {
 
     // =============================================
     // STEP 1: Call YOLO detector for vehicle counts
+    // Run bridge + canopy detection in PARALLEL — they're independent
     // =============================================
-    let detectorCounts = null;
-    let canopyDetectorCounts = null;
-    
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
-    if (bridgeFrame) {
-      detectorCounts = await detectVehicles(
-        bridgeFrame.screenshot.toString('base64'),
-        'bridge'
-      );
-    }
-    
-    // Find the canopy/processing frame and call detector for SA→LS queue
     const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
-    if (canopyFrame) {
-      canopyDetectorCounts = await detectVehicles(
-        canopyFrame.screenshot.toString('base64'),
-        'canopy'
-      );
-    }
-    
+
+    const [detectorCounts, canopyDetectorCounts] = await Promise.all([
+      bridgeFrame
+        ? detectVehicles(bridgeFrame.screenshot.toString('base64'), 'bridge')
+        : Promise.resolve(null),
+      canopyFrame
+        ? detectVehicles(canopyFrame.screenshot.toString('base64'), 'canopy')
+        : Promise.resolve(null),
+    ]);
+
     // Add to traffic history for time-series analysis
     trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
 
@@ -3174,6 +3166,54 @@ app.get('/api/admin/frames', requireAdmin, (req, res) => {
   });
 
   res.json({ success: true, frames, servedAt: new Date().toISOString() });
+});
+
+// =============================================
+// DEBUG DETECTOR ENDPOINT (Admin only)
+// =============================================
+// Sends the current bridge (or any) frame to the Python detector's /debug
+// endpoint and returns an annotated image showing lane polygons + vehicle assignments.
+// Use this to visually calibrate lane_config.json.
+//
+// GET /api/admin/debug-detector?view=bridge  (bridge | processing | engen)
+//
+app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
+  const view = req.query.view || 'bridge';
+  const angleKey = view === 'bridge' ? 'bridge' : view === 'processing' ? 'processing' : 'wide';
+
+  const frame = preservedFrames[angleKey];
+  if (!frame || !frame.screenshot) {
+    return res.status(404).json({ success: false, message: `No ${view} frame available yet — wait for background capture` });
+  }
+
+  const imageBase64 = Buffer.isBuffer(frame.screenshot)
+    ? frame.screenshot.toString('base64')
+    : frame.screenshot;
+
+  try {
+    const debugRes = await fetch(`${config.detectorUrl}/debug`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageBase64, camera_view: view })
+    });
+
+    if (!debugRes.ok) {
+      const text = await debugRes.text();
+      return res.status(502).json({ success: false, message: `Detector returned ${debugRes.status}: ${text}` });
+    }
+
+    const data = await debugRes.json();
+    return res.json({
+      success: true,
+      annotated_image: data.annotated_image,
+      counts: data.counts,
+      frame_timestamp: new Date(frame.timestamp).toISOString(),
+      view
+    });
+  } catch (err) {
+    console.error('❌ Debug detector error:', err.message);
+    return res.status(502).json({ success: false, message: `Could not reach detector: ${err.message}` });
+  }
 });
 
 // =============================================

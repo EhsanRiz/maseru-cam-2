@@ -764,6 +764,55 @@
   let lastCamData = null;
   let lastFrameData = null;
 
+  async function debugDetector() {
+    const btn    = document.getElementById('debugDetectorBtn');
+    const status = document.getElementById('debugDetectorStatus');
+    const result = document.getElementById('debugDetectorResult');
+    const counts = document.getElementById('debugCounts');
+    const img    = document.getElementById('debugAnnotatedImg');
+    const view   = document.getElementById('debugView')?.value || 'bridge';
+
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    btn.innerHTML = '⏳ Running…';
+    status.textContent = 'Sending frame to detector…';
+    status.style.color = 'var(--yellow)';
+    result.style.display = 'none';
+
+    try {
+      const res = await fetch(`/api/admin/debug-detector?view=${view}`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const c = data.counts;
+        counts.innerHTML = `
+          <strong>Frame:</strong> ${view} @ ${new Date(data.frame_timestamp).toLocaleTimeString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false})} SAST
+          &nbsp;|&nbsp; <strong>SA→LS:</strong> ${c.SA_to_LS}
+          &nbsp;|&nbsp; <strong>LS→SA:</strong> ${c.LS_to_SA}
+          &nbsp;|&nbsp; <strong>Unassigned:</strong> ${c.unassigned}
+          &nbsp;|&nbsp; <strong>Total:</strong> ${c.total}
+          ${c.direction_uncertain ? ' &nbsp;|&nbsp; <span style="color:var(--yellow)">⚠️ Direction uncertain</span>' : ''}
+        `;
+        img.src = `data:image/jpeg;base64,${data.annotated_image}`;
+        result.style.display = 'block';
+        status.textContent = 'Done — polygons shown below';
+        status.style.color = 'var(--accent)';
+      } else {
+        status.textContent = `❌ ${data.message}`;
+        status.style.color = 'var(--red)';
+      }
+    } catch(e) {
+      status.textContent = '❌ Network error';
+      status.style.color = 'var(--red)';
+    }
+
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.innerHTML = '🔬 Run Debug';
+  }
+
   async function captureVideoManual() {
     const btn    = document.getElementById('captureVideoBtn');
     const status = document.getElementById('captureVideoStatus');
@@ -977,6 +1026,38 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Debug Detection Overlay -->
+      <div class="card" style="margin-top:0">
+        <h3>🔬 Debug Lane Detection</h3>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem">
+          Sends the current frame to the detector and shows lane polygons + vehicle assignments overlaid.
+          Use this to verify and calibrate <code style="background:var(--bg);padding:0.1rem 0.3rem;border-radius:4px">lane_config.json</code>.
+        </p>
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.85rem">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <label style="font-size:0.78rem;color:var(--text-muted)">View:</label>
+            <select id="debugView" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.35rem 0.6rem;font-size:0.78rem;cursor:pointer">
+              <option value="bridge" selected>Bridge</option>
+              <option value="canopy">Processing / Canopy</option>
+              <option value="engen">Wide / Engen</option>
+            </select>
+          </div>
+          <button id="debugDetectorBtn" onclick="debugDetector()"
+            style="background:var(--blue);color:white;border:none;border-radius:8px;padding:0.45rem 1.1rem;font-size:0.8rem;font-weight:600;cursor:pointer;transition:opacity 0.15s">
+            🔬 Run Debug
+          </button>
+          <div id="debugDetectorStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
+        </div>
+        <div id="debugDetectorResult" style="display:none">
+          <div id="debugCounts" style="font-size:0.75rem;margin-bottom:0.6rem;padding:0.5rem 0.75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)"></div>
+          <img id="debugAnnotatedImg" src="" alt="Debug overlay"
+            style="width:100%;border-radius:8px;border:1px solid var(--border);display:block" />
+          <div style="font-size:0.65rem;color:var(--text-muted);margin-top:0.4rem">
+            🟢 Green = SA→LS &nbsp;|&nbsp; 🔴 Red = LS→SA &nbsp;|&nbsp; 🟡 Yellow = Unassigned &nbsp;|&nbsp; 🟠 Orange = Parked
+          </div>
+        </div>
       </div>
 
       <!-- Manual Video Capture -->
