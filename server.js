@@ -406,14 +406,23 @@ function categorizeQuestion(question) {
 }
 
 // Check if cached response is still valid
+const MIN_VALID_RESPONSE_LENGTH = 120; // Anything shorter is likely truncated
+
 function getCachedResponse(category) {
   if (!category || !responseCache[category]) return null;
   
   const cached = responseCache[category];
   const age = Date.now() - cached.timestamp;
+
+  // Discard truncated responses — don't serve them to users
+  if (!cached.response || cached.response.length < MIN_VALID_RESPONSE_LENGTH) {
+    console.log(`🗑️ Cache DISCARDED for "${category}" — response too short (${cached.response?.length || 0} chars), likely truncated`);
+    delete responseCache[category];
+    return null;
+  }
   
   if (age < CACHE_TTL) {
-    console.log(`✅ Cache HIT for "${category}" (${Math.round(age/1000)}s old)`);
+    console.log(`✅ Cache HIT for "${category}" (${Math.round(age/1000)}s old, ${cached.response.length} chars)`);
     return cached;
   }
   
@@ -2055,6 +2064,20 @@ app.post('/api/chat/stream', async (req, res) => {
     const cached = getCachedResponse(questionCategory);
     
     if (cached) {
+      // Even on cache hits, check if frames are stale and trigger video silently
+      // This ensures we capture footage even when serving cached text responses
+      const cachedFrameAge = cached.frameTimestamp ? Date.now() - cached.frameTimestamp : Infinity;
+      if (
+        LIVE_TRAFFIC_CATEGORIES.has(questionCategory) &&
+        cachedFrameAge > VIDEO_STALE_THRESHOLD_MS &&
+        r2Client && !isCapturingVideo
+      ) {
+        console.log(`🎬 Cache hit but frame is stale (${Math.round(cachedFrameAge/60000)}m) — triggering background video`);
+        captureVideo(8, 'chat_query').then(result => {
+          if (result) console.log(`🎬 Background video saved: ${result.url}`);
+        });
+      }
+
       // Return cached response as instant JSON (no streaming needed)
       return res.json({
         success: true,
@@ -2493,7 +2516,7 @@ Respond appropriately. Be helpful and conversational.`;
       contents: content,
       config: {
         systemInstruction: systemPrompt,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,  // Increased from 1024 — prevents mid-sentence truncation
       },
     });
 
@@ -2511,9 +2534,16 @@ Respond appropriately. Be helpful and conversational.`;
     res.write(`data: ${JSON.stringify({ type: 'done', fullText: fullText })}\n\n`);
     res.write('data: [DONE]\n\n');
     
-    // Cache the response for future similar questions
+    // Only cache if the response is complete (not truncated mid-sentence)
     const latestFrameTimestamp = framesToUse[framesToUse.length - 1]?.timestamp;
-    cacheResponse(questionCategory, fullText, latestFrameTimestamp);
+    const endsCleanly = fullText.length >= MIN_VALID_RESPONSE_LENGTH &&
+      /[.!?🚦✅⚠️🟢🟡🔴]$/.test(fullText.trimEnd());
+    
+    if (endsCleanly) {
+      cacheResponse(questionCategory, fullText, latestFrameTimestamp);
+    } else {
+      console.log(`⚠️ Response not cached — may be truncated (${fullText.length} chars, ends: "${fullText.slice(-30)}")`);
+    }
     
     // Log to database (async, don't wait)
     logTrafficReading(
