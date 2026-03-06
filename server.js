@@ -1372,17 +1372,37 @@ async function analyzeTraffic(userQuestion = null) {
     const combinedLsToSa = lsToSaCount + lsToSaCanopyCount;  // NEW: Include canopy right side
     
     if (detectorCounts && !detectorCounts.direction_uncertain) {
-      // Determine status levels using COMBINED counts
-      if (combinedLsToSa <= 3) lsToSaStatus = 'LIGHT';
-      else if (combinedLsToSa <= 8) lsToSaStatus = 'MODERATE';
-      else lsToSaStatus = 'HEAVY';
-      
-      // SA→LS uses COMBINED count (bridge + canopy)
-      if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
-      else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
-      else saToLsStatus = 'HEAVY';
-      
+      // ── CALIBRATED THRESHOLDS ──────────────────────────────────────────
+      // LIGHT:    0-7  vehicles  (5 vehicles is normal, not yet congested)
+      // MODERATE: 8-14 vehicles  (~10 vehicles = noticeable queue)
+      // HEAVY:    15+  vehicles  OR queue present in BOTH bridge AND canopy
+      //           (queue spreading across both zones = real congestion)
+      // SEVERE:   Engen/approach road backed up (set separately below)
+      // ──────────────────────────────────────────────────────────────────
+
+      // LS→SA status
+      const lsToSaBothZones = lsToSaCount > 2 && lsToSaCanopyCount > 4; // queue in both zones
+      if (combinedLsToSa >= 15 || lsToSaBothZones) lsToSaStatus = 'HEAVY';
+      else if (combinedLsToSa >= 8) lsToSaStatus = 'MODERATE';
+      else lsToSaStatus = 'LIGHT';
+
+      // SA→LS status
+      const saToLsBothZones = saToLsCount > 2 && saToLsCanopyCount > 4; // queue in both zones
+      if (combinedSaToLs >= 15 || saToLsBothZones) saToLsStatus = 'HEAVY';
+      else if (combinedSaToLs >= 8) saToLsStatus = 'MODERATE';
+      else saToLsStatus = 'LIGHT';
+
       console.log(`📊 Traffic levels - LS→SA: ${lsToSaStatus} (bridge: ${lsToSaCount}, canopy: ${lsToSaCanopyCount}, combined: ${combinedLsToSa}${engenQueueDetected ? ', queue at Engen!' : ''}), SA→LS: ${saToLsStatus} (bridge: ${saToLsCount}, canopy: ${saToLsCanopyCount}, combined: ${combinedSaToLs})`);
+
+      // 🎬 Video trigger: capture when HEAVY or SEVERE — queue is serious enough to warrant a clip
+      const isHeavyOrSevere = lsToSaStatus === 'HEAVY' || lsToSaStatus === 'SEVERE' ||
+                               saToLsStatus === 'HEAVY' || saToLsStatus === 'SEVERE';
+      if (isHeavyOrSevere && r2Client && !isCapturingVideo) {
+        console.log(`🎬 Heavy traffic detected — auto-capturing video clip`);
+        captureVideo(8, 'heavy_traffic').then(result => {
+          if (result) console.log(`🎬 Heavy traffic clip saved: ${result.url}`);
+        });
+      }
       
       if (trendSummary) {
         console.log(`📈 Trend: ${trendSummary}`);
@@ -1538,22 +1558,23 @@ TRAFFIC LEVELS (assess EACH direction separately):
 ═══════════════════════════════════════════════════════════════
 
 For LS→SA (Lesotho to South Africa):
-• LIGHT: 0-3 vehicles, no queue on bridge far lane or canopy right side
-• MODERATE: 4-8 vehicles, some queue visible on bridge or canopy right
-• HEAVY: 8+ vehicles, clear queue on bridge AND canopy right side
-• SEVERE: Queue extends significantly, long waits expected
+• LIGHT: 0-7 vehicles — free flow, no meaningful queue (5 vehicles = normal, still LIGHT)
+• MODERATE: 8-14 vehicles — noticeable queue building on bridge or canopy right side
+• HEAVY: 15+ vehicles OR queue present in BOTH bridge far lane AND canopy right side simultaneously
+• SEVERE: Queue extends to Engen/approach road — long waits, consider delaying trip
 
 For SA→LS (South Africa to Lesotho):
-• LIGHT: 0-3 vehicles, no cars entering canopy
-• MODERATE: 4-8 vehicles, single row of cars queuing into canopy
-• HEAVY: 8+ vehicles, cars in 2 ROWS entering canopy, bridge lane backed up
+• LIGHT: 0-7 vehicles — free flow, cars moving through canopy without waiting
+• MODERATE: 8-14 vehicles — single row of cars queuing into canopy
+• HEAVY: 15+ vehicles OR cars backed up in BOTH bridge near lane AND canopy left side simultaneously
 • SEVERE: Queue backs up to Engen/approach road (visible in WIDE view)
 
 ⚠️ IMPORTANT NOTES:
+• 5 vehicles is LIGHT — do not report this as busy or moderate
 • Trucks in canopy area do NOT automatically mean delays - they process elsewhere
 • Only count trucks as causing delays if they are blocking car lanes
-• 2 rows of cars entering canopy = definite HEAVY traffic for SA→LS
-• If Engen/approach road shows queue = SEVERE for SA→LS
+• Queue in BOTH bridge AND canopy = definite HEAVY regardless of exact count
+• If Engen/approach road shows queue = SEVERE for that direction
 
 ═══════════════════════════════════════════════════════════════
 LANGUAGE RULES - EXTREMELY IMPORTANT:
@@ -2219,15 +2240,16 @@ app.post('/api/chat/stream', async (req, res) => {
     const combinedLsToSa = lsToSaCount + lsToSaCanopyCount;  // NEW: Include canopy right side
     
     if (detectorCounts && !detectorCounts.direction_uncertain) {
-      // Use COMBINED counts for status
-      if (combinedLsToSa <= 3) lsToSaStatus = 'LIGHT';
-      else if (combinedLsToSa <= 8) lsToSaStatus = 'MODERATE';
-      else lsToSaStatus = 'HEAVY';
-      
-      // SA→LS uses COMBINED count
-      if (combinedSaToLs <= 3) saToLsStatus = 'LIGHT';
-      else if (combinedSaToLs <= 8) saToLsStatus = 'MODERATE';
-      else saToLsStatus = 'HEAVY';
+      // ── CALIBRATED THRESHOLDS (matches analyzeTraffic) ────────────────
+      const lsToSaBothZones = lsToSaCount > 2 && lsToSaCanopyCount > 4;
+      if (combinedLsToSa >= 15 || lsToSaBothZones) lsToSaStatus = 'HEAVY';
+      else if (combinedLsToSa >= 8) lsToSaStatus = 'MODERATE';
+      else lsToSaStatus = 'LIGHT';
+
+      const saToLsBothZones = saToLsCount > 2 && saToLsCanopyCount > 4;
+      if (combinedSaToLs >= 15 || saToLsBothZones) saToLsStatus = 'HEAVY';
+      else if (combinedSaToLs >= 8) saToLsStatus = 'MODERATE';
+      else saToLsStatus = 'LIGHT';
     }
 
     // Extract breakdown if available
