@@ -1543,7 +1543,7 @@ Respond appropriately for this question type. Be helpful and conversational.`;
       contents: content,
       config: {
         systemInstruction: systemPrompt,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
       },
     });
 
@@ -2248,7 +2248,7 @@ Respond appropriately. Be helpful and conversational.`;
       contents: content,
       config: {
         systemInstruction: systemPrompt,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
       },
     });
 
