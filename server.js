@@ -3874,7 +3874,7 @@ async function sendEmail(to, subject, html) {
       'Authorization': `Bearer ${RESEND_API_KEY}`
     },
     body: JSON.stringify({
-      from: 'Traffic Bot <noreply@4dcs.co.za>',
+      from: 'Traffic Bot <noreply@traffic.4dcs.co.za>',
       to,
       subject,
       html
@@ -3969,7 +3969,8 @@ app.post('/api/auth/reset/verify-otp', async (req, res) => {
     if (error || !user) return res.status(404).json({ success: false, message: 'User not found' });
     if (!user.reset_token || !user.reset_expires) return res.status(400).json({ success: false, message: 'No reset in progress' });
     if (new Date() > new Date(user.reset_expires)) return res.status(400).json({ success: false, message: 'Code has expired. Please request a new one.' });
-    const valid = await verifyPassword(otp, user.reset_token);
+    const otpHash = await hashPassword(otp);
+    const valid = otpHash === user.reset_token;
     if (!valid) return res.status(400).json({ success: false, message: 'Incorrect code' });
     // OTP valid — issue a short-lived verified token for the final step
     const verifiedToken = Buffer.from(`${user.id}:${Date.now()}`).toString('base64');
