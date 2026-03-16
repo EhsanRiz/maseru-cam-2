@@ -3784,6 +3784,36 @@
 
     footer a { color: var(--accent); text-decoration: none; }
 
+    /* Desktop ad bar — shown inside chat section on wide screens */
+    #ad-desktop-bar {
+      display: none;
+      background: var(--bg-card);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      margin: 0 0 0.5rem 0;
+      text-align: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+    #ad-desktop-bar .ad-label {
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      background: var(--bg-primary);
+      padding: 0 6px;
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    #ad-desktop-bar p {
+      margin: 0;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+    }
+    #ad-desktop-bar a { color: var(--accent); }
+
     /* Advertisement Spaces */
     .ad-container {
       margin-top: 0.5rem;
@@ -3919,7 +3949,8 @@
     }
 
     @media (min-width: 768px) {
-      #ad-camera { display: block; }
+      #ad-camera { display: none; }
+      #ad-desktop-bar { display: block; }
       .app-container {
         height: 100vh;
         overflow: hidden;
@@ -4296,6 +4327,12 @@
             </button>
           </div>
           
+          <!-- Desktop Ad Bar -->
+          <div id="ad-desktop-bar">
+            <span class="ad-label">Advertisement</span>
+            <p>📢 Advertise to 1000s of border travelers | <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a> • <a href="tel:+26622323442">+266 2232 3442</a></p>
+          </div>
+
           <!-- Offline Mode Banner -->
           <div class="offline-banner" id="offlineBanner">
             <div class="offline-banner-header" id="offlineHeader">⚠️ Offline Mode</div>
