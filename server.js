@@ -3883,10 +3883,21 @@ async function startBackgroundCapture() {
   // Use a self-rescheduling timer so we can vary interval based on time of day
   async function scheduleNext() {
     const interval = getCurrentCaptureInterval();
+
+    // If we've been getting useless frames repeatedly, the scheduler has drifted
+    // into sync with a dead ETL camera position. Add random jitter to break the lock.
+    const USELESS_JITTER_THRESHOLD = 3; // start jittering after 3 consecutive useless frames
+    let jitter = 0;
+    if (consecutiveUseless >= USELESS_JITTER_THRESHOLD) {
+      // Random offset between 5s and 45s — enough to drift past the ETL rotation cycle
+      jitter = Math.floor(Math.random() * 40000) + 5000;
+      console.log(`🔀 Stuck on useless view (${consecutiveUseless}x) — adding ${Math.round(jitter/1000)}s jitter to break ETL sync`);
+    }
+
     setTimeout(async () => {
       await smartCapture();
       scheduleNext();
-    }, interval);
+    }, interval + jitter);
   }
   
   scheduleNext();
@@ -3896,6 +3907,7 @@ async function startBackgroundCapture() {
 let lastCapturedAngle = null;
 let lastAngleChangeTime = 0;
 let consecutiveSameAngle = 0;
+let consecutiveUseless = 0; // Tracks how many captures in a row were classified as useless
 
 // Smart capture: Only save frame if camera angle changed OR it's been too long
 async function smartCapture() {
@@ -3964,15 +3976,18 @@ async function smartCapture() {
             shouldSave = true;
             reason = 'angle changed';
             consecutiveSameAngle = 0;
+            consecutiveUseless = 0;
             lastAngleChangeTime = timestamp;
           } else if (tooLongSameAngle && angleType !== 'useless') {
             // Been too long, save anyway to keep frame fresh
             shouldSave = true;
             reason = 'refresh (same angle)';
             consecutiveSameAngle++;
+            consecutiveUseless = 0;
           } else if (angleType === 'useless') {
-            // Useless frame - check but don't increment
-            reason = 'useless (skipped)';
+            // Useless frame - increment stuck counter
+            consecutiveUseless++;
+            reason = `useless (skipped) [${consecutiveUseless} in a row]`;
             shouldSave = false;
           } else {
             // Same angle, not time to refresh yet
