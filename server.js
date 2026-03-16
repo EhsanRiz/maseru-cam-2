@@ -3865,77 +3865,145 @@ function maskEmail(email) {
 }
 
 // PIN Reset Step 1: Check if phone exists and whether email is on file
-app.post('/api/auth/reset/init', async (req, res) => {
-  if (!supabase) {
-    return res.status(503).json({ success: false, message: 'Database not available' });
+// Resend email client
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+async function sendEmail(to, subject, html) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${RESEND_API_KEY}`
+    },
+    body: JSON.stringify({
+      from: 'Traffic Bot <noreply@traffic.4dcs.co.za>',
+      to,
+      subject,
+      html
+    })
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Resend error: ${err}`);
   }
+  return res.json();
+}
 
+function maskEmail(email) {
+  const [user, domain] = email.split('@');
+  const masked = user.length <= 2 ? user[0] + '*' : user[0] + '*'.repeat(user.length - 2) + user.slice(-1);
+  return masked + '@' + domain;
+}
+
+// Generate a 6-digit numeric OTP
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Simple hash for OTP storage (not bcrypt — OTPs are short-lived and rate-limited)
+async function hashOTP(otp) {
+  return await hashPassword(otp);
+}
+
+// PIN Reset Step 1: Look up phone, check for email
+app.post('/api/auth/reset/init', async (req, res) => {
+  if (!supabase) return res.status(503).json({ success: false, message: 'Database not available' });
   try {
     const { phone, countryCode } = req.body;
-
-    if (!phone || !countryCode) {
-      return res.status(400).json({ success: false, message: 'Phone number is required' });
-    }
-
-    const cleanPhone = phone.replace(/\s/g, '');
-    const phoneFull = countryCode + cleanPhone;
-
-    const { data: user, error } = await supabase
-      .from('traffic_users')
-      .select('id, email')
-      .eq('phone_full', phoneFull)
-      .single();
-
-    if (error || !user) {
-      return res.status(404).json({ success: false, message: 'Phone number not found' });
-    }
-
-    res.json({
-      success: true,
-      hasEmail: !!user.email,
-      maskedEmail: user.email ? maskEmail(user.email) : null
-    });
-
+    if (!phone || !countryCode) return res.status(400).json({ success: false, message: 'Phone number is required' });
+    const phoneFull = countryCode + phone.replace(/\s/g, '');
+    const { data: user, error } = await supabase.from('traffic_users').select('id, email').eq('phone_full', phoneFull).single();
+    if (error || !user) return res.status(404).json({ success: false, message: 'Phone number not found' });
+    res.json({ success: true, hasEmail: !!user.email, maskedEmail: user.email ? maskEmail(user.email) : null });
   } catch (err) {
     console.error('Reset init error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// PIN Reset Step 2: Complete (set new PIN)
-app.post('/api/auth/reset/complete', async (req, res) => {
-  if (!supabase) {
-    return res.status(503).json({ success: false, message: 'Database not available' });
-  }
-
+// PIN Reset Step 2: Send OTP to email
+app.post('/api/auth/reset/send-otp', async (req, res) => {
+  if (!supabase) return res.status(503).json({ success: false, message: 'Database not available' });
   try {
-    const { phone, countryCode, newPassword } = req.body;
+    const { phone, countryCode } = req.body;
+    if (!phone || !countryCode) return res.status(400).json({ success: false, message: 'Missing fields' });
+    const phoneFull = countryCode + phone.replace(/\s/g, '');
+    const { data: user, error } = await supabase.from('traffic_users').select('id, email, reset_attempts, reset_expires').eq('phone_full', phoneFull).single();
+    if (error || !user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!user.email) return res.status(400).json({ success: false, message: 'No email on this account' });
 
-    if (!phone || !countryCode || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
-    }
+    // Rate limit: max 3 OTP requests per hour
+    const now = new Date();
+    const attemptsResetAt = user.reset_expires ? new Date(user.reset_expires) : null;
+    const isExpired = !attemptsResetAt || now > attemptsResetAt;
+    const attempts = isExpired ? 0 : (user.reset_attempts || 0);
+    if (attempts >= 3) return res.status(429).json({ success: false, message: 'Too many attempts. Try again later.' });
 
-    if (newPassword.length < 4 || newPassword.length > 6) {
-      return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
-    }
+    const otp = generateOTP();
+    const otpHash = await hashOTP(otp);
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    const cleanPhone = phone.replace(/\s/g, '');
-    const phoneFull = countryCode + cleanPhone;
+    await supabase.from('traffic_users').update({
+      reset_token: otpHash,
+      reset_expires: expires.toISOString(),
+      reset_attempts: attempts + 1
+    }).eq('id', user.id);
 
+    await sendEmail(user.email, 'Your Maseru Traffic Bot PIN reset code', `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <h2 style="color:#1a7a3c">Maseru Bridge Traffic Bot</h2>
+        <p>Your PIN reset code is:</p>
+        <div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#1a7a3c;padding:16px 0">${otp}</div>
+        <p style="color:#666;font-size:14px">This code expires in 10 minutes. If you did not request this, ignore this email.</p>
+      </div>
+    `);
+
+    console.log(`📧 OTP sent to ${maskEmail(user.email)} for ${phoneFull}`);
+    res.json({ success: true, maskedEmail: maskEmail(user.email) });
+  } catch (err) {
+    console.error('Send OTP error:', err);
+    res.status(500).json({ success: false, message: 'Failed to send email' });
+  }
+});
+
+// PIN Reset Step 3: Verify OTP
+app.post('/api/auth/reset/verify-otp', async (req, res) => {
+  if (!supabase) return res.status(503).json({ success: false, message: 'Database not available' });
+  try {
+    const { phone, countryCode, otp } = req.body;
+    if (!phone || !countryCode || !otp) return res.status(400).json({ success: false, message: 'Missing fields' });
+    const phoneFull = countryCode + phone.replace(/\s/g, '');
+    const { data: user, error } = await supabase.from('traffic_users').select('id, reset_token, reset_expires').eq('phone_full', phoneFull).single();
+    if (error || !user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!user.reset_token || !user.reset_expires) return res.status(400).json({ success: false, message: 'No reset in progress' });
+    if (new Date() > new Date(user.reset_expires)) return res.status(400).json({ success: false, message: 'Code has expired. Please request a new one.' });
+    const valid = await verifyPassword(otp, user.reset_token);
+    if (!valid) return res.status(400).json({ success: false, message: 'Incorrect code' });
+    // OTP valid — issue a short-lived verified token for the final step
+    const verifiedToken = Buffer.from(`${user.id}:${Date.now()}`).toString('base64');
+    await supabase.from('traffic_users').update({ reset_token: verifiedToken, reset_expires: new Date(Date.now() + 5 * 60 * 1000).toISOString() }).eq('id', user.id);
+    res.json({ success: true, verifiedToken });
+  } catch (err) {
+    console.error('Verify OTP error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// PIN Reset Step 4: Set new PIN (requires verified token)
+app.post('/api/auth/reset/complete', async (req, res) => {
+  if (!supabase) return res.status(503).json({ success: false, message: 'Database not available' });
+  try {
+    const { phone, countryCode, newPassword, verifiedToken } = req.body;
+    if (!phone || !countryCode || !newPassword || !verifiedToken) return res.status(400).json({ success: false, message: 'Missing required fields' });
+    if (newPassword.length < 4 || newPassword.length > 6 || !/^[0-9]+$/.test(newPassword)) return res.status(400).json({ success: false, message: 'PIN must be 4-6 digits' });
+    const phoneFull = countryCode + phone.replace(/\s/g, '');
+    const { data: user, error } = await supabase.from('traffic_users').select('id, reset_token, reset_expires').eq('phone_full', phoneFull).single();
+    if (error || !user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!user.reset_token || user.reset_token !== verifiedToken) return res.status(400).json({ success: false, message: 'Invalid or expired session. Please start over.' });
+    if (new Date() > new Date(user.reset_expires)) return res.status(400).json({ success: false, message: 'Session expired. Please start over.' });
     const passwordHash = await hashPassword(newPassword);
-
-    const { error } = await supabase
-      .from('traffic_users')
-      .update({ password_hash: passwordHash })
-      .eq('phone_full', phoneFull);
-
-    if (error) {
-      return res.status(500).json({ success: false, message: 'Failed to update password' });
-    }
-
-    console.log(`✅ Password reset completed for: ${phoneFull}`);
-    res.json({ success: true, message: 'Password reset successfully' });
-
+    await supabase.from('traffic_users').update({ password_hash: passwordHash, reset_token: null, reset_expires: null, reset_attempts: 0 }).eq('id', user.id);
+    console.log(`✅ PIN reset completed for: ${phoneFull}`);
+    res.json({ success: true, message: 'PIN reset successfully' });
   } catch (err) {
     console.error('Reset complete error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
