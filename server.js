@@ -2879,6 +2879,57 @@ app.get('/api/admin/frames', requireAdmin, (req, res) => {
   res.json({ success: true, frames, servedAt: new Date().toISOString() });
 });
 
+// Calibrate detector polygon — proxy to Python /calibrate and sync to R2
+app.post('/api/admin/calibrate-detector', requireAdmin, async (req, res) => {
+  const { camera_view, lane_name, polygon } = req.body;
+  if (!camera_view || !lane_name || !polygon) {
+    return res.json({ success: false, message: 'Missing camera_view, lane_name or polygon' });
+  }
+
+  try {
+    const response = await fetch(`${config.detectorUrl}/calibrate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ camera_view, lane_name, polygon }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      return res.json({ success: false, message: `Detector returned ${response.status}` });
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      return res.json({ success: false, message: data.message || 'Calibration failed' });
+    }
+
+    // Sync updated config to R2 so it persists across redeploys
+    try {
+      const configResponse = await fetch(`${config.detectorUrl}/config`, { signal: AbortSignal.timeout(5000) });
+      if (configResponse.ok) {
+        const configData = await configResponse.json();
+        if (configData.config && supabase) {
+          // Upload to R2 via Supabase storage as lane_config.json
+          const configBuffer = Buffer.from(JSON.stringify(configData.config, null, 2));
+          await supabase.storage.from('frames').upload('config/lane_config.json', configBuffer, {
+            contentType: 'application/json', upsert: true
+          });
+          console.log(`✅ lane_config.json synced to R2 after calibration`);
+        }
+      }
+    } catch (syncErr) {
+      console.warn('⚠️ Could not sync config to R2:', syncErr.message);
+      // Don't fail the request — calibration succeeded even if R2 sync failed
+    }
+
+    console.log(`✅ Calibrated ${lane_name} for ${camera_view}`);
+    return res.json({ success: true, message: data.message });
+  } catch (err) {
+    console.error('❌ calibrate-detector error:', err.message);
+    return res.json({ success: false, message: err.message });
+  }
+});
+
 // Debug detector — send current preserved frame to Python /debug, return annotated image + counts
 app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
   const viewParam = req.query.view || 'bridge'; // bridge | processing | wide
