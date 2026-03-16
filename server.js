@@ -3864,7 +3864,6 @@ function maskEmail(email) {
   return `${maskedLocal}@${domain}`;
 }
 
-// PIN Reset Step 1: Check if phone exists and whether email is on file
 // Resend email client
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 async function sendEmail(to, subject, html) {
@@ -3886,12 +3885,6 @@ async function sendEmail(to, subject, html) {
     throw new Error(`Resend error: ${err}`);
   }
   return res.json();
-}
-
-function maskEmail(email) {
-  const [user, domain] = email.split('@');
-  const masked = user.length <= 2 ? user[0] + '*' : user[0] + '*'.repeat(user.length - 2) + user.slice(-1);
-  return masked + '@' + domain;
 }
 
 // Generate a 6-digit numeric OTP
