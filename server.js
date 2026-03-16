@@ -2879,6 +2879,84 @@ app.get('/api/admin/frames', requireAdmin, (req, res) => {
   res.json({ success: true, frames, servedAt: new Date().toISOString() });
 });
 
+// Debug detector — send current preserved frame to Python /debug, return annotated image + counts
+app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
+  const viewParam = req.query.view || 'bridge'; // bridge | processing | wide
+  const viewMap = { bridge: 'bridge', processing: 'canopy', wide: 'engen' };
+  const detectorView = viewMap[viewParam] || 'bridge';
+
+  const frame = preservedFrames[viewParam];
+  if (!frame || !frame.screenshot) {
+    return res.json({ success: false, message: `No preserved frame available for ${viewParam} view` });
+  }
+
+  const imageBase64 = Buffer.isBuffer(frame.screenshot)
+    ? frame.screenshot.toString('base64')
+    : frame.screenshot;
+
+  try {
+    const response = await fetch(`${config.detectorUrl}/debug`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageBase64, camera_view: detectorView }),
+      signal: AbortSignal.timeout(30000)
+    });
+
+    if (!response.ok) {
+      return res.json({ success: false, message: `Detector returned ${response.status}` });
+    }
+
+    const data = await response.json();
+    return res.json({
+      success: true,
+      annotated_image: data.annotated_image,
+      counts: data.counts,
+      frame_timestamp: frame.timestamp
+    });
+  } catch (err) {
+    console.error('❌ debug-detector error:', err.message);
+    return res.json({ success: false, message: err.message });
+  }
+});
+
+// Manual video capture — record N seconds from HLS stream and upload to Supabase Storage
+app.post('/api/admin/capture-video', requireAdmin, async (req, res) => {
+  const duration = Math.min(parseInt(req.query.duration) || 8, 30);
+  const outputPath = `/tmp/manual_capture_${Date.now()}.mp4`;
+
+  res.json({ success: true, message: `Capturing ${duration}s clip in background` });
+
+  try {
+    await new Promise((resolve, reject) => {
+      const ffmpeg = spawn('ffmpeg', [
+        '-y', '-i', config.streamUrl,
+        '-t', String(duration),
+        '-c', 'copy',
+        outputPath
+      ], { timeout: (duration + 20) * 1000 });
+      ffmpeg.on('close', (code) => { code === 0 ? resolve() : reject(new Error(`ffmpeg code ${code}`)); });
+      ffmpeg.on('error', reject);
+    });
+
+    if (!fs.existsSync(outputPath)) { console.error('❌ Video capture: output file missing'); return; }
+
+    const videoBuffer = fs.readFileSync(outputPath);
+    fs.unlinkSync(outputPath);
+
+    if (supabase) {
+      const fileName = `videos/manual/${Date.now()}.mp4`;
+      const { error } = await supabase.storage
+        .from('frames')
+        .upload(fileName, videoBuffer, { contentType: 'video/mp4', upsert: true });
+      if (error) console.error('❌ Video upload error:', error.message);
+      else console.log(`✅ Manual video saved: ${fileName}`);
+    }
+  } catch (err) {
+    console.error('❌ Video capture failed:', err.message);
+    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+  }
+});
+
 app.get('/api/debug', (req, res) => {
   // Count frames by angle type
   const angleCounts = screenshotBuffer.reduce((acc, f) => {
