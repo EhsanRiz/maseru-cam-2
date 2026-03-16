@@ -3874,7 +3874,7 @@ async function sendEmail(to, subject, html) {
       'Authorization': `Bearer ${RESEND_API_KEY}`
     },
     body: JSON.stringify({
-      from: 'Traffic Bot <noreply@traffic.4dcs.co.za>',
+      from: 'Traffic Bot <noreply@4dcs.co.za>',
       to,
       subject,
       html
