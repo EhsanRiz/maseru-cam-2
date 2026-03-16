@@ -5475,6 +5475,7 @@
       document.getElementById('resetForm').style.display = 'none';
       document.getElementById('resetNewPasswordForm').style.display = 'none';
       document.getElementById('resetFallbackForm').style.display = 'none';
+      document.getElementById('resetOtpForm').style.display = 'none';
       document.getElementById('loggedInView').style.display = 'none';
     }
     
@@ -5814,10 +5815,24 @@
           resetPasswordState = { phone: cleanPhone, countryCode };
           
           if (data.hasEmail) {
-            // User has email - show set new PIN form directly
-            // (In production, you'd send an email with a reset link/code)
-            hideAllAuthForms();
-            document.getElementById('resetNewPasswordForm').style.display = 'block';
+            // Send OTP to their email
+            try {
+              const otpRes = await fetch('/api/auth/reset/send-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: cleanPhone, countryCode })
+              });
+              const otpData = await otpRes.json();
+              if (otpData.success) {
+                hideAllAuthForms();
+                document.getElementById('resetOtpEmailHint').textContent = `Code sent to ${otpData.maskedEmail}`;
+                document.getElementById('resetOtpForm').style.display = 'block';
+              } else {
+                showAuthError('resetError', otpData.message || 'Failed to send code');
+              }
+            } catch(e) {
+              showAuthError('resetError', 'Failed to send code. Please try again.');
+            }
           } else {
             // No email on file - show fallback (WhatsApp support)
             hideAllAuthForms();
@@ -5842,6 +5857,39 @@
       document.getElementById('resetFallbackForm').style.display = 'block';
     }
     
+    // Handle OTP verification
+    async function handleResetOtp() {
+      clearAuthErrors();
+      const otp = document.getElementById('resetOtpInput').value.trim();
+      if (otp.length !== 6 || !/^[0-9]+$/.test(otp)) {
+        showAuthError('resetOtpError', 'Please enter the 6-digit code');
+        return;
+      }
+      const btn = document.querySelector('#resetOtpForm .auth-submit');
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+      try {
+        const res = await fetch('/api/auth/reset/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: resetPasswordState.phone, countryCode: resetPasswordState.countryCode, otp })
+        });
+        const data = await res.json();
+        if (data.success) {
+          resetPasswordState.verifiedToken = data.verifiedToken;
+          hideAllAuthForms();
+          document.getElementById('resetNewPasswordForm').style.display = 'block';
+        } else {
+          showAuthError('resetOtpError', data.message || 'Incorrect code');
+        }
+      } catch(e) {
+        showAuthError('resetOtpError', 'Connection error. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verify Code';
+      }
+    }
+
     // Handle reset Step 3: Set new PIN
     async function handleResetStep3() {
       clearAuthErrors();
@@ -5870,7 +5918,8 @@
           body: JSON.stringify({
             phone: resetPasswordState.phone,
             countryCode: resetPasswordState.countryCode,
-            newPassword: newPin
+            newPassword: newPin,
+            verifiedToken: resetPasswordState.verifiedToken
           })
         });
         
@@ -8235,6 +8284,19 @@ https://4dcs.co.za`;
         <p class="auth-switch"><a href="#" onclick="showLoginForm()">Back to Login</a></p>
       </div>
       
+      <!-- PIN Reset - OTP Verification -->
+      <div class="auth-form" id="resetOtpForm" style="display: none;">
+        <h2>Enter Code</h2>
+        <p class="auth-subtitle" id="resetOtpEmailHint">Enter the 6-digit code sent to your email</p>
+        <div class="auth-field">
+          <label>Verification Code</label>
+          <input type="text" id="resetOtpInput" placeholder="6-digit code" maxlength="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="letter-spacing:8px;font-size:1.3rem;text-align:center">
+        </div>
+        <div class="auth-error" id="resetOtpError"></div>
+        <button class="auth-submit" onclick="handleResetOtp()">Verify Code</button>
+        <p class="auth-switch"><a href="#" onclick="showResetForm()">← Back</a></p>
+      </div>
+
       <!-- PIN Reset - Set New PIN (shown after email verification or admin approval) -->
       <div class="auth-form" id="resetNewPasswordForm" style="display: none;">
         <h2>Set New PIN</h2>
