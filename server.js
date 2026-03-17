@@ -2971,7 +2971,7 @@ app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
 });
 
 // Manual video capture — record N seconds from HLS stream and upload to Supabase Storage
-app.post('/api/admin/capture-video', requireAdmin, async (req, res) => {
+app.get('/api/admin/capture-video', requireAdmin, async (req, res) => {
   const duration = Math.min(parseInt(req.query.duration) || 8, 30);
   const outputPath = `/tmp/manual_capture_${Date.now()}.mp4`;
 
