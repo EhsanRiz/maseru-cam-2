@@ -292,6 +292,35 @@
     .empty-msg { text-align:center; padding:2rem; color:var(--text-muted); font-size:0.8rem; }
 
     @media(max-width:480px) { .charts-grid { grid-template-columns:1fr; } }
+
+    /* ── ACTIVE USERS PULSE ── */
+    .active-now { display:flex; align-items:center; gap:0.5rem; }
+    .active-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px rgba(16,185,129,0.3); animation:pulse-green 2s infinite; flex-shrink:0; }
+    .active-count { font-size:1.6rem; font-weight:700; color:var(--accent); line-height:1; }
+    .active-sub { font-size:0.6rem; color:var(--text-muted); margin-top:0.2rem; }
+
+    /* ── SCROLLABLE USER TABLE ── */
+    .user-table-wrap { overflow-x:auto; overflow-y:auto; max-height:480px; border-radius:8px; }
+    .user-table-wrap table thead { position:sticky; top:0; z-index:5; background:var(--bg-card); }
+
+    /* ── FILTER ACTIVE CARD ── */
+    .stat-card.filter-active { border-color:var(--accent) !important; background:linear-gradient(135deg,var(--accent-dim) 0%,transparent 100%) !important; box-shadow:0 0 0 1px var(--accent); }
+    .stat-card.filter-active::after { content:'✓'; position:absolute; top:0.4rem; right:0.55rem; font-size:0.6rem; color:var(--accent); font-weight:700; }
+
+    /* ── USER TABLE TOOLBAR ── */
+    .user-toolbar { display:flex; align-items:center; gap:0.5rem; margin-bottom:0.75rem; flex-wrap:wrap; }
+    .user-toolbar .user-search { flex:1; min-width:180px; margin-bottom:0; }
+    .btn-csv { padding:0.45rem 0.85rem; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); cursor:pointer; font-size:0.75rem; display:flex; align-items:center; gap:0.35rem; white-space:nowrap; }
+    .btn-csv:hover { border-color:var(--accent); color:var(--accent); }
+    .filter-label { font-size:0.65rem; color:var(--accent); background:var(--accent-dim); padding:0.2rem 0.5rem; border-radius:10px; white-space:nowrap; display:none; }
+    .filter-label.show { display:inline-block; }
+
+    /* ── THIS WEEK HIGHLIGHT IN CHART ── */
+    .daily-row.this-week .bf { background:var(--accent) !important; }
+    .daily-row.this-week .day { color:var(--accent); font-weight:600; }
+    .chart-legend { display:flex; gap:0.75rem; margin-top:0.5rem; }
+    .chart-legend span { font-size:0.6rem; color:var(--text-muted); display:flex; align-items:center; gap:0.3rem; }
+    .chart-legend .dot { width:8px; height:8px; border-radius:2px; display:inline-block; }
   </style>
 </head>
 <body>
@@ -766,21 +795,35 @@
     } catch(e) { console.error('Users error:', e); }
   }
 
+  let currentFilter = null;
+
   function renderUsers(summary, users) {
     const byCountry = Object.entries(summary.byCountry).sort((a,b)=>b[1]-a[1]);
     const maxC = byCountry[0]?.[1]||1;
+    const activeNow = summary.activeNow || 0;
     document.getElementById('usersContent').innerHTML = `
       <div class="stats-grid">
-        <div class="stat-card plain-highlight"><div class="label">Total Users</div><div class="value">${summary.total}</div></div>
-        <div class="stat-card"><div class="label">New Today</div><div class="value">${summary.newToday}</div></div>
-        <div class="stat-card"><div class="label">New This Week</div><div class="value">${summary.newThisWeek}</div></div>
-        <div class="stat-card">
+        <div class="stat-card plain-highlight" style="cursor:pointer" onclick="applyUserFilter(null)" id="card-all">
+          <div class="label">Total Users</div><div class="value">${summary.total}</div>
+        </div>
+        <div class="stat-card" style="cursor:default">
+          <div class="label">Active Now</div>
+          <div class="active-now"><div class="active-dot"></div><div class="active-count">${activeNow}</div></div>
+          <div class="active-sub">last 30 minutes</div>
+        </div>
+        <div class="stat-card clickable" onclick="applyUserFilter('today')" id="card-today">
+          <div class="label">New Today</div><div class="value">${summary.newToday}</div>
+        </div>
+        <div class="stat-card clickable" onclick="applyUserFilter('week')" id="card-week">
+          <div class="label">New This Week</div><div class="value">${summary.newThisWeek}</div>
+        </div>
+        <div class="stat-card clickable" onclick="applyUserFilter('email')" id="card-email">
           <div class="label">With Email</div><div class="value">${summary.withEmail}</div>
           <div class="sub">${Math.round((summary.withEmail/Math.max(summary.total,1))*100)}% of users</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card clickable" onclick="applyUserFilter('noemail')" id="card-noemail">
           <div class="label">No Email</div><div class="value">${summary.total-summary.withEmail}</div>
-          <div class="sub">WhatsApp reset only</div>
+          <div class="sub">PIN reset via support</div>
         </div>
       </div>
       <div class="charts-grid">
@@ -790,25 +833,85 @@
             ${byCountry.map(([c,n])=>`<div class="country-row"><div class="cname">${c}</div><div class="bc"><div class="bf" style="width:${Math.round((n/maxC)*100)}%">${n}</div></div></div>`).join('')||'<div class="empty-msg">No data</div>'}
           </div>
         </div>
-        <div class="card"><h3>📋 Registrations — Last 14 Days</h3>${renderRegChart(users)}</div>
+        <div class="card"><h3>📋 Registrations — Last 14 Days</h3>${renderRegChart(users)}<div class="chart-legend"><span><span class="dot" style="background:var(--purple)"></span>Previous</span><span><span class="dot" style="background:var(--accent)"></span>This week</span></div></div>
       </div>
       <div class="card">
-        <h3>👤 User List <span style="color:var(--text-muted);font-weight:400;font-size:0.7rem">(${users.length})</span></h3>
-        <input class="user-search" type="text" placeholder="Search by name or country…" oninput="filterUsers(this.value)">
+        <h3>👤 User List <span id="userListCount" style="color:var(--text-muted);font-weight:400;font-size:0.7rem">(${users.length})</span></h3>
+        <div class="user-toolbar">
+          <input class="user-search" type="text" placeholder="Search by name or country…" oninput="filterUsers(this.value)">
+          <span class="filter-label" id="filterLabel"></span>
+          <button class="btn-csv" onclick="downloadCSV()">⬇ CSV</button>
+        </div>
         <div class="user-table-wrap" id="userTableWrap">${buildUserTable(users)}</div>
       </div>`;
+  }
+
+  function applyUserFilter(type) {
+    currentFilter = type;
+    // Update card highlight
+    ['card-all','card-today','card-week','card-email','card-noemail'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('filter-active');
+    });
+    const cardMap = { null:'card-all', today:'card-today', week:'card-week', email:'card-email', noemail:'card-noemail' };
+    const activeCard = document.getElementById(cardMap[type]);
+    if (activeCard) activeCard.classList.add('filter-active');
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).getTime();
+
+    let filtered = allUsers;
+    let label = '';
+    if (type === 'today') { filtered = allUsers.filter(u => new Date(u.createdAt).getTime() >= todayStart); label = 'New today'; }
+    else if (type === 'week') { filtered = allUsers.filter(u => new Date(u.createdAt).getTime() >= weekStart); label = 'New this week'; }
+    else if (type === 'email') { filtered = allUsers.filter(u => u.hasEmail); label = 'Has email'; }
+    else if (type === 'noemail') { filtered = allUsers.filter(u => !u.hasEmail); label = 'No email'; }
+
+    const labelEl = document.getElementById('filterLabel');
+    if (labelEl) { labelEl.textContent = label ? `Showing: ${label} (${filtered.length})` : ''; labelEl.className = 'filter-label' + (label ? ' show' : ''); }
+    const countEl = document.getElementById('userListCount');
+    if (countEl) countEl.textContent = `(${filtered.length})`;
+    document.getElementById('userTableWrap').innerHTML = buildUserTable(filtered);
+  }
+
+  function downloadCSV() {
+    const users = currentFilter ? (() => {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).getTime();
+      if (currentFilter === 'today') return allUsers.filter(u => new Date(u.createdAt).getTime() >= todayStart);
+      if (currentFilter === 'week') return allUsers.filter(u => new Date(u.createdAt).getTime() >= weekStart);
+      if (currentFilter === 'email') return allUsers.filter(u => u.hasEmail);
+      if (currentFilter === 'noemail') return allUsers.filter(u => !u.hasEmail);
+      return allUsers;
+    })() : allUsers;
+
+    const rows = [['Name','Country Code','Country','Has Email','Registered','Last Seen']];
+    users.forEach(u => {
+      const reg = u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-ZA',{timeZone:'Africa/Johannesburg'}) : '';
+      const seen = u.lastSeen ? new Date(u.lastSeen).toLocaleDateString('en-ZA',{timeZone:'Africa/Johannesburg'}) : 'Never';
+      rows.push([u.name||'', u.countryCode||'', u.country||'', u.hasEmail?'Yes':'No', reg, seen]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `maseru_users_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   }
 
   function renderRegChart(users) {
     if (!users.length) return '<div class="empty-msg">No users yet</div>';
     const byDay = {};
     const now = new Date();
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
     for (let i=13; i>=0; i--) { const d=new Date(now); d.setDate(d.getDate()-i); byDay[d.toISOString().split('T')[0]]=0; }
     users.forEach(u => { const d=u.createdAt?.split('T')[0]; if(d&&byDay[d]!==undefined) byDay[d]++; });
     const days=Object.keys(byDay), max=Math.max(...Object.values(byDay),1);
     return `<div class="daily-chart">${days.map(d=>{
       const c=byDay[d], w=(c/max)*100, name=new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      return `<div class="daily-row"><div class="day">${name}</div><div class="bc"><div class="bf" style="width:${Math.max(w,c>0?6:0)}%;background:var(--purple)">${c||''}</div></div></div>`;
+      const isThisWeek = new Date(d) >= weekStart;
+      return `<div class="daily-row${isThisWeek?' this-week':''}"><div class="day">${name}</div><div class="bc"><div class="bf" style="width:${Math.max(w,c>0?6:0)}%;background:${isThisWeek?'var(--accent)':'var(--purple)'}">${c||''}</div></div></div>`;
     }).join('')}</div>`;
   }
 
