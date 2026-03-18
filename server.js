@@ -2772,6 +2772,14 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
       if (!lastSeenMap[a.user_id]) lastSeenMap[a.user_id] = a.created_at;
     });
 
+    // Active users in last 30 minutes
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: recentActivity } = await supabase
+      .from('user_activity')
+      .select('user_id')
+      .gte('created_at', thirtyMinsAgo);
+    const activeNow = new Set(recentActivity?.map(a => a.user_id) || []).size;
+
     // Country breakdown
     const byCountry = {};
     users?.forEach(u => {
@@ -2783,6 +2791,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
       success: true,
       summary: {
         total: users?.length || 0,
+        activeNow,
         newToday: users?.filter(u => u.created_at >= todayStart).length || 0,
         newThisWeek: users?.filter(u => u.created_at >= weekAgo).length || 0,
         withEmail: users?.filter(u => u.email).length || 0,
