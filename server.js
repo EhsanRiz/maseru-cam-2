@@ -2756,7 +2756,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
     // All users (no phone_full in response — show only country/name/dates)
     const { data: users, error } = await supabase
       .from('traffic_users')
-      .select('id, name, country_code, country_residence, email, created_at')
+      .select('id, name, country_code, country_residence, email, phone_full, created_at')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -2803,6 +2803,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         country: u.country_residence,
         countryCode: u.country_code,
         hasEmail: !!u.email,
+        phone: u.phone_full || null,
         createdAt: u.created_at,
         lastSeen: lastSeenMap[u.id] || null
       })) || []).sort((a, b) => {
