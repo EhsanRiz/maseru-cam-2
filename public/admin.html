@@ -838,7 +838,7 @@
       <div class="card">
         <h3>👤 User List <span id="userListCount" style="color:var(--text-muted);font-weight:400;font-size:0.7rem">(${users.length})</span></h3>
         <div class="user-toolbar">
-          <input class="user-search" type="text" placeholder="Search by name or country…" oninput="filterUsers(this.value)">
+          <input class="user-search" type="text" placeholder="Search by name, phone, country…" oninput="filterUsers(this.value)">
           <span class="filter-label" id="filterLabel"></span>
           <button class="btn-csv" onclick="downloadCSV()">⬇ CSV</button>
         </div>
@@ -936,9 +936,17 @@
   }
 
   function filterUsers(q) {
-    const ql=q.toLowerCase();
-    const filtered=allUsers.filter(u=>(u.name||'').toLowerCase().includes(ql)||(u.country||'').toLowerCase().includes(ql));
-    document.getElementById('userTableWrap').innerHTML=buildUserTable(filtered);
+    const ql = q.toLowerCase().trim();
+    if (!ql) { document.getElementById('userTableWrap').innerHTML = buildUserTable(allUsers); return; }
+    const filtered = allUsers.filter(u =>
+      (u.name||'').toLowerCase().includes(ql) ||
+      (u.country||'').toLowerCase().includes(ql) ||
+      (u.phone||'').toLowerCase().includes(ql) ||
+      (u.countryCode||'').toLowerCase().includes(ql)
+    );
+    const countEl = document.getElementById('userListCount');
+    if (countEl) countEl.textContent = `(${filtered.length})`;
+    document.getElementById('userTableWrap').innerHTML = buildUserTable(filtered);
   }
 
   /* ─── CAMERA ─── */
