@@ -2788,7 +2788,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         withEmail: users?.filter(u => u.email).length || 0,
         byCountry
       },
-      users: users?.map(u => ({
+      users: (users?.map(u => ({
         id: u.id,
         name: u.name || null,
         country: u.country_residence,
@@ -2796,7 +2796,12 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         hasEmail: !!u.email,
         createdAt: u.created_at,
         lastSeen: lastSeenMap[u.id] || null
-      })) || []
+      })) || []).sort((a, b) => {
+        if (!a.lastSeen && !b.lastSeen) return new Date(b.createdAt) - new Date(a.createdAt);
+        if (!a.lastSeen) return 1;  // a never seen → push to bottom
+        if (!b.lastSeen) return -1; // b never seen → push to bottom
+        return new Date(b.lastSeen) - new Date(a.lastSeen); // most recent first
+      })
     });
 
   } catch (err) {
