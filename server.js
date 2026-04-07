@@ -15,7 +15,7 @@ const config = {
   port: process.env.PORT || 3000,
   anthropicApiKey: process.env.ANTHROPIC_API_KEY, // kept for reference (unused)
   geminiApiKey: process.env.GEMINI_API_KEY,
-  streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridge.stream_all/playlist.m3u8',
+  streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridgeLS.stream_all/playlist.m3u8',
   captureInterval: 90000,        // Capture every 90 seconds (was 3 min) to catch more angles
   cacheTimeout: 120000,          // Cache analysis for 2 minutes
   maxBufferSize: 20,             // Keep last 20 frames (more history)
