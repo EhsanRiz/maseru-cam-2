@@ -1082,10 +1082,13 @@ async function analyzeTraffic(userQuestion = null) {
         const frames = framesByAngle[angleType];
         framesToUse.push(frames[frames.length - 1]);
         anglesUsed.push(angleType);
-      } else if (preservedFrames[angleType] && isFrameFresh(preservedFrames[angleType])) {
-        // Use preserved frame as fallback ONLY if it's fresh
+      } else if (preservedFrames[angleType]) {
+        // Fall back to the preserved frame regardless of age. "Stale but
+        // something" beats "No camera view available" — Gemini can still
+        // reason about queue length from a frame a few hours old, and the
+        // response includes a timestamp so users know how fresh it is.
         framesToUse.push(preservedFrames[angleType]);
-        anglesUsed.push(angleType + ' (preserved)');
+        anglesUsed.push(isFrameFresh(preservedFrames[angleType]) ? angleType + ' (preserved)' : angleType + ' (stale)');
       }
     }
     
@@ -1907,11 +1910,12 @@ app.post('/api/chat/stream', async (req, res) => {
       if (framesByAngle[angleType] && framesByAngle[angleType].length > 0) {
         const frames = framesByAngle[angleType];
         framesToUse.push(frames[frames.length - 1]);
-      } else if (preservedFrames[angleType] && isFrameFresh(preservedFrames[angleType])) {
+      } else if (preservedFrames[angleType]) {
+        // Accept stale preserved frames — still better than refusing to answer.
         framesToUse.push(preservedFrames[angleType]);
       }
     }
-    
+
     if (framesToUse.length === 0) {
       res.write(`data: ${JSON.stringify({ type: 'error', message: 'No camera view available' })}\n\n`);
       res.write('data: [DONE]\n\n');
