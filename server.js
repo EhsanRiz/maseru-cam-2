@@ -2317,19 +2317,18 @@ app.get('/api/frames', async (req, res) => {
     
     // Maximum age for "fresh" vs "stale" (for UI indicator)
     const FRESH_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
-    const MAX_PRESERVED_AGE_MS = 60 * 60 * 1000; // 1 hour - show preserved frames up to 1 hour old
-    
+
     // Go through buffer in reverse to get most recent of each type
     for (let i = screenshotBuffer.length - 1; i >= 0; i--) {
       const frame = screenshotBuffer[i];
       const angleType = frame.angleType || 'unknown';
-      
+
       // Skip useless frames and already captured angles
       if (angleType === 'useless' || framesByAngle[angleType]) continue;
-      
+
       // Skip stale frames from buffer (only use fresh ones)
       if (!isFrameFresh(frame)) continue;
-      
+
       const label = angleLabels[angleType];
       if (label) {
         framesByAngle[angleType] = {
@@ -2341,29 +2340,26 @@ app.get('/api/frames', async (req, res) => {
         };
       }
     }
-    
-    // Fill in any missing angles from preserved frames
-    // IMPORTANT: Allow older preserved frames (up to 1 hour) for carousel display
-    // This helps when camera is stuck on certain angles
+
+    // Fill in any missing angles from preserved frames — ALWAYS serve them,
+    // regardless of age. Overnight the ETL camera produces "useless" (dark)
+    // frames for 12+ hours; the preserved frames from yesterday evening are
+    // the only meaningful thing we can show in that window. Stale > blank.
     const order = ['bridge', 'processing', 'wide'];
     for (const angleType of order) {
       if (!framesByAngle[angleType] && preservedFrames[angleType]) {
         const frame = preservedFrames[angleType];
         const frameAge = Date.now() - new Date(frame.timestamp).getTime();
-        
-        // Allow preserved frames up to 1 hour old for display
-        if (frameAge <= MAX_PRESERVED_AGE_MS) {
-          const label = angleLabels[angleType];
-          if (label) {
-            framesByAngle[angleType] = {
-              angleType: angleType,
-              label: label,
-              timestamp: frame.timestamp,
-              image: frame.screenshot.toString('base64'),
-              isStale: frameAge > FRESH_THRESHOLD_MS, // Mark as stale if older than 10 min
-              ageMinutes: Math.round(frameAge / 60000)
-            };
-          }
+        const label = angleLabels[angleType];
+        if (label) {
+          framesByAngle[angleType] = {
+            angleType: angleType,
+            label: label,
+            timestamp: frame.timestamp,
+            image: frame.screenshot.toString('base64'),
+            isStale: frameAge > FRESH_THRESHOLD_MS,
+            ageMinutes: Math.round(frameAge / 60000)
+          };
         }
       }
     }
@@ -4201,7 +4197,19 @@ async function smartCapture() {
             reason = `same angle (${consecutiveSameAngle}x)`;
             shouldSave = false;
           }
-          
+
+          // Always refresh the in-memory preserved frame for any useful angle —
+          // even if we're not triggering a Supabase upload. Prevents admin /
+          // /api/frames from going blank during overnight "useless" cycles, when
+          // shouldSave stays false for 12+ hours but we still have live frames.
+          if (angleType !== 'useless' && preservedFrames.hasOwnProperty(angleType)) {
+            preservedFrames[angleType] = {
+              screenshot: imageBuffer,
+              timestamp: timestamp,
+              angleType: angleType
+            };
+          }
+
           if (shouldSave) {
             const frameData = {
               screenshot: imageBuffer,
