@@ -13,7 +13,6 @@ const __dirname = path.dirname(__filename);
 
 const config = {
   port: process.env.PORT || 3000,
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY, // kept for reference (unused)
   geminiApiKey: process.env.GEMINI_API_KEY,
   streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridgeLS.stream_all/playlist.m3u8',
   captureInterval: 90000,        // Capture every 90 seconds (was 3 min) to catch more angles
@@ -1595,9 +1594,27 @@ Respond appropriately for this question type. Be helpful and conversational.`;
     return analysis;
   } catch (error) {
     console.error('❌ Analysis failed:', error.message);
+
+    // Classify the error so the user sees a friendly explanation instead of
+    // a raw JSON error from the Gemini API.
+    const raw = String(error?.message || '');
+    const code = error?.status || error?.code;
+    const isQuota = code === 429 || /RESOURCE_EXHAUSTED|quota|rate.?limit|prepayment/i.test(raw);
+    const isAuth = code === 401 || code === 403 || /API key|unauthori[sz]ed|permission/i.test(raw);
+
+    let friendly;
+    if (isQuota) {
+      friendly = "I'm at my request limit for the moment — give me a minute and try again. In the meantime, the camera feeds above show current conditions.";
+    } else if (isAuth) {
+      friendly = "I can't reach the AI service right now due to a configuration issue. The team has been notified.";
+    } else {
+      friendly = "I'm having trouble analysing the cameras right now. Please try again in a moment.";
+    }
+
     return {
       success: false,
-      message: `Analysis temporarily unavailable: ${error.message}`,
+      message: friendly,
+      errorCode: isQuota ? 'quota_exhausted' : isAuth ? 'auth_error' : 'analysis_error',
     };
   }
 }
@@ -2281,9 +2298,22 @@ Respond appropriately. Be helpful and conversational.`;
     
   } catch (error) {
     console.error('Streaming error:', error);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to process your question' })}\n\n`);
-    res.write('data: [DONE]\n\n');
-    res.end();
+
+    const raw = String(error?.message || '');
+    const code = error?.status || error?.code;
+    const isQuota = code === 429 || /RESOURCE_EXHAUSTED|quota|rate.?limit|prepayment/i.test(raw);
+    const friendly = isQuota
+      ? "I'm at my request limit for the moment — please try again in a minute. You can still check the camera feeds above for current conditions."
+      : "I'm having trouble analysing the cameras right now. Please try again in a moment.";
+
+    // If stream headers were flushed, write SSE error event; otherwise send JSON.
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ type: 'error', message: friendly, errorCode: isQuota ? 'quota_exhausted' : 'stream_error' })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } else {
+      res.status(isQuota ? 429 : 500).json({ success: false, message: friendly, errorCode: isQuota ? 'quota_exhausted' : 'stream_error' });
+    }
   }
 });
 
