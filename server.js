@@ -863,7 +863,12 @@ ONE WORD ONLY:` }
     
   } catch (error) {
     console.error('❌ Classification failed:', error.message);
-    return ANGLE_TYPES.USELESS;
+    // Don't return USELESS here — that silently poisons the capture loop
+    // whenever the AI is rate-limited, making every frame look like darkness
+    // and preventing preservedFrames from ever refreshing. Return null and
+    // let callers skip the frame instead, so the last-known state stays
+    // intact until the API recovers.
+    return null;
   } finally {
     isClassifying = false;
   }
@@ -941,16 +946,27 @@ async function captureFrame() {
           } else {
             // Classify the frame angle (costs API call)
             angleType = await classifyFrameAngle(imageBuffer);
-            // Store for next diff comparison
-            lastClassifiedFrame = { buffer: imageBuffer, angleType, timestamp: Date.now() };
+            // Only update the diff anchor on a successful classification so
+            // failures don't propagate through the similarity shortcut.
+            if (angleType !== null) {
+              lastClassifiedFrame = { buffer: imageBuffer, angleType, timestamp: Date.now() };
+            }
           }
-          
+
+          // Classification failed (null) — skip the frame entirely so the
+          // buffer and preservedFrames stay intact until the AI recovers.
+          if (angleType === null) {
+            console.log('⏭️ Skipping frame — classification unavailable');
+            resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
+            return;
+          }
+
           const frameData = {
             screenshot: imageBuffer,
             timestamp: timestamp,
             angleType: angleType
           };
-          
+
           // Add to buffer
           screenshotBuffer.push(frameData);
           
@@ -4192,9 +4208,22 @@ async function smartCapture() {
           } else {
             // Classify the frame angle (costs API call)
             angleType = await classifyFrameAngle(imageBuffer);
-            lastClassifiedFrame = { buffer: imageBuffer, angleType, timestamp: Date.now() };
+            // Only update the diff anchor on a real result so transient AI
+            // failures don't stick through the similarity shortcut.
+            if (angleType !== null) {
+              lastClassifiedFrame = { buffer: imageBuffer, angleType, timestamp: Date.now() };
+            }
           }
-          
+
+          // Classification unavailable (null) — skip without touching buffer
+          // or preservedFrames. Keeps the last-known state intact during
+          // AI outages instead of poisoning it with false "useless" reads.
+          if (angleType === null) {
+            console.log('⏭️ Skipping — classification unavailable (AI rate-limited or errored)');
+            resolve(null);
+            return;
+          }
+
           const timeSinceLastChange = timestamp - lastAngleChangeTime;
           const isNewAngle = angleType !== lastCapturedAngle && angleType !== 'useless';
           const tooLongSameAngle = timeSinceLastChange > 180000; // 3 minutes without change
