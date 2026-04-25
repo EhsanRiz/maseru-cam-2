@@ -952,6 +952,7 @@
   /* ─── CAMERA ─── */
   let lastCamData = null;
   let lastFrameData = null;
+  let lastRawFrame = null;
 
   // ── LIVE CALIBRATION ─────────────────────────────────────────────
   const DEFAULT_POLYGONS = {
@@ -1165,8 +1166,9 @@
       if (sysData.success) {
         lastCamData   = sysData;
         lastFrameData = framesData?.success ? framesData.frames : null;
+        lastRawFrame  = framesData?.success ? framesData.latestRaw : null;
         updateCameraBadge(sysData.camera);
-        if (activeTab === 'camera') renderCamera(sysData, lastFrameData);
+        if (activeTab === 'camera') renderCamera(sysData, lastFrameData, lastRawFrame);
       }
     } catch(e) { console.error('Camera error:', e); }
   }
@@ -1182,7 +1184,7 @@
     }
   }
 
-  function renderCamera(d, frames) {
+  function renderCamera(d, frames, latestRaw) {
     const cam = d.camera;
     const angleHistory = d.angleHistory || [];
     const buffer = d.buffer;
@@ -1221,6 +1223,9 @@
     const timelineHtml = buildAngleTimeline(angleHistory);
 
     document.getElementById('cameraContent').innerHTML = `
+      <!-- Live Raw Capture (shows even when AI classification is unavailable) -->
+      ${buildLatestRaw(latestRaw)}
+
       <!-- Live Frame Images -->
       ${buildLiveFrames(frames)}
 
@@ -1302,6 +1307,32 @@
         📷 Auto-refreshes every 15 seconds. Last updated: <strong>${new Date().toLocaleTimeString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false})} SAST</strong>
       </div>
     `;
+  }
+
+  function buildLatestRaw(latestRaw) {
+    if (!latestRaw || !latestRaw.imageBase64) return '';
+    const ageSec = latestRaw.ageSeconds || 0;
+    const ageMin = Math.round(ageSec / 60);
+    const ageCls = ageSec < 120 ? 'fresh' : ageSec < 300 ? 'aging' : 'stale';
+    const ageLabel = ageSec < 60 ? `${ageSec}s ago` : `${ageMin}m ago`;
+    const captureTime = new Date(latestRaw.timestamp).toLocaleTimeString('en-ZA',{
+      timeZone:'Africa/Johannesburg', hour12:false
+    });
+    return `<div class="card" style="margin-bottom:1.25rem">
+      <h3>📡 Live Capture <span style="font-weight:400;color:var(--text-muted)">— most recent ffmpeg frame, before AI classification</span></h3>
+      <div class="live-frame-card ${ageCls}-frame" style="max-width:480px">
+        <img class="live-frame-img" src="data:image/jpeg;base64,${latestRaw.imageBase64}" alt="Live capture" loading="lazy">
+        <div class="live-frame-badge ${ageCls}">${ageSec < 120 ? 'LIVE' : ageLabel}</div>
+        <div class="live-frame-meta">
+          <div class="angle-name">📡 Live (uncategorized)</div>
+          <div class="frame-time">Captured at ${captureTime} SAST</div>
+          <div class="frame-age ${ageCls}">${ageLabel}</div>
+        </div>
+      </div>
+      <div class="info-box" style="margin-top:0.75rem;margin-bottom:0;font-size:0.8rem">
+        Updates whenever ffmpeg pulls a frame from the ETL stream — proves the camera is alive even if the AI classifier is rate-limited or down.
+      </div>
+    </div>`;
   }
 
   function buildLiveFrames(frames) {

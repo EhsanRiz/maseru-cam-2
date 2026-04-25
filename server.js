@@ -412,6 +412,11 @@ let preservedFrames = {
   wide: null
 };
 
+// Latest raw frame from ffmpeg, regardless of classification. Updated on
+// every successful (non-blurry) capture so admin / health UI can show that
+// the camera is alive even when the AI classifier is unavailable.
+let latestRawFrame = null;
+
 // Angle types
 const ANGLE_TYPES = {
   BRIDGE: 'bridge',           // View of the bridge showing both lanes
@@ -936,6 +941,12 @@ async function captureFrame() {
             resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
             return;
           }
+
+          // Record the raw capture before classification — proves the camera
+          // is alive even if the AI is rate-limited.
+          latestRawFrame = { screenshot: imageBuffer, timestamp: Date.now() };
+          cameraStatus.lastSuccessfulCapture = Date.now();
+          cameraStatus.consecutiveFailures = 0;
 
           // FRAME DIFF CHECK: if this frame looks almost identical to the last
           // classified one, reuse the cached angle type — skip the AI call entirely
@@ -2937,7 +2948,19 @@ app.get('/api/admin/frames', requireAdmin, (req, res) => {
     };
   });
 
-  res.json({ success: true, frames, servedAt: new Date().toISOString() });
+  // Latest raw capture — set on every non-blurry ffmpeg result regardless
+  // of classification status. Lets admin show the camera is alive during
+  // AI outages, even though we can't categorize the angle.
+  let latestRaw = null;
+  if (latestRawFrame && latestRawFrame.screenshot) {
+    latestRaw = {
+      timestamp: new Date(latestRawFrame.timestamp).toISOString(),
+      ageSeconds: Math.round((Date.now() - latestRawFrame.timestamp) / 1000),
+      imageBase64: latestRawFrame.screenshot.toString('base64')
+    };
+  }
+
+  res.json({ success: true, frames, latestRaw, servedAt: new Date().toISOString() });
 });
 
 // Calibrate detector polygon — proxy to Python /calibrate and sync to R2
@@ -4203,6 +4226,12 @@ async function smartCapture() {
             resolve(null);
             return;
           }
+
+          // Record the raw capture before classification — proves the camera
+          // is alive even if the AI is rate-limited.
+          latestRawFrame = { screenshot: imageBuffer, timestamp: Date.now() };
+          cameraStatus.lastSuccessfulCapture = Date.now();
+          cameraStatus.consecutiveFailures = 0;
 
           // FRAME DIFF CHECK: skip AI classification if frame is nearly identical
           let angleType;
