@@ -84,6 +84,8 @@ const BURST_DEFAULT_INTERVAL_SEC = 1;
 // Capture `numFrames` frames from the live HLS stream at `intervalSec` spacing
 // using a single ffmpeg invocation (one HLS handshake). Returns an array of
 // { buffer, timestampMs }, oldest first. Resolves to null on failure.
+// Instrumented for the /api/burst-diag endpoint. We tag the global
+// burstDiag.lastBurstAttempt with the outcome of each captureBurst call.
 async function captureBurst(numFrames = BURST_DEFAULT_FRAMES, intervalSec = BURST_DEFAULT_INTERVAL_SEC) {
   // Unique sub-dir per call so concurrent bursts don't collide.
   const sessionDir = `${BURST_TMP_DIR}/${Date.now()}`;
@@ -110,7 +112,9 @@ async function captureBurst(numFrames = BURST_DEFAULT_FRAMES, intervalSec = BURS
 
     ff.on('close', (code) => {
       if (code !== 0) {
-        console.error(`❌ Burst ffmpeg failed code=${code}`);
+        const errSnippet = stderr.split('\n').slice(-3).join(' | ').slice(0, 300);
+        console.error(`❌ Burst ffmpeg failed code=${code} stderr=${errSnippet}`);
+        try { burstDiag.lastBurstAttempt = { ts: Date.now(), ok: false, frames: 0, err: `ffmpeg code ${code}: ${errSnippet}` }; } catch (_) {}
         try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
         return resolve(null);
       }
@@ -131,8 +135,10 @@ async function captureBurst(numFrames = BURST_DEFAULT_FRAMES, intervalSec = BURS
         try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
         if (frames.length === 0) {
           console.error('❌ Burst produced 0 frames');
+          try { burstDiag.lastBurstAttempt = { ts: Date.now(), ok: false, frames: 0, err: 'ffmpeg exit 0 but no frame files' }; } catch (_) {}
           return resolve(null);
         }
+        try { burstDiag.lastBurstAttempt = { ts: Date.now(), ok: true, frames: frames.length, err: null }; } catch (_) {}
         console.log(`✅ Burst captured ${frames.length}/${numFrames} frames`);
         resolve(frames);
       } catch (err) {
@@ -172,6 +178,7 @@ async function detectVehiclesBurst(burst, cameraView = 'bridge') {
     });
     if (!response.ok) {
       console.error(`❌ Burst detector error: ${response.status}`);
+      try { burstDiag.lastDetectorCall = { ts: Date.now(), ok: false, view: cameraView, err: `HTTP ${response.status}`, total: null }; } catch (_) {}
       return null;
     }
     const result = await response.json();
@@ -181,9 +188,15 @@ async function detectVehiclesBurst(burst, cameraView = 'bridge') {
       `🎯 Burst-detector [${cameraView}]: SA→LS=${result.SA_to_LS} LS→SA=${result.LS_to_SA} ` +
       `unassigned=${result.unassigned} total=${result.total} (motion:${byMotion} entry:${byEntry})`
     );
+    try {
+      burstDiag.lastDetectorCall = { ts: Date.now(), ok: true, view: cameraView, err: null, total: result.total };
+      const angleKey = Object.keys(ANGLE_TO_VIEW).find(k => ANGLE_TO_VIEW[k] === cameraView);
+      if (angleKey) burstDiag.lastSuccessByView[angleKey] = Date.now();
+    } catch (_) {}
     return result;
   } catch (err) {
     console.error('❌ Burst detector failed:', err.message);
+    try { burstDiag.lastDetectorCall = { ts: Date.now(), ok: false, view: cameraView, err: err.message, total: null }; } catch (_) {}
     return null;
   }
 }
@@ -2247,6 +2260,31 @@ app.get('/api/status', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to get traffic status' });
   }
+});
+
+// PUBLIC (read-only): diagnostic for the burst-detector path. Surfaces
+// last-attempt timestamps and any recent errors so we can see why the
+// wait-time card is empty without needing admin auth. No image data.
+const burstDiag = {
+  lastBurstAttempt: { ts: 0, ok: false, frames: 0, err: null },
+  lastDetectorCall: { ts: 0, ok: false, view: null, err: null, total: null },
+  lastSuccessByView: { bridge: 0, processing: 0, wide: 0 },
+};
+app.get('/api/burst-diag', (req, res) => {
+  res.json({
+    success: true,
+    diag: burstDiag,
+    cache: {
+      bridge:     { capturedAt: latestBurstCounts.bridge.capturedAt,     hasResult: !!latestBurstCounts.bridge.result },
+      processing: { capturedAt: latestBurstCounts.processing.capturedAt, hasResult: !!latestBurstCounts.processing.result },
+      wide:       { capturedAt: latestBurstCounts.wide.capturedAt,       hasResult: !!latestBurstCounts.wide.result },
+    },
+    journey: {
+      completed: completedJourneys.length,
+      pendingLsToSa: pendingCanopyDeparturesLsToSa.length,
+      pendingSaToLs: pendingBridgeDeparturesSaToLs.length,
+    },
+  });
 });
 
 // PUBLIC: most recent end-to-end journeys (canopy + bridge linked). Each
