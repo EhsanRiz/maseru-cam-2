@@ -346,17 +346,31 @@ async function extractWaitTimeFromMessage(message) {
 // is unobservable (no camera there) — seeded at SA_SIDE_PROCESSING_SEED_MIN
 // and refined entirely by user reports flagged segment='sa_side'.
 
+// Detector returns two wait-time signals per direction:
+//   1. observed_wait.seconds — actual transit time, averaged over recent
+//      vehicles that entered through an entry zone and crossed an exit
+//      zone matching their entry direction. The honest measurement.
+//   2. estimated_wait_seconds — count × queue_pace + free_flow_transit
+//      (a model when we don't have enough completed transits yet).
+// We prefer the observed signal when sample_count >= 3, fall back to the
+// estimate otherwise.
+const MIN_OBSERVED_SAMPLES = 3;
+
 function _segmentFromBurst(burst) {
   if (!burst) return null;
   const fm = burst.flow_metrics || {};
-  // The detector now returns `estimated_wait_seconds` per direction that
-  // combines queue-clearing time (count * queue_seconds_per_vehicle) with
-  // free-flow drive-through time. This works in BOTH regimes: fully stopped
-  // queue (queue × pace, since transit_s is null) and free-flowing (queue 0
-  // + transit). Falling back to free_flow_transit only is what produced the
-  // absurd 8-minute estimate when the bridge was fully jammed.
   const make = (count, m) => {
-    const waitSec = m.estimated_wait_seconds;
+    const observed = m.observed_wait || {};
+    let waitSec, source, sampleCount;
+    if (observed.seconds != null && (observed.sample_count || 0) >= MIN_OBSERVED_SAMPLES) {
+      waitSec = observed.seconds;
+      source = 'measured';
+      sampleCount = observed.sample_count;
+    } else {
+      waitSec = m.estimated_wait_seconds;
+      source = 'estimated';
+      sampleCount = 0;
+    }
     const estimatedMinutes = waitSec != null
       ? Math.max(0, Math.round((waitSec / 60) * 10) / 10)
       : null;
@@ -368,6 +382,8 @@ function _segmentFromBurst(burst) {
       meanSpeedKmh: m.mean_speed_kmh ?? null,
       freeFlowTransitSeconds: m.free_flow_transit_seconds ?? null,
       estimatedMinutes,
+      waitSource: source,
+      measuredSamples: sampleCount,
     };
   };
   return {
