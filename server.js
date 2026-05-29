@@ -15,7 +15,7 @@ const config = {
   port: process.env.PORT || 3000,
   geminiApiKey: process.env.GEMINI_API_KEY,
   streamUrl: 'https://5c50a1c26792b.streamlock.net/live/ngrp:MaseruBridgeLS.stream_all/playlist.m3u8',
-  captureInterval: 90000,        // Capture every 90 seconds (was 3 min) to catch more angles
+  captureInterval: 30000,        // Capture every 30 seconds — denser sampling helps cross-view chaining + per-track continuity
   cacheTimeout: 120000,          // Cache analysis for 2 minutes
   maxBufferSize: 20,             // Keep last 20 frames (more history)
   analysisFrames: 3,             // Use 3 frames for analysis
@@ -1383,7 +1383,7 @@ function isFrameSimilarToLast(imageBuffer) {
 // Slow down capture interval to save costs.
 
 const NIGHT_CAPTURE_INTERVAL = 8 * 60 * 1000;   // 8 minutes at night
-const DAY_CAPTURE_INTERVAL   = 90 * 1000;         // 90 seconds during the day
+const DAY_CAPTURE_INTERVAL   = 30 * 1000;         // 30 seconds during the day — better cross-view chaining + tracker continuity (~3x detector load)
 
 function isNightTime() {
   // Use SAST (UTC+2)
