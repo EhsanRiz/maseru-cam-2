@@ -443,7 +443,13 @@
           <div id="followStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
         </div>
         <div id="followVehicleList" style="display:none;margin-top:0.6rem">
-          <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.4rem">Click a vehicle to start following it:</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.4rem">Click a vehicle in the image (or in the list) to start following it:</div>
+          <!-- Annotated canvas overlay: shows the frame the tracker last saw, with each
+               detected vehicle drawn as a clickable bbox labelled with track_id + direction. -->
+          <div id="followCanvasWrap" style="position:relative;width:100%;max-width:800px;margin-bottom:0.7rem;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:var(--bg)">
+            <img id="followFrameImg" alt="Latest captured frame" style="width:100%;display:block" />
+            <canvas id="followBboxCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair"></canvas>
+          </div>
           <div id="followVehicleListBody" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.5rem"></div>
         </div>
         <div id="followLivePanel" style="display:none;margin-top:1rem;padding:0.85rem;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
@@ -1157,6 +1163,19 @@
         ? `${data.ageSeconds}s ago`
         : `${Math.round(data.ageSeconds / 60)}m ago`;
       const vehicles = (data.result && data.result.vehicles) || [];
+
+      // Render the captured frame + draw a clickable bbox per detected vehicle.
+      // Image is 800x450 native; the canvas matches that so bbox coords (which
+      // come from the detector in native space) need no scaling.
+      const img = document.getElementById('followFrameImg');
+      const canvas = document.getElementById('followBboxCanvas');
+      if (data.image) {
+        img.src = `data:image/jpeg;base64,${data.image}`;
+        img.onload = () => drawFollowOverlay(canvas, img, vehicles, view, data.imageWidth || 800, data.imageHeight || 450);
+      } else {
+        img.removeAttribute('src');
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      }
       const listWrap = document.getElementById('followVehicleList');
       const body = document.getElementById('followVehicleListBody');
       body.innerHTML = '';
@@ -1199,12 +1218,87 @@
     }
   }
 
+  // Draw bbox overlays on the canvas, scaled to match the rendered image size.
+  // Each bbox is clickable — clicking selects that track to follow.
+  // The currently-followed track is highlighted with a brighter outline.
+  let _followLastVehicles = null;
+  let _followLastView = null;
+  function drawFollowOverlay(canvas, img, vehicles, view, srcW, srcH) {
+    _followLastVehicles = vehicles;
+    _followLastView = view;
+    const dispW = img.clientWidth;
+    const dispH = img.clientHeight;
+    canvas.width = dispW;
+    canvas.height = dispH;
+    const sx = dispW / srcW;
+    const sy = dispH / srcH;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, dispW, dispH);
+    vehicles.forEach(v => {
+      if (!v.bbox || v.bbox.length !== 4) return;
+      const [x1, y1, x2, y2] = v.bbox;
+      const rx = x1 * sx, ry = y1 * sy, rw = (x2 - x1) * sx, rh = (y2 - y1) * sy;
+      // Colour by direction (mirroring debug image conventions).
+      let stroke = '#facc15';  // unassigned = yellow
+      if (v.lane === 'LS_to_SA') stroke = '#f87171';
+      else if (v.lane === 'SA_to_LS') stroke = '#34d399';
+      const isSelected = followCurrent && followCurrent.view === view && followCurrent.trackId === v.track_id;
+      ctx.lineWidth = isSelected ? 3 : 1.5;
+      ctx.strokeStyle = stroke;
+      ctx.fillStyle = isSelected ? stroke : 'rgba(0,0,0,0.55)';
+      ctx.strokeRect(rx, ry, rw, rh);
+      // Label background
+      const label = `#${v.track_id}`;
+      ctx.font = '600 11px system-ui, sans-serif';
+      const tw = ctx.measureText(label).width + 8;
+      const lh = 14;
+      ctx.fillStyle = stroke;
+      ctx.fillRect(rx, Math.max(0, ry - lh), tw, lh);
+      ctx.fillStyle = '#000';
+      ctx.fillText(label, rx + 4, Math.max(11, ry - 3));
+    });
+  }
+  // Single canvas click handler — hit-tests against the most-recent vehicle list
+  // and invokes the follower for whichever bbox was clicked.
+  document.addEventListener('DOMContentLoaded', () => {
+    const canvas = document.getElementById('followBboxCanvas');
+    if (!canvas) return;
+    canvas.addEventListener('click', (ev) => {
+      if (!_followLastVehicles) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      const sx = rect.width / 800;
+      const sy = rect.height / 450;
+      const srcX = x / sx;
+      const srcY = y / sy;
+      // Find smallest containing bbox (handles overlapping detections — prefer
+      // the more specific one).
+      let best = null, bestArea = Infinity;
+      _followLastVehicles.forEach(v => {
+        if (!v.bbox || v.bbox.length !== 4) return;
+        const [x1, y1, x2, y2] = v.bbox;
+        if (srcX >= x1 && srcX <= x2 && srcY >= y1 && srcY <= y2) {
+          const a = (x2 - x1) * (y2 - y1);
+          if (a < bestArea) { best = v; bestArea = a; }
+        }
+      });
+      if (best) followStart(_followLastView, best.track_id, best.class || 'car');
+    });
+  });
+
   function followStart(view, trackId, klass) {
     followStop();
     followCurrent = { view, trackId };
     document.getElementById('followLivePanel').style.display = 'block';
     document.getElementById('followLiveTitle').textContent = `Following ${klass} #${trackId} on ${view}`;
     document.getElementById('followLiveBody').innerHTML = 'Loading…';
+    // Repaint the canvas so the selected bbox is highlighted.
+    if (_followLastVehicles && _followLastView === view) {
+      const img = document.getElementById('followFrameImg');
+      const canvas = document.getElementById('followBboxCanvas');
+      drawFollowOverlay(canvas, img, _followLastVehicles, view, 800, 450);
+    }
     followPoll();
     followPollTimer = setInterval(followPoll, 3000);
   }

@@ -3785,12 +3785,28 @@ app.get('/api/admin/latest-burst', requireAdmin, (req, res) => {
       message: `No cached burst yet for ${view}. The capture loop captures whatever angle the HLS stream is currently showing; rotation typically catches each angle within a few minutes.`,
     });
   }
+  // Include the most recent preserved frame for that angle so the admin UI
+  // can render the burst result with bbox overlays — clicking a vehicle on
+  // the image is much clearer than picking from abstract cards.
+  let imageBase64 = null;
+  let imageTimestamp = null;
+  const frame = preservedFrames[view];
+  if (frame && frame.screenshot) {
+    imageBase64 = Buffer.isBuffer(frame.screenshot)
+      ? frame.screenshot.toString('base64')
+      : frame.screenshot;
+    imageTimestamp = frame.timestamp;
+  }
   return res.json({
     success: true,
     hasResult: true,
     capturedAt: slot.capturedAt,
     ageSeconds: Math.round((Date.now() - slot.capturedAt) / 1000),
     result: slot.result,
+    image: imageBase64,
+    imageTimestamp,
+    imageWidth: 800,
+    imageHeight: 450,
   });
 });
 

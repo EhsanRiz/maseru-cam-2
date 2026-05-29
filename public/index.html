@@ -4320,15 +4320,22 @@
       </div>
 
       <!-- =============================================
-           LIVE WAIT TIMES (Phases 2 + 5)
-           Polls /api/traffic-summary every 60s and renders per-direction
-           journey totals + per-segment breakdowns. Calibrated by user
-           reports (Phase 4) — bias indicator shown when present.
+           LIVE WAIT TIMES (Phases 2 + 5) — moved INSIDE chat-section so it
+           stacks at the top of the right column instead of stealing space
+           from chat in the 2-column desktop layout.
            ============================================= -->
       <style>
+        /* Make wait-summary span the full width of main-content. Without
+           this it becomes a third flex child of main-content on desktop
+           and competes with camera-section + chat-section for horizontal
+           space — which was hiding the chat off-screen. */
         .wait-summary {
           background: var(--bg-card); border: 1px solid rgba(255,255,255,0.06);
           border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem;
+          flex-basis: 100%; width: 100%; order: -1;
+        }
+        @media (min-width: 768px) {
+          .main-content { flex-wrap: wrap; }
         }
         .wait-summary-title {
           display: flex; align-items: center; gap: 0.5rem;
