@@ -349,15 +349,27 @@ async function extractWaitTimeFromMessage(message) {
 function _segmentFromBurst(burst) {
   if (!burst) return null;
   const fm = burst.flow_metrics || {};
-  const make = (count, m) => ({
-    count: count || 0,
-    movingCount: m.moving_count || 0,
-    meanSpeedKmh: m.mean_speed_kmh ?? null,
-    freeFlowTransitSeconds: m.free_flow_transit_seconds ?? null,
-    estimatedMinutes: m.free_flow_transit_seconds != null
-      ? Math.round((m.free_flow_transit_seconds / 60) * 10) / 10
-      : null,
-  });
+  // The detector now returns `estimated_wait_seconds` per direction that
+  // combines queue-clearing time (count * queue_seconds_per_vehicle) with
+  // free-flow drive-through time. This works in BOTH regimes: fully stopped
+  // queue (queue × pace, since transit_s is null) and free-flowing (queue 0
+  // + transit). Falling back to free_flow_transit only is what produced the
+  // absurd 8-minute estimate when the bridge was fully jammed.
+  const make = (count, m) => {
+    const waitSec = m.estimated_wait_seconds;
+    const estimatedMinutes = waitSec != null
+      ? Math.max(0, Math.round((waitSec / 60) * 10) / 10)
+      : null;
+    return {
+      count: count || 0,
+      movingCount: m.moving_count || 0,
+      queuedCount: m.queued_count || 0,
+      totalInLane: m.total_in_lane || 0,
+      meanSpeedKmh: m.mean_speed_kmh ?? null,
+      freeFlowTransitSeconds: m.free_flow_transit_seconds ?? null,
+      estimatedMinutes,
+    };
+  };
   return {
     LS_to_SA: make(burst.LS_to_SA, fm.LS_to_SA || {}),
     SA_to_LS: make(burst.SA_to_LS, fm.SA_to_LS || {}),
