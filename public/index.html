@@ -4395,6 +4395,36 @@
         .wait-form-msg { font-size: 0.74rem; min-height: 1rem; }
         .wait-form-msg.ok { color: var(--accent, #10b981); }
         .wait-form-msg.err { color: #f87171; }
+        .recent-journeys {
+          margin-top: 0.7rem; padding-top: 0.6rem;
+          border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .recent-journeys-title {
+          font-size: 0.78rem; color: var(--text-muted, #9ca3af);
+          margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;
+        }
+        .recent-journeys-title .dot {
+          width: 6px; height: 6px; border-radius: 50%;
+          background: var(--accent, #10b981);
+        }
+        .recent-journey-row {
+          display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem;
+          align-items: baseline; padding: 0.2rem 0;
+          font-size: 0.76rem;
+        }
+        .recent-journey-dir {
+          font-weight: 600; color: var(--text-primary);
+          font-variant-numeric: tabular-nums;
+        }
+        .recent-journey-bd {
+          color: var(--text-muted, #9ca3af);
+          font-variant-numeric: tabular-nums;
+        }
+        .recent-journey-total {
+          font-weight: 700; color: var(--accent, #10b981);
+          font-variant-numeric: tabular-nums;
+        }
+        .recent-journey-empty { font-size: 0.74rem; color: var(--text-muted, #9ca3af); font-style: italic; }
       </style>
       <section class="wait-summary" id="waitSummary" aria-label="Estimated wait times">
         <div class="wait-summary-title">
@@ -4416,6 +4446,15 @@
         <div class="wait-report-row">
           <div class="wait-report-meta" id="waitReportMeta">Loading…</div>
           <button class="wait-report-btn" onclick="toggleWaitForm()">Report your wait</button>
+        </div>
+        <div class="recent-journeys" id="recentJourneys">
+          <div class="recent-journeys-title">
+            <span class="dot"></span>
+            <span>Recent travelers (canopy → bridge tracked end-to-end)</span>
+          </div>
+          <div id="recentJourneysList" class="recent-journey-empty">
+            Waiting for the first completed crossing…
+          </div>
         </div>
         <form class="wait-form" id="waitForm" onsubmit="submitWaitReport(event)">
           <div class="wait-form-row">
@@ -4472,6 +4511,31 @@
           badge.textContent = biasSrc ? 'Calibrated by traveler reports' : 'SA-side: seed value (no camera there)';
           bdEl.appendChild(badge);
         }
+        function fmtSec(s) {
+          if (s == null) return '—';
+          if (s < 60) return Math.round(s) + 's';
+          if (s < 3600) return Math.round(s / 60) + 'm';
+          return (s / 3600).toFixed(1) + 'h';
+        }
+        function renderRecentJourneys(list) {
+          const el = document.getElementById('recentJourneysList');
+          if (!list || list.length === 0) {
+            el.className = 'recent-journey-empty';
+            el.textContent = 'Waiting for the first completed crossing…';
+            return;
+          }
+          el.className = '';
+          el.innerHTML = list.map(j => {
+            const arrow = j.direction === 'LS_to_SA' ? 'LS→SA' : 'SA→LS';
+            const ago = Math.max(0, Math.round((Date.now() - j.completedAtMs) / 60000));
+            const bd = `${j.firstHalfView} ${fmtSec(j.firstHalfElapsedSec)} · gap ${fmtSec(j.interSegmentGapSec)} · ${j.secondHalfView} ${fmtSec(j.secondHalfElapsedSec)}`;
+            return `<div class="recent-journey-row">
+                      <span class="recent-journey-dir">${arrow}</span>
+                      <span class="recent-journey-bd">${bd} · ${ago}m ago</span>
+                      <span class="recent-journey-total">${fmtSec(j.totalSec)}</span>
+                    </div>`;
+          }).join('');
+        }
         async function refreshWaitSummary() {
           try {
             const r = await fetch('/api/traffic-summary', { cache: 'no-store' });
@@ -4483,6 +4547,7 @@
             const ur = j.summary.userReports || {};
             const at = j.summary.generatedAt ? new Date(j.summary.generatedAt).toLocaleTimeString() : '';
             meta.textContent = `Updated ${at} · ${ur.last24h || 0} traveler reports in last 24h`;
+            renderRecentJourneys(j.summary.recentJourneys || []);
           } catch (e) {
             console.warn('traffic-summary fetch failed:', e);
           }

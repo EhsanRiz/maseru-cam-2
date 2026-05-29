@@ -214,6 +214,148 @@ function getBurstCountsForAngle(angle, maxAgeMs = 5 * 60 * 1000) {
 }
 
 // =============================================
+// CROSS-VIEW JOURNEY CHAIN (Phase 5+ — per-vehicle end-to-end)
+// =============================================
+// Detector per-view trackers are isolated: a vehicle's canopy track and its
+// later bridge track are distinct track_ids. This chain links them via FIFO
+// within a 10-minute window per direction, so we can report end-to-end
+// travel times for individual recent vehicles instead of just per-segment
+// averages. FIFO assumes vehicles cross between views in order — fine for
+// orderly border queues, would mis-link by 1 if a fast car overtakes a slow
+// one between camera frames. Visual re-ID is a future upgrade.
+
+const JOURNEY_LINK_WINDOW_MS = 10 * 60 * 1000;  // canopy-exit → bridge-entry pairing window
+const JOURNEY_MAX_TOTAL_MS  = 90 * 60 * 1000;   // discard if total > 90 min (suggests link error)
+const JOURNEY_HISTORY_LIMIT = 50;
+// Per (view, direction), track which transit records we've already ingested
+// (keyed by `${view}:${track_id}:${first_seen_ts}`) so we don't double-add
+// across burst cycles.
+const _seenTransitKeys = new Set();
+// In-flight halves waiting to be linked:
+//   { direction, view, finishedAtMs, firstSeenMs, elapsedSeconds, trackId, klass }
+const pendingCanopyDeparturesLsToSa = [];   // canopy LS_to_SA finished, waiting for bridge LS_to_SA start
+const pendingBridgeDeparturesSaToLs = [];   // bridge SA_to_LS finished, waiting for canopy SA_to_LS start
+// Completed end-to-end journeys (newest first)
+const completedJourneys = [];
+
+function _ingestTransitsForView(viewName, dirKey, transits) {
+  if (!Array.isArray(transits)) return;
+  for (const t of transits) {
+    const key = `${viewName}:${dirKey}:${t.track_id}:${Math.round(t.first_seen_ts || 0)}`;
+    if (_seenTransitKeys.has(key)) continue;
+    _seenTransitKeys.add(key);
+    // Cap key set growth
+    if (_seenTransitKeys.size > 5000) {
+      const arr = Array.from(_seenTransitKeys);
+      arr.slice(0, 2000).forEach(k => _seenTransitKeys.delete(k));
+    }
+
+    const event = {
+      view: viewName,
+      direction: dirKey,
+      trackId: t.track_id,
+      firstSeenMs: (t.first_seen_ts || 0) * 1000,
+      finishedAtMs: (t.finished_at_ts || 0) * 1000,
+      elapsedSeconds: t.elapsed_seconds || 0,
+      klass: t.class_name || 'car',
+    };
+    _linkOrEnqueue(event);
+  }
+}
+
+function _linkOrEnqueue(event) {
+  const nowMs = Date.now();
+  // Drop very-stale events (probably leftovers from before deploy)
+  if (nowMs - event.finishedAtMs > 2 * 60 * 60 * 1000) return;
+
+  if (event.direction === 'LS_to_SA') {
+    if (event.view === 'canopy') {
+      // canopy finished going to bridge — queue for pairing
+      pendingCanopyDeparturesLsToSa.push(event);
+      _evictStalePending(pendingCanopyDeparturesLsToSa);
+    } else if (event.view === 'bridge') {
+      // bridge finished — pair with the earliest pending canopy departure
+      // whose finish time is before this bridge first_seen_ts and within
+      // the link window.
+      _evictStalePending(pendingCanopyDeparturesLsToSa);
+      const idx = pendingCanopyDeparturesLsToSa.findIndex(c =>
+        c.finishedAtMs <= event.firstSeenMs &&
+        (event.firstSeenMs - c.finishedAtMs) <= JOURNEY_LINK_WINDOW_MS
+      );
+      if (idx >= 0) {
+        const canopy = pendingCanopyDeparturesLsToSa.splice(idx, 1)[0];
+        _recordJourney('LS_to_SA', canopy, event);
+      }
+    }
+  } else if (event.direction === 'SA_to_LS') {
+    if (event.view === 'bridge') {
+      // bridge finished heading to LS — queue for pairing with canopy
+      pendingBridgeDeparturesSaToLs.push(event);
+      _evictStalePending(pendingBridgeDeparturesSaToLs);
+    } else if (event.view === 'canopy') {
+      _evictStalePending(pendingBridgeDeparturesSaToLs);
+      const idx = pendingBridgeDeparturesSaToLs.findIndex(b =>
+        b.finishedAtMs <= event.firstSeenMs &&
+        (event.firstSeenMs - b.finishedAtMs) <= JOURNEY_LINK_WINDOW_MS
+      );
+      if (idx >= 0) {
+        const bridge = pendingBridgeDeparturesSaToLs.splice(idx, 1)[0];
+        _recordJourney('SA_to_LS', bridge, event);
+      }
+    }
+  }
+}
+
+function _evictStalePending(queue) {
+  const nowMs = Date.now();
+  while (queue.length && (nowMs - queue[0].finishedAtMs) > JOURNEY_LINK_WINDOW_MS) {
+    queue.shift();
+  }
+}
+
+function _recordJourney(direction, firstHalf, secondHalf) {
+  const totalMs = secondHalf.finishedAtMs - firstHalf.firstSeenMs;
+  if (totalMs <= 0 || totalMs > JOURNEY_MAX_TOTAL_MS) return;  // probably mis-linked
+  const interGapSec = Math.max(0, (secondHalf.firstSeenMs - firstHalf.finishedAtMs) / 1000);
+  const journey = {
+    direction,
+    firstHalfView: firstHalf.view,
+    firstHalfElapsedSec: firstHalf.elapsedSeconds,
+    interSegmentGapSec: interGapSec,
+    secondHalfView: secondHalf.view,
+    secondHalfElapsedSec: secondHalf.elapsedSeconds,
+    totalSec: Math.round(totalMs / 1000),
+    klass: secondHalf.klass,
+    completedAtMs: secondHalf.finishedAtMs,
+  };
+  completedJourneys.unshift(journey);
+  if (completedJourneys.length > JOURNEY_HISTORY_LIMIT) {
+    completedJourneys.length = JOURNEY_HISTORY_LIMIT;
+  }
+  console.log(
+    `🚗 JOURNEY ${direction}: ${firstHalf.view}=${Math.round(firstHalf.elapsedSeconds)}s + gap=${Math.round(interGapSec)}s + ${secondHalf.view}=${Math.round(secondHalf.elapsedSeconds)}s = ${journey.totalSec}s total`
+  );
+}
+
+// Called by captureFrame after each successful burst-detector cache update.
+function _ingestBurstForJourneys(viewAngle, burstResult) {
+  if (!burstResult || !burstResult.flow_metrics) return;
+  // viewAngle is server-side angle name (bridge | processing | wide).
+  // We only chain canopy + bridge (engen isn't part of the bridge journey).
+  let viewForJourney;
+  if (viewAngle === 'bridge')      viewForJourney = 'bridge';
+  else if (viewAngle === 'processing') viewForJourney = 'canopy';
+  else return;
+  const fm = burstResult.flow_metrics;
+  if (fm.LS_to_SA && Array.isArray(fm.LS_to_SA.recent_transits)) {
+    _ingestTransitsForView(viewForJourney, 'LS_to_SA', fm.LS_to_SA.recent_transits);
+  }
+  if (fm.SA_to_LS && Array.isArray(fm.SA_to_LS.recent_transits)) {
+    _ingestTransitsForView(viewForJourney, 'SA_to_LS', fm.SA_to_LS.recent_transits);
+  }
+}
+
+// =============================================
 // TRAFFIC HISTORY TRACKER (Time-Series Analysis)
 // =============================================
 // Tracks vehicle counts over time to detect flow speed and trends
@@ -459,6 +601,41 @@ function computeTrafficSummary() {
     };
   }
 
+  // Cross-view measured end-to-end (canopy + bridge linked, per vehicle).
+  // When we have ≥3 completed journeys in the last hour, this is the
+  // honest measurement; otherwise we keep the per-segment summed estimate.
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  function measuredEndToEnd(dir) {
+    const recent = completedJourneys.filter(
+      j => j.direction === dir && j.completedAtMs >= oneHourAgo
+    );
+    if (recent.length < 3) return null;
+    const observableMean = recent.reduce((s, j) => s + j.totalSec, 0) / recent.length / 60;
+    return { observableMinutes: Math.round(observableMean * 10) / 10, sampleCount: recent.length };
+  }
+  const measLs = measuredEndToEnd('LS_to_SA');
+  const measSa = measuredEndToEnd('SA_to_LS');
+  if (measLs) {
+    journeyFor('LS_to_SA');  // ensure breakdown exists
+  }
+
+  const journey = {
+    LS_to_SA: journeyFor('LS_to_SA'),
+    SA_to_LS: journeyFor('SA_to_LS'),
+  };
+  // Add measured end-to-end + SA-side seed where applicable. We add the
+  // unobservable SA-side processing time to the canopy→bridge measurement
+  // to produce a full LS→SA estimate (and reverse for SA→LS).
+  for (const dir of ['LS_to_SA', 'SA_to_LS']) {
+    const meas = dir === 'LS_to_SA' ? measLs : measSa;
+    if (!meas) continue;
+    const saBias = getBiasCorrection(dir, 'sa_side', 24);
+    const saSide = Math.max(0, SA_SIDE_PROCESSING_SEED_MIN + (saBias?.biasMinutes ?? 0));
+    journey[dir].measuredObservableMinutes = meas.observableMinutes;
+    journey[dir].measuredSampleCount = meas.sampleCount;
+    journey[dir].measuredTotalMinutes = Math.round((meas.observableMinutes + saSide) * 10) / 10;
+  }
+
   return {
     generatedAt: new Date().toISOString(),
     bridge,
@@ -468,10 +645,8 @@ function computeTrafficSummary() {
       saSideProcessingSeedMin: SA_SIDE_PROCESSING_SEED_MIN,
       lsCanopyFloorMin: LS_CANOPY_PROCESSING_FLOOR_MIN,
     },
-    journey: {
-      LS_to_SA: journeyFor('LS_to_SA'),
-      SA_to_LS: journeyFor('SA_to_LS'),
-    },
+    journey,
+    recentJourneys: completedJourneys.slice(0, 5),
     userReports: {
       total: userReports.length,
       last24h: userReports.filter(r =>
@@ -1381,6 +1556,12 @@ async function captureFrame() {
           const result = await detectVehiclesBurst(burst, detectorView);
           if (result) {
             latestBurstCounts[angleType] = { result, capturedAt: Date.now() };
+            // Cross-view journey chaining (Phase 5+): ingest the per-track
+            // completed transits so a canopy LS→SA finish can be paired
+            // with the next bridge LS→SA start (FIFO within direction).
+            try { _ingestBurstForJourneys(angleType, result); } catch (e) {
+              console.error('journey ingest failed:', e.message);
+            }
           }
         } catch (e) {
           console.error(`Burst-detector tick failed for ${angleType}: ${e.message}`);
@@ -2040,6 +2221,21 @@ app.get('/api/status', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to get traffic status' });
   }
+});
+
+// PUBLIC: most recent end-to-end journeys (canopy + bridge linked). Each
+// entry is one specific vehicle that was tagged at canopy entry and tracked
+// to bridge exit. Optional ?limit=N (default 10).
+app.get('/api/recent-journeys', (req, res) => {
+  const limit = Math.min(JOURNEY_HISTORY_LIMIT, Math.max(1, parseInt(req.query.limit, 10) || 10));
+  res.json({
+    success: true,
+    journeys: completedJourneys.slice(0, limit),
+    pending: {
+      LS_to_SA_canopy_waiting_bridge_start: pendingCanopyDeparturesLsToSa.length,
+      SA_to_LS_bridge_waiting_canopy_start: pendingBridgeDeparturesSaToLs.length,
+    },
+  });
 });
 
 // PUBLIC: live aggregated summary across all 3 views — counts, per-segment
