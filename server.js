@@ -5099,6 +5099,29 @@ async function smartCapture() {
               timestamp: timestamp,
               angleType: angleType
             };
+
+            // BURST-DETECTOR PATH: now grab a short burst from the same angle
+            // and feed /analyze-burst so the per-view tracker accumulates
+            // motion vectors + completed transits. This is fire-and-forget;
+            // smartCapture's single-frame classification doesn't wait on it.
+            const detectorView = ANGLE_TO_VIEW[angleType];
+            if (detectorView) {
+              (async () => {
+                try {
+                  const burst = await captureBurst();
+                  if (!burst || burst.length === 0) return;
+                  const result = await detectVehiclesBurst(burst, detectorView);
+                  if (result) {
+                    latestBurstCounts[angleType] = { result, capturedAt: Date.now() };
+                    try { _ingestBurstForJourneys(angleType, result); } catch (e) {
+                      console.error('journey ingest failed:', e.message);
+                    }
+                  }
+                } catch (e) {
+                  console.error(`smartCapture burst-detector failed (${angleType}):`, e.message);
+                }
+              })();
+            }
           }
 
           if (shouldSave) {
