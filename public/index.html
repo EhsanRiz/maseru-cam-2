@@ -4319,6 +4319,210 @@
         </div>
       </div>
 
+      <!-- =============================================
+           LIVE WAIT TIMES (Phases 2 + 5)
+           Polls /api/traffic-summary every 60s and renders per-direction
+           journey totals + per-segment breakdowns. Calibrated by user
+           reports (Phase 4) — bias indicator shown when present.
+           ============================================= -->
+      <style>
+        .wait-summary {
+          background: var(--bg-card); border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem;
+        }
+        .wait-summary-title {
+          display: flex; align-items: center; gap: 0.5rem;
+          font-weight: 600; font-size: 0.95rem; margin-bottom: 0.6rem;
+          color: var(--text-primary);
+        }
+        .wait-summary-title .pulse {
+          width: 7px; height: 7px; border-radius: 50%;
+          background: var(--accent, #10b981); box-shadow: 0 0 6px var(--accent, #10b981);
+          animation: wait-pulse 2s infinite;
+        }
+        @keyframes wait-pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+        .wait-summary-grid {
+          display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;
+        }
+        @media (max-width: 480px) { .wait-summary-grid { grid-template-columns: 1fr; } }
+        .wait-card {
+          background: rgba(255,255,255,0.03); border-radius: 10px;
+          padding: 0.7rem 0.8rem; border: 1px solid rgba(255,255,255,0.04);
+        }
+        .wait-card-dir { font-size: 0.78rem; color: var(--text-muted, #9ca3af); margin-bottom: 0.2rem; }
+        .wait-card-total {
+          font-size: 1.5rem; font-weight: 700; color: var(--text-primary);
+          line-height: 1.1; margin-bottom: 0.35rem;
+        }
+        .wait-card-total .unit { font-size: 0.85rem; color: var(--text-muted, #9ca3af); margin-left: 0.15rem; font-weight: 500; }
+        .wait-card-bd { font-size: 0.72rem; color: var(--text-muted, #9ca3af); line-height: 1.5; }
+        .wait-card-bd b { color: var(--text-primary); font-weight: 600; }
+        .wait-card-bias {
+          display: inline-block; font-size: 0.68rem; padding: 1px 6px;
+          margin-top: 0.4rem; border-radius: 10px;
+          background: rgba(16,185,129,0.12); color: var(--accent, #10b981);
+        }
+        .wait-card-bias.seed { background: rgba(255,255,255,0.05); color: var(--text-muted, #9ca3af); }
+        .wait-report-row {
+          display: flex; justify-content: space-between; align-items: center;
+          margin-top: 0.7rem; padding-top: 0.6rem;
+          border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .wait-report-meta { font-size: 0.7rem; color: var(--text-muted, #9ca3af); }
+        .wait-report-btn {
+          background: var(--accent, #10b981); color: #fff;
+          border: 0; padding: 0.45rem 0.85rem; border-radius: 8px;
+          font-size: 0.78rem; font-weight: 600; cursor: pointer;
+        }
+        .wait-report-btn:hover { filter: brightness(1.08); }
+        .wait-form {
+          margin-top: 0.7rem; padding: 0.8rem; border-radius: 10px;
+          background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+          display: none; flex-direction: column; gap: 0.5rem;
+        }
+        .wait-form.open { display: flex; }
+        .wait-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+        .wait-form label { font-size: 0.72rem; color: var(--text-muted, #9ca3af); }
+        .wait-form select, .wait-form input[type="number"] {
+          width: 100%; padding: 0.5rem; border-radius: 7px;
+          background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+          color: var(--text-primary); font-size: 0.85rem;
+        }
+        .wait-form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+        .wait-form-actions button { padding: 0.45rem 0.85rem; border-radius: 8px; border: 0; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+        .wait-form-cancel { background: transparent; color: var(--text-muted, #9ca3af); }
+        .wait-form-submit { background: var(--accent, #10b981); color: #fff; }
+        .wait-form-msg { font-size: 0.74rem; min-height: 1rem; }
+        .wait-form-msg.ok { color: var(--accent, #10b981); }
+        .wait-form-msg.err { color: #f87171; }
+      </style>
+      <section class="wait-summary" id="waitSummary" aria-label="Estimated wait times">
+        <div class="wait-summary-title">
+          <span class="pulse"></span>
+          <span>Estimated wait times</span>
+        </div>
+        <div class="wait-summary-grid" id="waitSummaryGrid">
+          <div class="wait-card" id="waitCardLsToSa">
+            <div class="wait-card-dir">Lesotho → South Africa</div>
+            <div class="wait-card-total">—</div>
+            <div class="wait-card-bd"></div>
+          </div>
+          <div class="wait-card" id="waitCardSaToLs">
+            <div class="wait-card-dir">South Africa → Lesotho</div>
+            <div class="wait-card-total">—</div>
+            <div class="wait-card-bd"></div>
+          </div>
+        </div>
+        <div class="wait-report-row">
+          <div class="wait-report-meta" id="waitReportMeta">Loading…</div>
+          <button class="wait-report-btn" onclick="toggleWaitForm()">Report your wait</button>
+        </div>
+        <form class="wait-form" id="waitForm" onsubmit="submitWaitReport(event)">
+          <div class="wait-form-row">
+            <label>Direction
+              <select id="waitFormDirection" required>
+                <option value="LS_to_SA">LS → SA</option>
+                <option value="SA_to_LS">SA → LS</option>
+              </select>
+            </label>
+            <label>Segment
+              <select id="waitFormSegment" required>
+                <option value="total">Total journey</option>
+                <option value="bridge">Bridge only</option>
+                <option value="canopy">LS-side processing (canopy)</option>
+                <option value="engen">LS-side approach (Engen)</option>
+                <option value="sa_side">SA-side processing</option>
+              </select>
+            </label>
+          </div>
+          <label>Minutes you waited
+            <input type="number" id="waitFormMinutes" min="1" max="600" required placeholder="e.g. 25">
+          </label>
+          <div class="wait-form-msg" id="waitFormMsg"></div>
+          <div class="wait-form-actions">
+            <button type="button" class="wait-form-cancel" onclick="toggleWaitForm()">Cancel</button>
+            <button type="submit" class="wait-form-submit">Submit</button>
+          </div>
+        </form>
+      </section>
+      <script>
+      (function() {
+        function fmtMinutes(m) {
+          if (m == null || !isFinite(m)) return '—';
+          if (m < 1) return '<1';
+          if (m >= 60) return (m / 60).toFixed(1) + 'h';
+          return Math.round(m).toString();
+        }
+        function renderCard(el, dir, seg) {
+          const totalEl = el.querySelector('.wait-card-total');
+          const bdEl = el.querySelector('.wait-card-bd');
+          const j = seg?.journey?.[dir];
+          if (!j) { totalEl.textContent = '—'; bdEl.textContent = 'Waiting for first reading'; return; }
+          totalEl.innerHTML = fmtMinutes(j.estimatedTotalMinutes) + '<span class="unit">min</span>';
+          const b = j.breakdown || {};
+          const parts = [];
+          if (b.engenApproachMin != null)    parts.push(`approach <b>${fmtMinutes(b.engenApproachMin)}m</b>`);
+          if (b.canopyProcessingMin != null) parts.push(`LS customs <b>${fmtMinutes(b.canopyProcessingMin)}m</b>`);
+          if (b.bridgeTransitMin != null)    parts.push(`bridge <b>${fmtMinutes(b.bridgeTransitMin)}m</b>`);
+          if (b.saSideProcessingMin != null) parts.push(`SA customs <b>${fmtMinutes(b.saSideProcessingMin)}m</b>`);
+          bdEl.innerHTML = parts.join(' · ');
+          const biasSrc = b.saSideSource && b.saSideSource.indexOf('user_reports') === 0;
+          const badge = document.createElement('div');
+          badge.className = 'wait-card-bias' + (biasSrc ? '' : ' seed');
+          badge.textContent = biasSrc ? 'Calibrated by traveler reports' : 'SA-side: seed value (no camera there)';
+          bdEl.appendChild(badge);
+        }
+        async function refreshWaitSummary() {
+          try {
+            const r = await fetch('/api/traffic-summary', { cache: 'no-store' });
+            const j = await r.json();
+            if (!j.success || !j.summary) return;
+            renderCard(document.getElementById('waitCardLsToSa'), 'LS_to_SA', j.summary);
+            renderCard(document.getElementById('waitCardSaToLs'), 'SA_to_LS', j.summary);
+            const meta = document.getElementById('waitReportMeta');
+            const ur = j.summary.userReports || {};
+            const at = j.summary.generatedAt ? new Date(j.summary.generatedAt).toLocaleTimeString() : '';
+            meta.textContent = `Updated ${at} · ${ur.last24h || 0} traveler reports in last 24h`;
+          } catch (e) {
+            console.warn('traffic-summary fetch failed:', e);
+          }
+        }
+        window.toggleWaitForm = function() {
+          const f = document.getElementById('waitForm');
+          f.classList.toggle('open');
+          const msg = document.getElementById('waitFormMsg');
+          msg.textContent = ''; msg.className = 'wait-form-msg';
+        };
+        window.submitWaitReport = async function(ev) {
+          ev.preventDefault();
+          const direction = document.getElementById('waitFormDirection').value;
+          const segment = document.getElementById('waitFormSegment').value;
+          const minutes = Number(document.getElementById('waitFormMinutes').value);
+          const msg = document.getElementById('waitFormMsg');
+          msg.textContent = 'Submitting…'; msg.className = 'wait-form-msg';
+          try {
+            const r = await fetch('/api/wait-report', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ direction, segment, minutes }),
+            });
+            const j = await r.json();
+            if (j.success) {
+              msg.textContent = j.message || 'Thanks!'; msg.className = 'wait-form-msg ok';
+              setTimeout(() => { document.getElementById('waitForm').classList.remove('open'); }, 1500);
+              refreshWaitSummary();
+            } else {
+              msg.textContent = j.message || 'Submission failed.'; msg.className = 'wait-form-msg err';
+            }
+          } catch (e) {
+            msg.textContent = e.message || 'Network error.'; msg.className = 'wait-form-msg err';
+          }
+        };
+        refreshWaitSummary();
+        setInterval(refreshWaitSummary, 60000);
+      })();
+      </script>
+
       <div class="chat-section">
         <div class="chat-container">
           <div class="chat-header-row">

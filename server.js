@@ -53,17 +53,137 @@ async function detectVehicles(imageBase64, cameraView = 'bridge') {
       }),
       timeout: 30000
     });
-    
+
     if (!response.ok) {
       console.error(`❌ Detector service error: ${response.status}`);
       return null;
     }
-    
+
     const result = await response.json();
     console.log(`🎯 Detector: SA→LS: ${result.SA_to_LS}, LS→SA: ${result.LS_to_SA}, Total: ${result.total}`);
     return result;
   } catch (error) {
     console.error('❌ Detector service failed:', error.message);
+    return null;
+  }
+}
+
+// =============================================
+// BURST CAPTURE + DETECTOR (Phase 1 — shadow path)
+// =============================================
+// Captures a short burst of consecutive frames from the HLS stream and POSTs
+// them to the detector's /analyze-burst endpoint. Direction is then derived
+// from per-vehicle motion + entry-edge priors instead of static polygons.
+// Lives ALONGSIDE the existing single-frame detectVehicles() — production
+// callers are not switched over until shadow output looks right.
+
+const BURST_TMP_DIR = '/tmp/burst';
+const BURST_DEFAULT_FRAMES = 6;
+const BURST_DEFAULT_INTERVAL_SEC = 1;
+
+// Capture `numFrames` frames from the live HLS stream at `intervalSec` spacing
+// using a single ffmpeg invocation (one HLS handshake). Returns an array of
+// { buffer, timestampMs }, oldest first. Resolves to null on failure.
+async function captureBurst(numFrames = BURST_DEFAULT_FRAMES, intervalSec = BURST_DEFAULT_INTERVAL_SEC) {
+  // Unique sub-dir per call so concurrent bursts don't collide.
+  const sessionDir = `${BURST_TMP_DIR}/${Date.now()}`;
+  try { fs.mkdirSync(sessionDir, { recursive: true }); } catch (_) {}
+
+  const pattern = `${sessionDir}/frame_%d.jpg`;
+  const fps = 1 / intervalSec;
+
+  return new Promise((resolve) => {
+    console.log(`📸 Burst-capturing ${numFrames} frames @ ${fps} Hz...`);
+    const startedAt = Date.now();
+
+    const ff = spawn('ffmpeg', [
+      '-y',
+      '-i', config.streamUrl,
+      '-frames:v', String(numFrames),
+      '-vf', `fps=${fps},scale=800:-1`,
+      '-q:v', '2',
+      pattern,
+    ], { timeout: 60000 });
+
+    let stderr = '';
+    ff.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    ff.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`❌ Burst ffmpeg failed code=${code}`);
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
+        return resolve(null);
+      }
+      try {
+        const frames = [];
+        for (let i = 1; i <= numFrames; i++) {
+          const fp = `${sessionDir}/frame_${i}.jpg`;
+          if (!fs.existsSync(fp)) continue;
+          frames.push({
+            buffer: fs.readFileSync(fp),
+            // Approximate per-frame timestamp: spaced by intervalSec from
+            // the start of the burst. Exact-millisecond timing isn't critical
+            // because the tracker uses dt for velocity, and these spacings
+            // are stable to ~50ms in practice.
+            timestampMs: startedAt + (i - 1) * intervalSec * 1000,
+          });
+        }
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
+        if (frames.length === 0) {
+          console.error('❌ Burst produced 0 frames');
+          return resolve(null);
+        }
+        console.log(`✅ Burst captured ${frames.length}/${numFrames} frames`);
+        resolve(frames);
+      } catch (err) {
+        console.error('❌ Burst frame read failed:', err.message);
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
+        resolve(null);
+      }
+    });
+
+    ff.on('error', (err) => {
+      console.error('❌ Burst ffmpeg error:', err.message);
+      try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
+      resolve(null);
+    });
+  });
+}
+
+// POST a burst to the detector's /analyze-burst. burst: [{buffer, timestampMs}].
+async function detectVehiclesBurst(burst, cameraView = 'bridge') {
+  if (!burst || burst.length === 0) {
+    console.error('❌ detectVehiclesBurst called with empty burst');
+    return null;
+  }
+  try {
+    const payload = {
+      camera_view: cameraView,
+      frames: burst.map((f) => ({
+        image: f.buffer.toString('base64'),
+        timestamp_ms: f.timestampMs,
+      })),
+    };
+    const response = await fetch(`${config.detectorUrl}/analyze-burst`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      timeout: 45000,
+    });
+    if (!response.ok) {
+      console.error(`❌ Burst detector error: ${response.status}`);
+      return null;
+    }
+    const result = await response.json();
+    const byMotion = (result.vehicles || []).filter(v => v.direction_source === 'motion').length;
+    const byEntry  = (result.vehicles || []).filter(v => v.direction_source === 'entry').length;
+    console.log(
+      `🎯 Burst-detector [${cameraView}]: SA→LS=${result.SA_to_LS} LS→SA=${result.LS_to_SA} ` +
+      `unassigned=${result.unassigned} total=${result.total} (motion:${byMotion} entry:${byEntry})`
+    );
+    return result;
+  } catch (err) {
+    console.error('❌ Burst detector failed:', err.message);
     return null;
   }
 }
@@ -75,10 +195,275 @@ const ANGLE_TO_VIEW = {
   'wide': 'engen'
 };
 
+// Latest burst-detector result per angle. Updated by captureFrame() after
+// every successful detector-relevant capture. Read by analyzeTraffic and the
+// chat-stream handler in preference to the legacy single-frame /analyze.
+const latestBurstCounts = {
+  bridge:     { result: null, capturedAt: 0 },
+  processing: { result: null, capturedAt: 0 },
+  wide:       { result: null, capturedAt: 0 },
+};
+
+// Return cached burst result if it's fresh enough; null otherwise.
+// 5 min is generous — burst counts age slowly for the queue use case.
+function getBurstCountsForAngle(angle, maxAgeMs = 5 * 60 * 1000) {
+  const slot = latestBurstCounts[angle];
+  if (!slot || !slot.result) return null;
+  if (Date.now() - slot.capturedAt > maxAgeMs) return null;
+  return slot.result;
+}
+
 // =============================================
 // TRAFFIC HISTORY TRACKER (Time-Series Analysis)
 // =============================================
 // Tracks vehicle counts over time to detect flow speed and trends
+// =============================================
+// USER WAIT-TIME REPORTS (Phase 4)
+// =============================================
+// Two intake paths: an explicit POST /api/wait-report (form) AND a Gemini-
+// based extractor that picks up wait-time mentions inside chat messages.
+// Reports are stored in Supabase (table: user_wait_reports) and cached in
+// memory for fast bias computation.
+
+const MAX_USER_REPORTS_IN_MEMORY = 200;
+// Seed values for segments we can't directly observe. User reports converge
+// the real average via rolling-bias correction in computeTrafficSummary().
+const SA_SIDE_PROCESSING_SEED_MIN = 5;
+const LS_CANOPY_PROCESSING_FLOOR_MIN = 2.5;
+
+const userReports = [];  // newest at the end
+
+async function persistUserReport(report) {
+  if (!supabase) return;
+  try {
+    await supabase.from('user_wait_reports').insert({
+      reported_at: report.reportedAt,
+      direction: report.direction,
+      segment: report.segment,
+      reported_minutes: report.reportedMinutes,
+      detector_estimate_minutes: report.detectorEstimateMinutes,
+      source: report.source,
+      raw_text: report.rawText,
+    });
+  } catch (e) {
+    console.error('persistUserReport failed:', e.message);
+  }
+}
+
+async function loadRecentUserReports() {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase
+      .from('user_wait_reports')
+      .select('*')
+      .order('reported_at', { ascending: false })
+      .limit(MAX_USER_REPORTS_IN_MEMORY);
+    if (error) throw error;
+    const reports = (data || []).map((r) => ({
+      reportedAt: r.reported_at,
+      direction: r.direction,
+      segment: r.segment,
+      reportedMinutes: Number(r.reported_minutes),
+      detectorEstimateMinutes: r.detector_estimate_minutes != null ? Number(r.detector_estimate_minutes) : null,
+      source: r.source,
+      rawText: r.raw_text,
+    })).reverse();
+    userReports.splice(0, userReports.length, ...reports);
+    console.log(`📥 Loaded ${userReports.length} user wait-time reports`);
+  } catch (e) {
+    console.error('loadRecentUserReports failed:', e.message);
+  }
+}
+
+function recordUserReport(report) {
+  userReports.push(report);
+  if (userReports.length > MAX_USER_REPORTS_IN_MEMORY) {
+    userReports.splice(0, userReports.length - MAX_USER_REPORTS_IN_MEMORY);
+  }
+  persistUserReport(report).catch(() => {});
+}
+
+// Mean(reported - detector_estimate) over the last `hours` hours for the
+// matching (direction, segment). Used as a calibration offset added to live
+// detector estimates so the public-facing wait time tracks ground truth.
+function getBiasCorrection(direction, segment, hours = 24) {
+  const cutoff = Date.now() - hours * 3600 * 1000;
+  const eligible = userReports.filter(r =>
+    r.direction === direction &&
+    r.segment === segment &&
+    r.detectorEstimateMinutes != null &&
+    new Date(r.reportedAt).getTime() >= cutoff
+  );
+  if (eligible.length === 0) return null;
+  const biasMinutes = eligible.reduce(
+    (s, r) => s + (r.reportedMinutes - r.detectorEstimateMinutes), 0
+  ) / eligible.length;
+  return { biasMinutes, sampleCount: eligible.length };
+}
+
+// Tiny pre-filter then Gemini extraction. We don't want to spend an LLM call
+// on every chat message — only those with obvious wait-time language.
+const WAIT_TIME_HINT = /\b(\d{1,3})\s*(min|minute|hour|hr|hrs|h)\b|\bwaited?\b|\btook\b.*\b(hour|min)/i;
+
+async function extractWaitTimeFromMessage(message) {
+  if (!message || !WAIT_TIME_HINT.test(message)) return null;
+  try {
+    const prompt =
+      `You are extracting a wait-time report from a chat message about the Maseru Bridge border crossing.\n` +
+      `If the message reports a SPECIFIC duration the user waited or took to cross a part of the border, ` +
+      `return JSON with these keys:\n` +
+      `  direction: "LS_to_SA" (Lesotho -> South Africa) or "SA_to_LS"\n` +
+      `  segment: one of "bridge", "canopy" (LS-side processing), "engen" (LS-side approach queue), ` +
+      `"sa_side" (SA-side processing), "total" (whole journey)\n` +
+      `  reported_minutes: number (convert hours to minutes)\n` +
+      `If no specific time is reported, return the literal string null.\n` +
+      `\nMessage: """${message.slice(0, 600).replace(/"""/g, '"')}"""\n` +
+      `Return ONLY JSON or null.`;
+    const res = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: { responseMimeType: 'application/json', maxOutputTokens: 200 },
+    });
+    const text = (res.text || res.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    if (!text || text.toLowerCase() === 'null') return null;
+    const parsed = JSON.parse(text);
+    if (!parsed || !parsed.direction || !parsed.segment) return null;
+    const mins = Number(parsed.reported_minutes);
+    if (!isFinite(mins) || mins <= 0 || mins > 600) return null;
+    return { direction: parsed.direction, segment: parsed.segment, reportedMinutes: mins };
+  } catch (e) {
+    console.error('extractWaitTimeFromMessage failed:', e.message);
+    return null;
+  }
+}
+
+// =============================================
+// TRAFFIC SUMMARY + JOURNEY ESTIMATE (Phases 2 + 5)
+// =============================================
+// Aggregates cached burst-detector results into per-segment counts +
+// speed-derived transit times, applies user-report bias correction, and
+// composes an end-to-end journey estimate per direction. SA-side processing
+// is unobservable (no camera there) — seeded at SA_SIDE_PROCESSING_SEED_MIN
+// and refined entirely by user reports flagged segment='sa_side'.
+
+function _segmentFromBurst(burst) {
+  if (!burst) return null;
+  const fm = burst.flow_metrics || {};
+  const make = (count, m) => ({
+    count: count || 0,
+    movingCount: m.moving_count || 0,
+    meanSpeedKmh: m.mean_speed_kmh ?? null,
+    freeFlowTransitSeconds: m.free_flow_transit_seconds ?? null,
+    estimatedMinutes: m.free_flow_transit_seconds != null
+      ? Math.round((m.free_flow_transit_seconds / 60) * 10) / 10
+      : null,
+  });
+  return {
+    LS_to_SA: make(burst.LS_to_SA, fm.LS_to_SA || {}),
+    SA_to_LS: make(burst.SA_to_LS, fm.SA_to_LS || {}),
+  };
+}
+
+function _applyBiasToSegment(seg, segmentKey) {
+  if (!seg) return seg;
+  for (const dir of ['LS_to_SA', 'SA_to_LS']) {
+    const bias = getBiasCorrection(dir, segmentKey);
+    if (bias && seg[dir].estimatedMinutes != null) {
+      seg[dir].estimatedMinutesAdjusted =
+        Math.max(0, Math.round((seg[dir].estimatedMinutes + bias.biasMinutes) * 10) / 10);
+      seg[dir].biasOffsetMinutes = Math.round(bias.biasMinutes * 10) / 10;
+      seg[dir].biasSamples = bias.sampleCount;
+    } else {
+      seg[dir].estimatedMinutesAdjusted = seg[dir].estimatedMinutes;
+      seg[dir].biasOffsetMinutes = 0;
+      seg[dir].biasSamples = 0;
+    }
+  }
+  return seg;
+}
+
+function computeTrafficSummary() {
+  const bridgeRaw = latestBurstCounts.bridge.result;
+  const canopyRaw = latestBurstCounts.processing.result;
+  const engenRaw  = latestBurstCounts.wide.result;
+
+  const bridge = _applyBiasToSegment(_segmentFromBurst(bridgeRaw), 'bridge');
+  const canopy = _applyBiasToSegment(_segmentFromBurst(canopyRaw), 'canopy');
+  const engen  = _applyBiasToSegment(_segmentFromBurst(engenRaw),  'engen');
+
+  function journeyFor(direction) {
+    const saBias = getBiasCorrection(direction, 'sa_side', 24);
+    const saSide = Math.max(0, SA_SIDE_PROCESSING_SEED_MIN + (saBias?.biasMinutes ?? 0));
+    const bridgeMin = bridge?.[direction]?.estimatedMinutesAdjusted ?? null;
+    const canopyMin = canopy?.[direction]?.estimatedMinutesAdjusted ?? LS_CANOPY_PROCESSING_FLOOR_MIN;
+    const engenMin  = engen?.[direction]?.estimatedMinutesAdjusted ?? null;
+
+    let breakdown, parts;
+    if (direction === 'LS_to_SA') {
+      breakdown = {
+        engenApproachMin: engenMin,
+        canopyProcessingMin: canopyMin,
+        bridgeTransitMin: bridgeMin,
+        saSideProcessingMin: Math.round(saSide * 10) / 10,
+        saSideSource: saBias ? `user_reports (n=${saBias.sampleCount})` : 'seed',
+      };
+      parts = [engenMin, canopyMin, bridgeMin, saSide];
+    } else {
+      breakdown = {
+        saSideProcessingMin: Math.round(saSide * 10) / 10,
+        saSideSource: saBias ? `user_reports (n=${saBias.sampleCount})` : 'seed',
+        bridgeTransitMin: bridgeMin,
+        canopyProcessingMin: canopyMin,
+      };
+      parts = [saSide, bridgeMin, canopyMin];
+    }
+    const present = parts.filter(p => p != null);
+    const estimatedTotalMinutes = present.length > 0
+      ? Math.round(present.reduce((a, b) => a + b, 0) * 10) / 10
+      : null;
+    const totalBias = getBiasCorrection(direction, 'total', 24);
+    return {
+      estimatedTotalMinutes,
+      breakdown,
+      observableSegments: present.length,
+      totalBiasOffsetMinutes: totalBias ? Math.round(totalBias.biasMinutes * 10) / 10 : 0,
+      totalBiasSamples: totalBias?.sampleCount ?? 0,
+    };
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    bridge,
+    canopy,
+    engen,
+    seeds: {
+      saSideProcessingSeedMin: SA_SIDE_PROCESSING_SEED_MIN,
+      lsCanopyFloorMin: LS_CANOPY_PROCESSING_FLOOR_MIN,
+    },
+    journey: {
+      LS_to_SA: journeyFor('LS_to_SA'),
+      SA_to_LS: journeyFor('SA_to_LS'),
+    },
+    userReports: {
+      total: userReports.length,
+      last24h: userReports.filter(r =>
+        Date.now() - new Date(r.reportedAt).getTime() < 24 * 3600 * 1000
+      ).length,
+    },
+  };
+}
+
+function detectorEstimateForReport(direction, segment) {
+  const sum = computeTrafficSummary();
+  if (!sum) return null;
+  if (segment === 'bridge') return sum.bridge?.[direction]?.estimatedMinutesAdjusted ?? null;
+  if (segment === 'canopy') return sum.canopy?.[direction]?.estimatedMinutesAdjusted ?? null;
+  if (segment === 'engen')  return sum.engen?.[direction]?.estimatedMinutesAdjusted ?? null;
+  if (segment === 'sa_side') return SA_SIDE_PROCESSING_SEED_MIN;
+  if (segment === 'total')  return sum.journey?.[direction]?.estimatedTotalMinutes ?? null;
+  return null;
+}
+
 const trafficHistory = {
   readings: [],           // Array of { timestamp, bridgeCounts, canopyCounts }
   MAX_HISTORY: 10,        // Keep last 10 readings (~10-15 minutes)
@@ -904,139 +1289,96 @@ async function captureFrame() {
   }
 
   isCapturing = true;
-  const outputPath = '/tmp/frame.jpg';
+  const latestBufferFallback = () =>
+    screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null;
 
-  return new Promise((resolve) => {
-    console.log('📸 Capturing frame from HLS stream...');
-    
-    const ffmpeg = spawn('ffmpeg', [
-      '-y',
-      '-i', config.streamUrl,
-      '-vframes', '1',
-      '-q:v', '2',
-      '-vf', 'scale=800:-1',
-      outputPath
-    ], {
-      timeout: 30000,
-    });
-
-    let stderr = '';
-    
-    ffmpeg.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    ffmpeg.on('close', async (code) => {
-      isCapturing = false;
-      
-      if (code === 0 && fs.existsSync(outputPath)) {
-        try {
-          const imageBuffer = fs.readFileSync(outputPath);
-          const timestamp = Date.now();
-          
-          // Check for motion blur BEFORE classification
-          if (isImageBlurry(imageBuffer)) {
-            // Skip blurry frames entirely - don't waste API call on classification
-            console.log('⏭️ Skipping blurry frame');
-            resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
-            return;
-          }
-
-          // Record the raw capture before classification — proves the camera
-          // is alive even if the AI is rate-limited.
-          latestRawFrame = { screenshot: imageBuffer, timestamp: Date.now() };
-          cameraStatus.lastSuccessfulCapture = Date.now();
-          cameraStatus.consecutiveFailures = 0;
-
-          // FRAME DIFF CHECK: if this frame looks almost identical to the last
-          // classified one, reuse the cached angle type — skip the AI call entirely
-          let angleType;
-          if (isFrameSimilarToLast(imageBuffer)) {
-            angleType = lastClassifiedFrame.angleType;
-            console.log(`⚡ Frame similar to last (reusing angle: ${angleType}) - skipped AI classification`);
-          } else {
-            // Classify the frame angle (costs API call)
-            angleType = await classifyFrameAngle(imageBuffer);
-            // Only update the diff anchor on a successful classification so
-            // failures don't propagate through the similarity shortcut.
-            if (angleType !== null) {
-              lastClassifiedFrame = { buffer: imageBuffer, angleType, timestamp: Date.now() };
-            }
-          }
-
-          // Classification failed (null) — skip the frame entirely so the
-          // buffer and preservedFrames stay intact until the AI recovers.
-          if (angleType === null) {
-            console.log('⏭️ Skipping frame — classification unavailable');
-            resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
-            return;
-          }
-
-          const frameData = {
-            screenshot: imageBuffer,
-            timestamp: timestamp,
-            angleType: angleType
-          };
-
-          // Add to buffer
-          screenshotBuffer.push(frameData);
-          
-          // Also preserve the latest frame for each useful angle type
-          if (angleType !== 'useless' && preservedFrames.hasOwnProperty(angleType)) {
-            preservedFrames[angleType] = frameData;
-            
-            // Upload to Supabase Storage and update database
-            const framePath = await uploadFrameToStorage(imageBuffer, angleType, timestamp);
-            if (framePath) {
-              await updatePreservedFrame(angleType, framePath, timestamp);
-              await logFrameHistory(angleType, framePath, timestamp);
-            }
-          }
-          
-          // Keep only recent frames in main buffer
-          if (screenshotBuffer.length > config.maxBufferSize) {
-            screenshotBuffer = screenshotBuffer.slice(-config.maxBufferSize);
-          }
-          
-          // Count frames by type
-          const counts = screenshotBuffer.reduce((acc, f) => {
-            acc[f.angleType] = (acc[f.angleType] || 0) + 1;
-            return acc;
-          }, {});
-          
-          // Record successful capture for camera status tracking
-          recordCaptureSuccess(angleType);
-          
-          console.log(`✅ Frame captured (${angleType}), buffer: ${JSON.stringify(counts)}`);
-          resolve(imageBuffer);
-        } catch (err) {
-          console.error('❌ Failed to read captured frame:', err.message);
-          recordCaptureFailure();
-          resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
-        }
-      } else {
-        console.error(`❌ ffmpeg failed with code ${code}`);
-        recordCaptureFailure();
-        resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      isCapturing = false;
-      console.error('❌ ffmpeg error:', err.message);
+  try {
+    // ONE ffmpeg call produces a small burst of frames. The most recent frame
+    // feeds the existing classification path; the full burst feeds the new
+    // /analyze-burst detector for motion-based direction + speed.
+    const burst = await captureBurst();
+    if (!burst || burst.length === 0) {
+      console.error('❌ Burst capture produced no frames');
       recordCaptureFailure();
-      resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
-    });
+      return latestBufferFallback();
+    }
 
-    setTimeout(() => {
-      if (isCapturing) {
-        ffmpeg.kill('SIGKILL');
-        isCapturing = false;
-        console.error('❌ ffmpeg timeout');
-        resolve(screenshotBuffer.length > 0 ? screenshotBuffer[screenshotBuffer.length - 1].screenshot : null);
+    const mostRecent = burst[burst.length - 1];
+    const imageBuffer = mostRecent.buffer;
+    const timestamp = mostRecent.timestampMs;
+
+    if (isImageBlurry(imageBuffer)) {
+      console.log('⏭️ Skipping blurry frame');
+      return latestBufferFallback();
+    }
+
+    latestRawFrame = { screenshot: imageBuffer, timestamp: Date.now() };
+    cameraStatus.lastSuccessfulCapture = Date.now();
+    cameraStatus.consecutiveFailures = 0;
+
+    let angleType;
+    if (isFrameSimilarToLast(imageBuffer)) {
+      angleType = lastClassifiedFrame.angleType;
+      console.log(`⚡ Frame similar to last (reusing angle: ${angleType}) - skipped AI classification`);
+    } else {
+      angleType = await classifyFrameAngle(imageBuffer);
+      if (angleType !== null) {
+        lastClassifiedFrame = { buffer: imageBuffer, angleType, timestamp: Date.now() };
       }
-    }, 25000);
-  });
+    }
+
+    if (angleType === null) {
+      console.log('⏭️ Skipping frame — classification unavailable');
+      return latestBufferFallback();
+    }
+
+    const frameData = { screenshot: imageBuffer, timestamp, angleType };
+    screenshotBuffer.push(frameData);
+
+    if (angleType !== 'useless' && preservedFrames.hasOwnProperty(angleType)) {
+      preservedFrames[angleType] = frameData;
+
+      const framePath = await uploadFrameToStorage(imageBuffer, angleType, timestamp);
+      if (framePath) {
+        await updatePreservedFrame(angleType, framePath, timestamp);
+        await logFrameHistory(angleType, framePath, timestamp);
+      }
+
+      // PHASE 1 — burst-detector cache update. Fire-and-forget so a slow
+      // detector call never blocks the capture loop, but await here in v1
+      // so we know it landed before the next cycle starts.
+      const detectorView = ANGLE_TO_VIEW[angleType];
+      if (detectorView) {
+        try {
+          const result = await detectVehiclesBurst(burst, detectorView);
+          if (result) {
+            latestBurstCounts[angleType] = { result, capturedAt: Date.now() };
+          }
+        } catch (e) {
+          console.error(`Burst-detector tick failed for ${angleType}: ${e.message}`);
+        }
+      }
+    }
+
+    if (screenshotBuffer.length > config.maxBufferSize) {
+      screenshotBuffer = screenshotBuffer.slice(-config.maxBufferSize);
+    }
+
+    const counts = screenshotBuffer.reduce((acc, f) => {
+      acc[f.angleType] = (acc[f.angleType] || 0) + 1;
+      return acc;
+    }, {});
+
+    recordCaptureSuccess(angleType);
+    console.log(`✅ Frame captured (${angleType}), buffer: ${JSON.stringify(counts)}`);
+    return imageBuffer;
+  } catch (err) {
+    console.error('❌ captureFrame error:', err.message);
+    recordCaptureFailure();
+    return latestBufferFallback();
+  } finally {
+    isCapturing = false;
+  }
 }
 
 // Get the latest screenshot for display
@@ -1137,38 +1479,50 @@ async function analyzeTraffic(userQuestion = null) {
     let canopyDetectorCounts = null;
     let wideDetectorCounts = null;
     
-    // Find the bridge frame and call detector
+    // Find the bridge frame and call detector. Prefer the cached burst
+    // result (motion + entry-edge based direction); fall back to the legacy
+    // single-frame /analyze if no fresh burst is cached.
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
     if (bridgeFrame) {
-      detectorCounts = await detectVehicles(
-        bridgeFrame.screenshot.toString('base64'),
-        'bridge'
-      );
+      detectorCounts = getBurstCountsForAngle('bridge');
+      if (!detectorCounts) {
+        detectorCounts = await detectVehicles(
+          bridgeFrame.screenshot.toString('base64'),
+          'bridge'
+        );
+      }
     }
     
-    // Find the canopy/processing frame and call detector for SA→LS queue
+    // Find the canopy/processing frame and call detector for SA→LS queue.
+    // Prefer burst cache; fall back to single-frame /analyze.
     const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
     if (canopyFrame) {
-      canopyDetectorCounts = await detectVehicles(
-        canopyFrame.screenshot.toString('base64'),
-        'canopy'
-      );
+      canopyDetectorCounts = getBurstCountsForAngle('processing');
+      if (!canopyDetectorCounts) {
+        canopyDetectorCounts = await detectVehicles(
+          canopyFrame.screenshot.toString('base64'),
+          'canopy'
+        );
+      }
       if (canopyDetectorCounts) {
         console.log(`🎯 Canopy Detector: SA→LS queue: ${canopyDetectorCounts.SA_to_LS || 0}, LS→SA area: ${canopyDetectorCounts.LS_to_SA || 0}`);
       }
     }
-    
+
     // Find the wide/Engen frame and check for queue backup (informational only)
     const wideFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.WIDE);
     let engenQueueDetected = false;
-    
+
     console.log(`🔍 Looking for WIDE frame. Found: ${wideFrame ? 'YES' : 'NO'}, framesToUse angles: ${framesToUse.map(f => f.angleType).join(', ')}`);
-    
+
     if (wideFrame) {
-      wideDetectorCounts = await detectVehicles(
-        wideFrame.screenshot.toString('base64'),
-        'engen'
-      );
+      wideDetectorCounts = getBurstCountsForAngle('wide');
+      if (!wideDetectorCounts) {
+        wideDetectorCounts = await detectVehicles(
+          wideFrame.screenshot.toString('base64'),
+          'engen'
+        );
+      }
       if (wideDetectorCounts) {
         const engenVehicles = wideDetectorCounts.LS_to_SA || wideDetectorCounts.total || 0;
         console.log(`🎯 Engen Detector: ${engenVehicles} vehicles in queue area`);
@@ -1660,6 +2014,50 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
+// PUBLIC: live aggregated summary across all 3 views — counts, per-segment
+// wait-time estimates (motion-derived), bias-corrected by user reports, plus
+// the end-to-end journey total in each direction.
+app.get('/api/traffic-summary', (req, res) => {
+  try {
+    res.json({ success: true, summary: computeTrafficSummary() });
+  } catch (e) {
+    console.error('/api/traffic-summary failed:', e.message);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// PUBLIC: user-submitted wait-time report (from the home page form).
+// Snapshots the detector's current estimate for that (direction, segment)
+// so rolling bias can be computed against ground truth later.
+app.post('/api/wait-report', async (req, res) => {
+  try {
+    const { direction, segment, minutes } = req.body || {};
+    if (!['LS_to_SA', 'SA_to_LS'].includes(direction)) {
+      return res.status(400).json({ success: false, message: 'direction must be LS_to_SA or SA_to_LS' });
+    }
+    if (!['bridge', 'canopy', 'engen', 'sa_side', 'total'].includes(segment)) {
+      return res.status(400).json({ success: false, message: 'invalid segment' });
+    }
+    const mins = Number(minutes);
+    if (!isFinite(mins) || mins <= 0 || mins > 600) {
+      return res.status(400).json({ success: false, message: 'minutes must be 0 < n <= 600' });
+    }
+    const report = {
+      reportedAt: new Date().toISOString(),
+      direction,
+      segment,
+      reportedMinutes: mins,
+      detectorEstimateMinutes: detectorEstimateForReport(direction, segment),
+      source: 'form',
+      rawText: null,
+    };
+    recordUserReport(report);
+    res.json({ success: true, message: 'Thanks — your report will help others.' });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Camera status endpoint - Check if camera is operational
 app.get('/api/camera-status', (req, res) => {
   const status = getCameraStatusInfo();
@@ -1866,10 +2264,28 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/chat/stream', async (req, res) => {
   try {
     const { message } = req.body;
-    
+
     if (!message) {
       return res.status(400).json({ success: false, message: 'Please provide a message' });
     }
+
+    // PHASE 4: opportunistically extract a wait-time report from the user's
+    // message and record it. Fire-and-forget — we never block the chat path
+    // on this; it's a calibration side-effect.
+    extractWaitTimeFromMessage(message).then((extracted) => {
+      if (!extracted) return;
+      const report = {
+        reportedAt: new Date().toISOString(),
+        direction: extracted.direction,
+        segment: extracted.segment,
+        reportedMinutes: extracted.reportedMinutes,
+        detectorEstimateMinutes: detectorEstimateForReport(extracted.direction, extracted.segment),
+        source: 'chat',
+        rawText: message.slice(0, 500),
+      };
+      recordUserReport(report);
+      console.log(`📝 Wait-time extracted from chat: ${extracted.direction} ${extracted.segment} = ${extracted.reportedMinutes} min`);
+    }).catch((e) => console.error('extract from chat failed:', e.message));
 
     // Check cache for common questions
     const questionCategory = categorizeQuestion(message);
@@ -1952,23 +2368,30 @@ app.post('/api/chat/stream', async (req, res) => {
     let detectorCounts = null;
     let canopyDetectorCounts = null;
     
+    // Prefer cached burst-detector result; fall back to single-frame /analyze.
     const bridgeFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.BRIDGE);
     if (bridgeFrame) {
-      detectorCounts = await detectVehicles(
-        bridgeFrame.screenshot.toString('base64'),
-        'bridge'
-      );
+      detectorCounts = getBurstCountsForAngle('bridge');
+      if (!detectorCounts) {
+        detectorCounts = await detectVehicles(
+          bridgeFrame.screenshot.toString('base64'),
+          'bridge'
+        );
+      }
     }
-    
-    // Find the canopy/processing frame and call detector for SA→LS queue
+
+    // Find the canopy/processing frame and call detector for SA→LS queue.
     const canopyFrame = framesToUse.find(f => f.angleType === ANGLE_TYPES.PROCESSING);
     if (canopyFrame) {
-      canopyDetectorCounts = await detectVehicles(
-        canopyFrame.screenshot.toString('base64'),
-        'canopy'
-      );
+      canopyDetectorCounts = getBurstCountsForAngle('processing');
+      if (!canopyDetectorCounts) {
+        canopyDetectorCounts = await detectVehicles(
+          canopyFrame.screenshot.toString('base64'),
+          'canopy'
+        );
+      }
     }
-    
+
     // Add to traffic history for time-series analysis
     trafficHistory.addReading(detectorCounts, canopyDetectorCounts);
     
@@ -3015,6 +3438,47 @@ app.post('/api/admin/calibrate-detector', requireAdmin, async (req, res) => {
 });
 
 // Debug detector — send current preserved frame to Python /debug, return annotated image + counts
+// Burst-detector debug — captures a live burst from the stream, sends it to
+// the new /analyze-burst endpoint, and returns the raw result. Used to
+// verify Phase 1 against real frames before flipping production callers
+// off the single-frame /analyze path. Output includes per-track motion +
+// entry-edge attribution so we can see WHY each vehicle was assigned.
+app.get('/api/admin/burst-debug', requireAdmin, async (req, res) => {
+  const viewParam = req.query.view || 'bridge';      // bridge | processing | wide
+  const viewMap = { bridge: 'bridge', processing: 'canopy', wide: 'engen' };
+  const detectorView = viewMap[viewParam] || 'bridge';
+  const numFrames = Math.min(12, Math.max(2, parseInt(req.query.frames, 10) || BURST_DEFAULT_FRAMES));
+  const intervalSec = Math.min(3, Math.max(0.5, parseFloat(req.query.interval) || BURST_DEFAULT_INTERVAL_SEC));
+
+  try {
+    const burst = await captureBurst(numFrames, intervalSec);
+    if (!burst) {
+      return res.json({ success: false, message: 'Burst capture failed (ffmpeg)' });
+    }
+    const result = await detectVehiclesBurst(burst, detectorView);
+    if (!result) {
+      return res.json({ success: false, message: 'Detector /analyze-burst call failed' });
+    }
+    // Return the first and last burst frames so admin can eyeball motion.
+    const firstFrame = burst[0].buffer.toString('base64');
+    const lastFrame  = burst[burst.length - 1].buffer.toString('base64');
+    return res.json({
+      success: true,
+      camera_view: detectorView,
+      frames_captured: burst.length,
+      interval_sec: intervalSec,
+      first_frame_ts_ms: burst[0].timestampMs,
+      last_frame_ts_ms: burst[burst.length - 1].timestampMs,
+      first_frame_b64: firstFrame,
+      last_frame_b64: lastFrame,
+      result,
+    });
+  } catch (err) {
+    console.error('❌ burst-debug error:', err.message);
+    return res.json({ success: false, message: err.message });
+  }
+});
+
 app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
   const viewParam = req.query.view || 'bridge'; // bridge | processing | wide
   const viewMap = { bridge: 'bridge', processing: 'canopy', wide: 'engen' };
@@ -4708,8 +5172,10 @@ async function start() {
   if (supabase) {
     console.log('📂 Loading preserved frames from database...');
     await loadPreservedFramesFromDB();
+    console.log('📂 Loading recent user wait-time reports...');
+    await loadRecentUserReports();
   }
-  
+
   startBackgroundCapture();
   
   app.listen(config.port, '0.0.0.0', () => {
