@@ -3767,6 +3767,26 @@ app.get('/api/admin/burst-debug', requireAdmin, async (req, res) => {
   }
 });
 
+// Live state of one specific tracked vehicle. The admin UI polls this every
+// ~3s after a user picks a track from the debug overlay. Returns null track
+// once it's been evicted (out of frame for max_age) or finished its transit.
+app.get('/api/admin/track-status', requireAdmin, async (req, res) => {
+  const view = req.query.view || 'bridge';
+  const trackId = req.query.track_id;
+  if (!trackId) return res.json({ success: false, message: 'track_id required' });
+  const viewMap = { bridge: 'bridge', processing: 'canopy', wide: 'engen' };
+  const detectorView = viewMap[view] || 'bridge';
+  try {
+    const r = await fetch(`${config.detectorUrl}/track/${detectorView}/${encodeURIComponent(trackId)}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) return res.json({ success: false, message: `Detector returned ${r.status}` });
+    return res.json(await r.json());
+  } catch (e) {
+    return res.json({ success: false, message: e.message });
+  }
+});
+
 app.get('/api/admin/debug-detector', requireAdmin, async (req, res) => {
   const viewParam = req.query.view || 'bridge'; // bridge | processing | wide
   const viewMap = { bridge: 'bridge', processing: 'canopy', wide: 'engen' };

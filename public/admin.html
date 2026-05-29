@@ -419,6 +419,41 @@
         </div>
       </div>
 
+      <!-- Follow a Vehicle (live single-vehicle tracker) -->
+      <div class="card" style="margin-top:0" id="followVehicleCard">
+        <h3>🚗 Follow a Vehicle</h3>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem">
+          Grab a fresh burst from one camera, pick a detected vehicle, and watch it live as it moves across the scene.
+          The panel below auto-refreshes every 3 seconds and shows entry edge, direction, time tracked, and current speed
+          until the vehicle exits (or the tracker loses it).
+        </p>
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.85rem">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <label style="font-size:0.78rem;color:var(--text-muted)">View:</label>
+            <select id="followView" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.35rem 0.6rem;font-size:0.78rem;cursor:pointer">
+              <option value="bridge" selected>Bridge</option>
+              <option value="processing">Processing / Canopy</option>
+            </select>
+          </div>
+          <button id="followCaptureBtn" onclick="followCapture()"
+            style="background:var(--blue);color:white;border:none;border-radius:8px;padding:0.45rem 1.1rem;font-size:0.8rem;font-weight:600;cursor:pointer">
+            📸 Capture & List Vehicles
+          </button>
+          <div id="followStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
+        </div>
+        <div id="followVehicleList" style="display:none;margin-top:0.6rem">
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.4rem">Click a vehicle to start following it:</div>
+          <div id="followVehicleListBody" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.5rem"></div>
+        </div>
+        <div id="followLivePanel" style="display:none;margin-top:1rem;padding:0.85rem;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem">
+            <div id="followLiveTitle" style="font-weight:600"></div>
+            <button onclick="followStop()" style="background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;padding:0.25rem 0.6rem;font-size:0.72rem;cursor:pointer">Stop</button>
+          </div>
+          <div id="followLiveBody" style="font-size:0.78rem;line-height:1.7"></div>
+        </div>
+      </div>
+
       <!-- Live Polygon Calibration -->
       <div class="card" style="margin-top:0" id="calibrationCard">
         <h3>⚡ Live Polygon Calibration</h3>
@@ -1082,6 +1117,136 @@
     btn.disabled = false;
     btn.style.opacity = '1';
     btn.innerHTML = '🔬 Run Debug';
+  }
+
+  // =================================================================
+  // FOLLOW A VEHICLE — live single-vehicle tracker
+  // =================================================================
+  let followPollTimer = null;
+  let followCurrent = null;  // { view, trackId }
+
+  async function followCapture() {
+    const btn = document.getElementById('followCaptureBtn');
+    const status = document.getElementById('followStatus');
+    const view = document.getElementById('followView')?.value || 'bridge';
+    btn.disabled = true; btn.style.opacity = '0.6';
+    btn.innerHTML = '⏳ Capturing burst…';
+    status.textContent = 'Grabbing 6 frames and running detector…';
+    status.style.color = 'var(--yellow)';
+    followStop();
+    try {
+      const r = await fetch(`/api/admin/burst-debug?view=${view}`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      const data = await r.json();
+      if (!data.success) {
+        status.textContent = `❌ ${data.message}`;
+        status.style.color = 'var(--red)';
+        return;
+      }
+      const vehicles = (data.result && data.result.vehicles) || [];
+      const listWrap = document.getElementById('followVehicleList');
+      const body = document.getElementById('followVehicleListBody');
+      body.innerHTML = '';
+      if (vehicles.length === 0) {
+        body.innerHTML = '<div style="font-size:0.78rem;color:var(--text-muted)">No vehicles detected in this burst.</div>';
+        listWrap.style.display = 'block';
+        status.textContent = '0 vehicles';
+        status.style.color = 'var(--text-muted)';
+        return;
+      }
+      vehicles.forEach(v => {
+        const dirChip = v.lane && v.lane !== 'unassigned'
+          ? `<span style="color:${v.lane === 'LS_to_SA' ? '#f87171' : '#34d399'}">${v.lane.replace('_to_', '→')}</span>`
+          : '<span style="color:var(--text-muted)">unassigned</span>';
+        const speedChip = v.speed_along_axis_px_per_sec
+          ? `${Math.abs(v.speed_along_axis_px_per_sec).toFixed(1)} px/s`
+          : 'still';
+        const card = document.createElement('button');
+        card.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.7rem;text-align:left;cursor:pointer;color:var(--text);font-family:inherit';
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.2rem">
+            <strong style="font-size:0.85rem">#${v.track_id} ${v.class || 'car'}</strong>
+            <span style="font-size:0.7rem;color:var(--text-muted)">${speedChip}</span>
+          </div>
+          <div style="font-size:0.72rem">${dirChip} · src=${v.direction_source || '—'}</div>
+          <div style="font-size:0.68rem;color:var(--text-muted);margin-top:0.15rem">entered via: ${v.entry_edge || '—'}</div>
+        `;
+        card.onclick = () => followStart(view, v.track_id, v.class || 'car');
+        body.appendChild(card);
+      });
+      listWrap.style.display = 'block';
+      status.textContent = `${vehicles.length} vehicle${vehicles.length === 1 ? '' : 's'} — click one to follow`;
+      status.style.color = 'var(--accent)';
+    } catch (e) {
+      status.textContent = '❌ ' + e.message;
+      status.style.color = 'var(--red)';
+    } finally {
+      btn.disabled = false; btn.style.opacity = '1';
+      btn.innerHTML = '📸 Capture & List Vehicles';
+    }
+  }
+
+  function followStart(view, trackId, klass) {
+    followStop();
+    followCurrent = { view, trackId };
+    document.getElementById('followLivePanel').style.display = 'block';
+    document.getElementById('followLiveTitle').textContent = `Following ${klass} #${trackId} on ${view}`;
+    document.getElementById('followLiveBody').innerHTML = 'Loading…';
+    followPoll();
+    followPollTimer = setInterval(followPoll, 3000);
+  }
+
+  function followStop() {
+    if (followPollTimer) { clearInterval(followPollTimer); followPollTimer = null; }
+    followCurrent = null;
+    const panel = document.getElementById('followLivePanel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  function fmtElapsed(sec) {
+    if (sec == null) return '—';
+    if (sec < 60) return Math.round(sec) + 's';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm ' + Math.round(sec % 60) + 's';
+    return Math.floor(sec / 3600) + 'h ' + Math.floor((sec % 3600) / 60) + 'm';
+  }
+
+  async function followPoll() {
+    if (!followCurrent) return;
+    const { view, trackId } = followCurrent;
+    try {
+      const r = await fetch(`/api/admin/track-status?view=${view}&track_id=${trackId}`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      const data = await r.json();
+      const body = document.getElementById('followLiveBody');
+      if (!data.success) {
+        body.innerHTML = `<span style="color:var(--red)">${data.message || 'Error'}</span>`;
+        return;
+      }
+      if (!data.track) {
+        body.innerHTML = `<span style="color:var(--text-muted)">Track no longer in scene (vehicle exited or tracker evicted it).</span>`;
+        return;
+      }
+      const t = data.track;
+      const dirColor = t.direction === 'LS_to_SA' ? '#f87171' : (t.direction === 'SA_to_LS' ? '#34d399' : 'var(--text-muted)');
+      const dirLabel = t.direction ? t.direction.replace('_to_', '→') : 'unassigned';
+      const status = t.is_finished
+        ? `<span style="color:var(--accent)">✓ Finished — measured transit ${fmtElapsed(t.elapsed_seconds)}</span>`
+        : `<span style="color:var(--yellow)">In progress</span>`;
+      body.innerHTML = `
+        <div><strong>Status:</strong> ${status}</div>
+        <div><strong>Direction:</strong> <span style="color:${dirColor}">${dirLabel}</span> <span style="color:var(--text-muted)">(from ${t.direction_source})</span></div>
+        <div><strong>Entered via:</strong> ${t.entry_edge || '—'}</div>
+        <div><strong>Time tracked:</strong> ${fmtElapsed(t.elapsed_so_far_seconds)}</div>
+        <div><strong>Current speed:</strong> ${t.speed_px_per_sec.toFixed(1)} px/s (along bridge axis: ${t.speed_along_axis.toFixed(1)} px/s)</div>
+        <div><strong>Current centroid:</strong> [${t.center[0]}, ${t.center[1]}] · bbox ${t.bbox.join(', ')}</div>
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.4rem">Polled ${new Date().toLocaleTimeString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false})} — ${t.bbox_history?.length || 0} historical positions cached</div>
+      `;
+    } catch (e) {
+      const body = document.getElementById('followLiveBody');
+      if (body) body.innerHTML = `<span style="color:var(--red)">Network error: ${e.message}</span>`;
+    }
   }
 
   async function captureVideoManual() {
