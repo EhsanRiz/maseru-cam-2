@@ -5100,28 +5100,57 @@ async function smartCapture() {
               angleType: angleType
             };
 
-            // BURST-DETECTOR PATH: now grab a short burst from the same angle
-            // and feed /analyze-burst so the per-view tracker accumulates
-            // motion vectors + completed transits. This is fire-and-forget;
-            // smartCapture's single-frame classification doesn't wait on it.
-            const detectorView = ANGLE_TO_VIEW[angleType];
-            if (detectorView) {
-              (async () => {
+            // BURST-DETECTOR PATH: grab a short burst and feed /analyze-burst
+            // so the per-view tracker accumulates motion vectors + completed
+            // transits. Fire-and-forget; smartCapture's single-frame
+            // classification doesn't wait on it.
+            //
+            // IMPORTANT: the initial classification was done on a single
+            // ffmpeg frame ~10–15s before captureBurst runs its own ffmpeg.
+            // The HLS source rotates angles every 30–60s, so by the time
+            // the burst lands, the stream may already be on a different
+            // angle — which would mean running the bridge tracker on canopy
+            // pixels (and reporting total=0 even when the bridge is full).
+            // Defence: re-classify the most-recent burst frame and route
+            // the detector call to whichever view actually matches.
+            const initialAngle = angleType;
+            (async () => {
+              try {
+                const burst = await captureBurst();
+                if (!burst || burst.length === 0) return;
+
+                let verifiedAngle = initialAngle;
                 try {
-                  const burst = await captureBurst();
-                  if (!burst || burst.length === 0) return;
-                  const result = await detectVehiclesBurst(burst, detectorView);
-                  if (result) {
-                    latestBurstCounts[angleType] = { result, capturedAt: Date.now() };
-                    try { _ingestBurstForJourneys(angleType, result); } catch (e) {
-                      console.error('journey ingest failed:', e.message);
+                  const reClassed = await classifyFrameAngle(
+                    burst[burst.length - 1].buffer
+                  );
+                  if (reClassed && reClassed !== 'useless') {
+                    if (reClassed !== initialAngle) {
+                      console.log(
+                        `↪️  Burst angle drifted: initial=${initialAngle} actual=${reClassed} — ` +
+                        `routing burst-detector to actual angle`
+                      );
                     }
+                    verifiedAngle = reClassed;
                   }
                 } catch (e) {
-                  console.error(`smartCapture burst-detector failed (${angleType}):`, e.message);
+                  console.warn('burst re-classification failed:', e.message);
                 }
-              })();
-            }
+
+                const verifiedView = ANGLE_TO_VIEW[verifiedAngle];
+                if (!verifiedView) return;
+
+                const result = await detectVehiclesBurst(burst, verifiedView);
+                if (result) {
+                  latestBurstCounts[verifiedAngle] = { result, capturedAt: Date.now() };
+                  try { _ingestBurstForJourneys(verifiedAngle, result); } catch (e) {
+                    console.error('journey ingest failed:', e.message);
+                  }
+                }
+              } catch (e) {
+                console.error(`smartCapture burst-detector failed (${initialAngle}):`, e.message);
+              }
+            })();
           }
 
           if (shouldSave) {
