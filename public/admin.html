@@ -423,9 +423,10 @@
       <div class="card" style="margin-top:0" id="followVehicleCard">
         <h3>🚗 Follow a Vehicle</h3>
         <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem">
-          Grab a fresh burst from one camera, pick a detected vehicle, and watch it live as it moves across the scene.
-          The panel below auto-refreshes every 3 seconds and shows entry edge, direction, time tracked, and current speed
-          until the vehicle exits (or the tracker loses it).
+          Shows the vehicles the per-view tracker is currently watching. Pick one and the panel below polls every 3 seconds
+          to show its live progress — direction, time tracked, current speed — until it exits (or the tracker loses it).
+          Reads the most recent cached burst for the view you choose; the background loop refreshes each angle as the HLS
+          stream rotates to it (every few minutes).
         </p>
         <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.85rem">
           <div style="display:flex;align-items:center;gap:0.5rem">
@@ -437,7 +438,7 @@
           </div>
           <button id="followCaptureBtn" onclick="followCapture()"
             style="background:var(--blue);color:white;border:none;border-radius:8px;padding:0.45rem 1.1rem;font-size:0.8rem;font-weight:600;cursor:pointer">
-            📸 Capture & List Vehicles
+            🔄 Load Latest Vehicles
           </button>
           <div id="followStatus" style="font-size:0.75rem;color:var(--text-muted)"></div>
         </div>
@@ -1130,12 +1131,14 @@
     const status = document.getElementById('followStatus');
     const view = document.getElementById('followView')?.value || 'bridge';
     btn.disabled = true; btn.style.opacity = '0.6';
-    btn.innerHTML = '⏳ Capturing burst…';
-    status.textContent = 'Grabbing 6 frames and running detector…';
+    btn.innerHTML = '⏳ Loading…';
+    status.textContent = '';
     status.style.color = 'var(--yellow)';
     followStop();
     try {
-      const r = await fetch(`/api/admin/burst-debug?view=${view}`, {
+      // Read the latest cached burst for this view — no fresh capture. The
+      // background loop has already analyzed whatever the stream rotated to.
+      const r = await fetch(`/api/admin/latest-burst?view=${view}`, {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
       const data = await r.json();
@@ -1144,6 +1147,15 @@
         status.style.color = 'var(--red)';
         return;
       }
+      if (!data.hasResult) {
+        document.getElementById('followVehicleList').style.display = 'none';
+        status.textContent = data.message;
+        status.style.color = 'var(--yellow)';
+        return;
+      }
+      const ageLabel = data.ageSeconds < 60
+        ? `${data.ageSeconds}s ago`
+        : `${Math.round(data.ageSeconds / 60)}m ago`;
       const vehicles = (data.result && data.result.vehicles) || [];
       const listWrap = document.getElementById('followVehicleList');
       const body = document.getElementById('followVehicleListBody');
@@ -1176,14 +1188,14 @@
         body.appendChild(card);
       });
       listWrap.style.display = 'block';
-      status.textContent = `${vehicles.length} vehicle${vehicles.length === 1 ? '' : 's'} — click one to follow`;
+      status.textContent = `${vehicles.length} vehicle${vehicles.length === 1 ? '' : 's'} from cached ${view} burst (${ageLabel}) — click one to follow`;
       status.style.color = 'var(--accent)';
     } catch (e) {
       status.textContent = '❌ ' + e.message;
       status.style.color = 'var(--red)';
     } finally {
       btn.disabled = false; btn.style.opacity = '1';
-      btn.innerHTML = '📸 Capture & List Vehicles';
+      btn.innerHTML = '🔄 Load Latest Vehicles';
     }
   }
 

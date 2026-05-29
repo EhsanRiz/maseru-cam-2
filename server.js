@@ -3767,6 +3767,33 @@ app.get('/api/admin/burst-debug', requireAdmin, async (req, res) => {
   }
 });
 
+// Latest cached burst-detector result for one view — no fresh capture, just
+// what the background loop last collected. Powers the admin Follow-a-Vehicle
+// list so the user gets instant results aligned with whichever angle they
+// picked (instead of waiting 6s for a capture that might catch the wrong
+// angle due to stream rotation).
+app.get('/api/admin/latest-burst', requireAdmin, (req, res) => {
+  const view = req.query.view || 'bridge';   // bridge | processing | wide
+  if (!latestBurstCounts.hasOwnProperty(view)) {
+    return res.json({ success: false, message: `Unknown view: ${view}` });
+  }
+  const slot = latestBurstCounts[view];
+  if (!slot.result) {
+    return res.json({
+      success: true,
+      hasResult: false,
+      message: `No cached burst yet for ${view}. The capture loop captures whatever angle the HLS stream is currently showing; rotation typically catches each angle within a few minutes.`,
+    });
+  }
+  return res.json({
+    success: true,
+    hasResult: true,
+    capturedAt: slot.capturedAt,
+    ageSeconds: Math.round((Date.now() - slot.capturedAt) / 1000),
+    result: slot.result,
+  });
+});
+
 // Live state of one specific tracked vehicle. The admin UI polls this every
 // ~3s after a user picks a track from the debug overlay. Returns null track
 // once it's been evicted (out of frame for max_age) or finished its transit.
