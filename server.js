@@ -552,6 +552,20 @@ function _applyBiasToSegment(seg, segmentKey) {
   return seg;
 }
 
+// Engen is a queue-extent INDICATOR, not a transit measurement. We turn the
+// raw LS_to_SA count into a qualitative tier ("clear" / "backup detected" /
+// "heavy backup past Engen") for honest UI labelling. Thresholds are
+// deliberately coarse — engen detections at this distance are noisy and
+// fine-grained numbers would be misleading.
+function _engenStatus(engenRaw) {
+  if (!engenRaw) return { tier: 'unknown', label: 'No reading' };
+  const lsCount = engenRaw.LS_to_SA || 0;
+  if (lsCount === 0) return { tier: 'clear', label: 'Approach clear' };
+  if (lsCount <= 4)  return { tier: 'light', label: 'Light backup near Engen' };
+  if (lsCount <= 10) return { tier: 'moderate', label: 'Moderate backup past Engen' };
+  return { tier: 'heavy', label: 'Heavy backup well past Engen' };
+}
+
 function computeTrafficSummary() {
   const bridgeRaw = latestBurstCounts.bridge.result;
   const canopyRaw = latestBurstCounts.processing.result;
@@ -560,6 +574,17 @@ function computeTrafficSummary() {
   const bridge = _applyBiasToSegment(_segmentFromBurst(bridgeRaw), 'bridge');
   const canopy = _applyBiasToSegment(_segmentFromBurst(canopyRaw), 'canopy');
   const engen  = _applyBiasToSegment(_segmentFromBurst(engenRaw),  'engen');
+  const engenStatus = _engenStatus(engenRaw);
+  // Engen contribution always uses queue-based estimate (count * pace) even
+  // when free-flow is present, because we don't trust measured transit at
+  // this distance. The numeric value remains in `engen[dir].estimatedMinutesAdjusted`.
+  if (engen) {
+    for (const dir of ['LS_to_SA', 'SA_to_LS']) {
+      if (engen[dir]) {
+        engen[dir].waitSource = 'indicator';
+      }
+    }
+  }
 
   function journeyFor(direction) {
     const saBias = getBiasCorrection(direction, 'sa_side', 24);
@@ -641,6 +666,7 @@ function computeTrafficSummary() {
     bridge,
     canopy,
     engen,
+    engenStatus,
     seeds: {
       saSideProcessingSeedMin: SA_SIDE_PROCESSING_SEED_MIN,
       lsCanopyFloorMin: LS_CANOPY_PROCESSING_FLOOR_MIN,

@@ -4497,18 +4497,32 @@
           const bdEl = el.querySelector('.wait-card-bd');
           const j = seg?.journey?.[dir];
           if (!j) { totalEl.textContent = '—'; bdEl.textContent = 'Waiting for first reading'; return; }
-          totalEl.innerHTML = fmtMinutes(j.estimatedTotalMinutes) + '<span class="unit">min</span>';
+          // Prefer the measured end-to-end total when we have ≥3 completed
+          // journeys in the last hour (set server-side as measuredTotalMinutes).
+          const displayMin = j.measuredTotalMinutes != null ? j.measuredTotalMinutes : j.estimatedTotalMinutes;
+          totalEl.innerHTML = fmtMinutes(displayMin) + '<span class="unit">min</span>';
           const b = j.breakdown || {};
           const parts = [];
-          if (b.engenApproachMin != null)    parts.push(`approach <b>${fmtMinutes(b.engenApproachMin)}m</b>`);
+          const engenLabel = seg?.engenStatus?.label;
+          // For the LS→SA card, lead with the engen status as a contextual
+          // chip rather than a precise number (because the engen number is
+          // a coarse indicator, not a measurement).
+          if (dir === 'LS_to_SA' && engenLabel) {
+            parts.push(`<b>${engenLabel}</b>`);
+          }
           if (b.canopyProcessingMin != null) parts.push(`LS customs <b>${fmtMinutes(b.canopyProcessingMin)}m</b>`);
           if (b.bridgeTransitMin != null)    parts.push(`bridge <b>${fmtMinutes(b.bridgeTransitMin)}m</b>`);
           if (b.saSideProcessingMin != null) parts.push(`SA customs <b>${fmtMinutes(b.saSideProcessingMin)}m</b>`);
           bdEl.innerHTML = parts.join(' · ');
           const biasSrc = b.saSideSource && b.saSideSource.indexOf('user_reports') === 0;
           const badge = document.createElement('div');
-          badge.className = 'wait-card-bias' + (biasSrc ? '' : ' seed');
-          badge.textContent = biasSrc ? 'Calibrated by traveler reports' : 'SA-side: seed value (no camera there)';
+          if (j.measuredTotalMinutes != null) {
+            badge.className = 'wait-card-bias';
+            badge.textContent = `Measured from ${j.measuredSampleCount} recent traveler${j.measuredSampleCount === 1 ? '' : 's'}`;
+          } else {
+            badge.className = 'wait-card-bias seed';
+            badge.textContent = biasSrc ? 'Calibrated by traveler reports' : 'SA-side: seed value (no camera there)';
+          }
           bdEl.appendChild(badge);
         }
         function fmtSec(s) {
