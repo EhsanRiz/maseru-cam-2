@@ -62,10 +62,9 @@ npm run db:migrate:remote
 npm run deploy
 ```
 
-Live at https://maseru-border-times.sehsan-rizvi.workers.dev (D1 database
-`maseru-border-times`, region WEUR). To serve it at traffic.4dcs.co.za, delete the
-old `traffic` DNS record, then in the Cloudflare dashboard open Workers & Pages >
-maseru-border-times > Settings > Domains & Routes > Add > Custom domain.
+Live at https://traffic.4dcs.co.za (custom domain) and
+https://maseru-border-times.sehsan-rizvi.workers.dev. D1 database
+`maseru-border-times`, region WEUR.
 
 When you add a page or image to `public/`, add it to `src/static.js` too.
 `manifest.json` and `sw.js` are stored as `.txt` so they bundle as text.

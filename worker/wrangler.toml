@@ -22,5 +22,5 @@ crons = ["*/5 * * * *"]
 [observability]
 enabled = true
 
-# Custom domain (add once the old DNS record for traffic.4dcs.co.za is removed):
-# routes = [{ pattern = "traffic.4dcs.co.za", custom_domain = true }]
+# Served at traffic.4dcs.co.za (Workers custom domain; Cloudflare manages the DNS record).
+routes = [{ pattern = "traffic.4dcs.co.za", custom_domain = true }]
