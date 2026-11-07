@@ -1,0 +1,21 @@
+{
+  "name": "maseru-border-times",
+  "version": "1.0.0",
+  "description": "Maseru Bridge crossing times from crowd-sourced phone GPS (Cloudflare Worker + D1)",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:migrate:local": "wrangler d1 migrations apply maseru-border-times --local",
+    "db:migrate:remote": "wrangler d1 migrations apply maseru-border-times --remote",
+    "deploy": "wrangler deploy",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^4.158.0"
+  },
+  "private": true,
+  "type": "module"
+}

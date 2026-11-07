@@ -1,0 +1,27 @@
+name = "maseru-border-times"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Pages in ./public are served directly; anything else (e.g. /api/*) runs the Worker.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "maseru-border-times"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# Clean-up every 5 minutes: finalise silent trips, purge raw GPS after 48 h,
+# delete journeys past each user's chosen retention period.
+[triggers]
+crons = ["*/5 * * * *"]
+
+[observability]
+enabled = true
+
+# Custom domain (add once the old DNS record for traffic.4dcs.co.za is removed):
+# routes = [{ pattern = "traffic.4dcs.co.za", custom_domain = true }]

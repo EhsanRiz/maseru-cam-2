@@ -7,7 +7,6 @@ import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
-import { createCrossingRouter } from './crossing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1523,13 +1522,6 @@ app.use(compression({
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Crossing Mode: crowd-sourced crossing times from phone GPS (see crossing.js)
-app.use('/api/crossing', createCrossingRouter({
-  express,
-  supabase,
-  zonesPath: path.join(__dirname, 'crossing-zones.json'),
-}));
 
 // Capture a frame from the HLS stream using ffmpeg
 async function captureFrame() {
@@ -4965,10 +4957,6 @@ app.post('/api/auth/reset/complete', async (req, res) => {
 // Admin dashboard page
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-app.get('/cross', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'cross.html'));
 });
 
 app.get(['/privacy', '/privacy-policy'], (req, res) => {
