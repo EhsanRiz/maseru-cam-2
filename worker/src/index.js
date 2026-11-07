@@ -1,8 +1,8 @@
 // Maseru Border Times: Cloudflare Worker (API + scheduled clean-up).
-// Static pages are served from ./public by Workers Static Assets; any path
-// that is not a file falls through to this Worker.
+// Static pages from ./public are bundled into the Worker (see static.js).
 
 import zones from './zones.json';
+import { serveStatic } from './static.js';
 import {
   LIMITS, DIRECTIONS, POSTS, MODES, RETENTION_DAYS,
   inArea, zoneFor, analyzeTrip, buildEstimate, localSlot,
@@ -357,7 +357,7 @@ async function route(request, env) {
   if ((match = p.match(/^\/api\/history\/journeys\/([^/]+)$/)) && m === 'DELETE') return deleteJourney(request, env, match[1]);
   if (p === '/api/health') return json({ ok: true, zones_version: zones.version });
   if (p.startsWith('/api/')) return fail(404, 'Not found');
-  return env.ASSETS.fetch(request);
+  return serveStatic(request, p);
 }
 
 export default {

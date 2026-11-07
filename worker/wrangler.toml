@@ -2,17 +2,16 @@ name = "maseru-border-times"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
 
-# Pages in ./public are served directly; anything else (e.g. /api/*) runs the Worker.
-[assets]
-directory = "./public"
-binding = "ASSETS"
-html_handling = "auto-trailing-slash"
-not_found_handling = "404-page"
+# Pages in ./public are bundled into the Worker as modules (see src/static.js).
+rules = [
+  { type = "Text", globs = ["**/*.html", "**/*.txt"], fallthrough = true },
+  { type = "Data", globs = ["**/*.png"], fallthrough = true },
+]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "maseru-border-times"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "7e5fcc21-1f7b-48a1-ada6-629438f56f38"
 migrations_dir = "migrations"
 
 # Clean-up every 5 minutes: finalise silent trips, purge raw GPS after 48 h,

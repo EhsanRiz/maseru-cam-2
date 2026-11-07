@@ -2,7 +2,7 @@
 
 Live Maseru Bridge crossing times measured by travellers' phones inside a
 geofence around the border. It runs as one Cloudflare Worker: static pages from
-`public/` and a JSON API under `/api/`, with a D1 (SQLite) database and a
+`public/` (bundled into the Worker by `src/static.js`) and a JSON API under `/api/`, with a D1 (SQLite) database and a
 scheduled clean-up job. There are no cameras.
 
 ## How it works
@@ -62,5 +62,10 @@ npm run db:migrate:remote
 npm run deploy
 ```
 
-To serve it at traffic.4dcs.co.za, remove the old DNS record for `traffic` in
-Cloudflare, then uncomment the `routes` line in `wrangler.toml` and deploy again.
+Live at https://maseru-border-times.sehsan-rizvi.workers.dev (D1 database
+`maseru-border-times`, region WEUR). To serve it at traffic.4dcs.co.za, delete the
+old `traffic` DNS record, then in the Cloudflare dashboard open Workers & Pages >
+maseru-border-times > Settings > Domains & Routes > Add > Custom domain.
+
+When you add a page or image to `public/`, add it to `src/static.js` too.
+`manifest.json` and `sw.js` are stored as `.txt` so they bundle as text.
