@@ -11,6 +11,8 @@
   <meta property="og:image" content="https://traffic.4dcs.co.za/og-image.png">
   <meta property="og:url" content="https://traffic.4dcs.co.za">
   <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
   <link rel="icon" href="/icon-192.png">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -80,6 +82,9 @@
     .summary b { display: block; font-size: 1.2rem; }
     .summary span { font-size: .75rem; color: var(--muted); }
     code.key { display: block; word-break: break-all; background: var(--card-2); padding: 10px; border-radius: 8px; font-size: .9rem; margin: 8px 0; }
+    #map { height: 300px; border-radius: 12px; margin: 4px 0 10px; background: var(--card-2); z-index: 0; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .78rem; color: var(--muted); margin-bottom: 10px; }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
     footer { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 24px; }
   </style>
 </head>
@@ -108,6 +113,7 @@
         <li>Each crossing gets a <strong>random ID</strong>, not linked to your name or phone number.</li>
         <li>Raw locations are <strong>deleted within 48 hours</strong>. Only crossing times are kept.</li>
         <li>You can choose to <strong>save your own journeys</strong> for 7, 30, 60 or 90 days. This is off unless you turn it on.</li>
+        <li>The map of your route is <strong>kept on this phone only</strong>.</li>
         <li>On this website, tracking only works <strong>while this page is open</strong>.</li>
       </ul>
       <p class="muted">Details in our <a href="/privacy">Privacy Policy</a>.</p>
@@ -135,6 +141,23 @@
       </div>
       <p class="muted" style="margin:10px 0 0" id="save-hint"></p>
       <p class="muted" style="margin:6px 0 0">Keep this page open and your screen on until you are through.</p>
+    </section>
+
+    <section class="card hidden" id="mapcard">
+      <h2>Your route</h2>
+      <div id="map" role="img" aria-label="Map of the Maseru Bridge border area with your route"></div>
+      <div class="legend">
+        <span><i style="background:#3b82f6"></i>Lesotho side</span>
+        <span><i style="background:#a855f7"></i>Bridge</span>
+        <span><i style="background:#f59e0b"></i>SA side</span>
+        <span><i style="background:#22c55e"></i>Your route</span>
+      </div>
+      <p class="muted" id="map-caption" style="margin:0 0 10px">Tap Start crossing to draw your route.</p>
+      <div class="row">
+        <button class="secondary" id="btn-center">Centre on me</button>
+        <button class="secondary" id="btn-clear-route">Clear route</button>
+      </div>
+      <p class="muted" style="margin:10px 0 0">Your route is drawn and kept on this phone only. It is not sent to us.</p>
     </section>
 
     <section class="card hidden" id="report">
@@ -281,6 +304,7 @@
     $('tab-now').classList.toggle('hidden', name !== 'now');
     $('tab-journeys').classList.toggle('hidden', name !== 'journeys');
     if (name === 'journeys') loadHistory();
+    if (name === 'now' && map) setTimeout(() => map.invalidateSize(), 50);
     store.set('mb_tab', name);
   }
   document.querySelectorAll('nav.tabs button').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
@@ -466,14 +490,16 @@
   async function endTrip(reason) {
     if (!trip) return;
     await flush();
+    let r = {};
     try {
       const j = await api('POST', `/trips/${trip.id}/end`, {}, { 'X-Trip-Key': trip.key });
-      const r = j.result || {};
+      r = j.result || {};
       if (r.status === 'completed') {
         toast(`Crossing recorded: ${fmtMin(r.total_minutes)}.${r.saved_to_history ? ' Saved to My journeys.' : ''} Thank you!`);
       } else if (reason !== 'manual') toast('Left the border area.');
     } catch {}
     trip = null; queue = []; sent = 0; saveState(); renderStats(); loadEstimates();
+    finishTrail(r);
   }
 
   // ---- Calibration recorder (device only) ----
@@ -490,11 +516,95 @@
     a.click();
   }
 
+  // ---- Map (route stays on this device) ----
+  const ZONE_COLOR = { LS: '#3b82f6', SA: '#f59e0b', BRIDGE: '#a855f7' };
+  let map = null, trailLine = null, meMarker = null, accCircle = null, follow = true;
+  let trail = store.get('mb_trail', []);            // current crossing: [[lat, lng, t], ...]
+  let lastTrail = store.get('mb_last_trail', null); // { points, total, direction, endedAt }
+
+  function initMap() {
+    if (map || !window.L || !ZONES || $('mapcard').classList.contains('hidden')) return;
+    map = L.map('map', { zoomControl: true }).setView([ZONES.area.lat, ZONES.area.lng], 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    ZONES.zones.forEach((z) => {
+      L.circle([z.lat, z.lng], {
+        radius: z.radius_m, color: ZONE_COLOR[z.side] || '#888', weight: 1.5,
+        fillOpacity: z.kind === 'queue' ? 0.06 : 0.2,
+      }).bindTooltip(z.label).addTo(map);
+    });
+    trailLine = L.polyline([], { color: '#22c55e', weight: 5, opacity: 0.9 }).addTo(map);
+    map.on('dragstart', () => { follow = false; });
+    drawTrail(true);
+  }
+
+  function drawTrail(fit) {
+    const showing = trail.length ? trail : (lastTrail ? lastTrail.points : []);
+    if (trail.length) {
+      $('map-caption').textContent = `This crossing: ${trail.length} points so far.`;
+    } else if (lastTrail && lastTrail.points.length) {
+      const when = new Date(lastTrail.endedAt).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      $('map-caption').textContent = `Your last route (${when}${lastTrail.total ? ', ' + fmtMin(lastTrail.total) : ''}).`;
+    } else {
+      $('map-caption').textContent = 'Tap Start crossing to draw your route.';
+    }
+    if (!map) return;
+    trailLine.setLatLngs(showing.map((p) => [p[0], p[1]]));
+    if (fit && showing.length > 1) map.fitBounds(trailLine.getBounds(), { padding: [30, 30], maxZoom: 17 });
+  }
+
+  function addTrailPoint(lat, lng, t) {
+    const last = trail[trail.length - 1];
+    if (last && distanceM(last[0], last[1], lat, lng) < 5 && t - last[2] < 30000) return;   // skip jitter
+    trail.push([+lat.toFixed(6), +lng.toFixed(6), t]);
+    if (trail.length > 5000) trail = trail.slice(-5000);
+    store.set('mb_trail', trail);
+    drawTrail(false);
+  }
+
+  function showMe(lat, lng, acc) {
+    if (!map) return;
+    if (!meMarker) {
+      accCircle = L.circle([lat, lng], { radius: acc, weight: 0, fillColor: '#22c55e', fillOpacity: 0.12 }).addTo(map);
+      meMarker = L.circleMarker([lat, lng], { radius: 8, color: '#ffffff', weight: 3, fillColor: '#22c55e', fillOpacity: 1 }).addTo(map);
+    } else {
+      meMarker.setLatLng([lat, lng]); accCircle.setLatLng([lat, lng]).setRadius(acc);
+    }
+    if (follow) map.panTo([lat, lng], { animate: true });
+  }
+
+  function finishTrail(result) {
+    if (trail.length > 1) {
+      const done = result && result.status === 'completed';
+      lastTrail = { points: trail, total: done ? result.total_minutes : null, direction: done ? result.direction : null, endedAt: Date.now() };
+      store.set('mb_last_trail', lastTrail);
+    }
+    trail = []; store.del('mb_trail');
+    drawTrail(true);
+  }
+
+  $('btn-center').onclick = () => {
+    follow = true;
+    if (meMarker) map.setView(meMarker.getLatLng(), 17);
+    else if (map) map.setView([ZONES.area.lat, ZONES.area.lng], 15);
+  };
+  $('btn-clear-route').onclick = () => {
+    if (!confirm('Clear the route shown on the map from this phone?')) return;
+    if (!tracking) { trail = []; store.del('mb_trail'); }
+    lastTrail = null; store.del('mb_last_trail'); drawTrail(false);
+  };
+  window.addEventListener('load', initMap);
+
   // ---- Location handling ----
   function onFix(pos) {
     const { latitude: lat, longitude: lng, accuracy, speed } = pos.coords;
     const t = pos.timestamp || Date.now();
     if (calibOn()) { calib.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), t }); store.set('mb_calib', calib.slice(-20000)); renderCalib(); }
+    if (accuracy <= 150) {
+      if (trip || inArea(lat, lng)) addTrailPoint(lat, lng, t);   // draw the route around the border only
+      showMe(lat, lng, accuracy);
+    }
 
     if (!inArea(lat, lng)) {
       lastZone = null;
@@ -557,7 +667,7 @@
     wakeLock = null;
     store.set('mb_tracking', false);
     $('btn-start').classList.remove('hidden'); $('btn-stop').classList.add('hidden');
-    if (trip) await endTrip('manual');
+    if (trip) await endTrip('manual'); else if (trail.length) finishTrail(null);
     lastZone = null;
     setStatus('', 'Not tracking', 'Tap Start when you join the queue.');
     renderStats();
@@ -592,7 +702,8 @@
   // ---- Wire up ----
   function showApp() {
     $('consent').classList.add('hidden');
-    ['tracker', 'report', 'calib'].forEach((id) => $(id).classList.remove('hidden'));
+    ['tracker', 'mapcard', 'report', 'calib'].forEach((id) => $(id).classList.remove('hidden'));
+    initMap();
   }
   $('btn-consent').onclick = () => { store.set('mb_consent', new Date().toISOString()); showApp(); };
   $('btn-start').onclick = start;
@@ -618,6 +729,7 @@
 
   fetch('/api/zones').then((r) => r.json()).then((z) => {
     ZONES = z;
+    initMap();
     if (store.get('mb_consent', null) && store.get('mb_tracking', false)) start();  // resume after reload
   });
   loadEstimates();
