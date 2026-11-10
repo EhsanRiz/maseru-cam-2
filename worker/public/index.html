@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Maseru Border Times</title>
+  <meta name="description" content="Live Maseru Bridge crossing times for Lesotho and South Africa, measured by travellers' phones inside the border area.">
+  <meta name="theme-color" content="#10b981">
+  <meta property="og:title" content="Maseru Border Times">
+  <meta property="og:description" content="How long is the Maseru Bridge border right now? Live times measured by travellers.">
+  <meta property="og:image" content="https://traffic.4dcs.co.za/og-image.png">
+  <meta property="og:url" content="https://traffic.4dcs.co.za">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Border Times">
+  <style>
+    :root {
+      --bg: #121f18; --card: #1a2f25; --card-2: #162420; --text: #f1f5f9; --muted: #a8b5c4;
+      --accent: #22c55e; --accent-ink: #052e16; --warn: #f59e0b; --danger: #ef4444; --border: #2a4038;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f6faf7; --card: #ffffff; --card-2: #eef5f0; --text: #10231a; --muted: #4b5d55;
+        --accent: #15803d; --accent-ink: #ffffff; --border: #d7e4dc; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    main { max-width: 560px; margin: 0 auto; padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    h1 { font-size: 1.35rem; margin: 0; }
+    h2 { font-size: 1rem; margin: 0 0 10px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin: 12px 0; }
+    .muted { color: var(--muted); font-size: .9rem; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .est { background: var(--card-2); border-radius: 12px; padding: 12px; }
+    .est .dir { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .est .min { font-size: 1.9rem; font-weight: 700; line-height: 1.2; }
+    .est .src { font-size: .78rem; color: var(--muted); }
+    button { font: inherit; border: 0; border-radius: 12px; padding: 14px 16px; cursor: pointer; width: 100%; font-weight: 600; }
+    button:disabled { opacity: .5; cursor: default; }
+    .primary { background: var(--accent); color: var(--accent-ink); }
+    .secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+    .link { background: none; color: var(--accent); padding: 4px 0; width: auto; font-weight: 500; }
+    .row { display: flex; gap: 10px; }
+    .row > * { flex: 1; }
+    .seg { display: flex; background: var(--card-2); border-radius: 12px; padding: 4px; gap: 4px; margin: 10px 0; }
+    .seg button { padding: 10px; background: transparent; color: var(--muted); }
+    .seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+    .status { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.live { background: var(--accent); animation: pulse 1.6s infinite; }
+    .dot.wait { background: var(--warn); }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,.6); } 100% { box-shadow: 0 0 0 12px rgba(34,197,94,0); } }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; text-align: center; }
+    .stats b { display: block; font-size: 1.2rem; }
+    .stats span { font-size: .75rem; color: var(--muted); }
+    label { display: block; font-size: .85rem; color: var(--muted); margin: 10px 0 4px; }
+    select, input, textarea { width: 100%; font: inherit; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--text); }
+    .banner { border-left: 4px solid var(--warn); }
+    .hidden { display: none !important; }
+    .toast { position: fixed; left: 16px; right: 16px; bottom: calc(84px + env(safe-area-inset-bottom)); max-width: 528px; margin: 0 auto;
+      background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: 12px; font-size: .95rem; z-index: 20; }
+    ul { padding-left: 1.2rem; margin: 8px 0; }
+    a { color: var(--accent); }
+    .switch { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .switch input { width: auto; transform: scale(1.3); }
+    nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--border);
+      display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+    nav.tabs button { max-width: 280px; background: none; color: var(--muted); border-radius: 0; padding: 14px 8px; font-weight: 600; }
+    nav.tabs button.on { color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+    .journey { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .journey:last-child { border-bottom: 0; }
+    .journey .t { font-weight: 700; font-size: 1.15rem; text-align: right; }
+    .journey .segs { grid-column: 1 / -1; font-size: .8rem; color: var(--muted); }
+    .journey .del { grid-column: 1 / -1; justify-self: start; font-size: .8rem; color: var(--danger); background: none; padding: 2px 0; width: auto; font-weight: 500; }
+    .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin-bottom: 8px; }
+    .summary b { display: block; font-size: 1.2rem; }
+    .summary span { font-size: .75rem; color: var(--muted); }
+    code.key { display: block; word-break: break-all; background: var(--card-2); padding: 10px; border-radius: 8px; font-size: .9rem; margin: 8px 0; }
+    footer { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 24px; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Maseru Border Times <span class="muted">beta</span></h1>
+  </header>
+
+  <!-- ================= NOW TAB ================= -->
+  <div id="tab-now">
+    <section class="card">
+      <h2>Time to cross right now</h2>
+      <div class="grid2" id="estimates">
+        <div class="est"><div class="dir">Lesotho &rarr; SA</div><div class="min">&ndash;</div><div class="src">Loading&hellip;</div></div>
+        <div class="est"><div class="dir">SA &rarr; Lesotho</div><div class="min">&ndash;</div><div class="src">&nbsp;</div></div>
+      </div>
+      <p class="muted" id="calib-note" style="margin:10px 0 0"></p>
+    </section>
+
+    <section class="card banner hidden" id="consent">
+      <h2>Before you start</h2>
+      <p>This app measures how long your crossing takes so everyone can see live waiting times.</p>
+      <ul>
+        <li>Your location is sent <strong>only while you are inside the border area</strong> (about 3 km around the bridge).</li>
+        <li>Each crossing gets a <strong>random ID</strong>, not linked to your name or phone number.</li>
+        <li>Raw locations are <strong>deleted within 48 hours</strong>. Only crossing times are kept.</li>
+        <li>You can choose to <strong>save your own journeys</strong> for 7, 30, 60 or 90 days. This is off unless you turn it on.</li>
+        <li>On this website, tracking only works <strong>while this page is open</strong>.</li>
+      </ul>
+      <p class="muted">Details in our <a href="/privacy">Privacy Policy</a>.</p>
+      <button class="primary" id="btn-consent">I agree, continue</button>
+    </section>
+
+    <section class="card hidden" id="tracker">
+      <div class="status"><span class="dot" id="dot"></span><span id="status-text">Not tracking</span></div>
+      <p class="muted" id="status-sub" style="margin:6px 0 0">Tap Start when you join the queue.</p>
+
+      <div class="seg" id="mode-seg" role="group" aria-label="How are you crossing?">
+        <button data-mode="vehicle" class="on">By vehicle</button>
+        <button data-mode="pedestrian">On foot</button>
+      </div>
+
+      <div class="stats">
+        <div><b id="st-elapsed">0:00</b><span>in border area</span></div>
+        <div><b id="st-zone">&ndash;</b><span>where you are</span></div>
+        <div><b id="st-sent">0</b><span>points shared</span></div>
+      </div>
+
+      <div style="margin-top:14px">
+        <button class="primary" id="btn-start">Start crossing</button>
+        <button class="danger hidden" id="btn-stop">Stop</button>
+      </div>
+      <p class="muted" style="margin:10px 0 0" id="save-hint"></p>
+      <p class="muted" style="margin:6px 0 0">Keep this page open and your screen on until you are through.</p>
+    </section>
+
+    <section class="card hidden" id="report">
+      <h2>Report the queue at the window</h2>
+      <div class="grid2">
+        <div><label for="r-dir">Direction</label>
+          <select id="r-dir"><option value="LS_to_SA">Lesotho &rarr; SA</option><option value="SA_to_LS">SA &rarr; Lesotho</option></select></div>
+        <div><label for="r-post">Which window</label><select id="r-post"></select></div>
+        <div><label for="r-windows">Windows open</label><input id="r-windows" type="number" inputmode="numeric" min="0" max="50" placeholder="e.g. 3"></div>
+        <div><label for="r-ahead">People ahead of you</label><input id="r-ahead" type="number" inputmode="numeric" min="0" max="2000" placeholder="e.g. 40"></div>
+        <div><label for="r-queue">Minutes in queue so far</label><input id="r-queue" type="number" inputmode="numeric" min="0" max="900" placeholder="auto if tracking"></div>
+        <div><label for="r-window">Minutes at the window</label><input id="r-window" type="number" inputmode="numeric" min="0" max="600" placeholder="e.g. 4"></div>
+      </div>
+      <div style="margin-top:14px"><button class="secondary" id="btn-report">Send report</button></div>
+    </section>
+
+    <section class="card hidden" id="calib">
+      <div class="switch">
+        <div>
+          <h2 style="margin:0">Record my route (helpers)</h2>
+          <p class="muted" style="margin:4px 0 0">Saves your full GPS track on this phone only, so you can send it to the 4DCS team to map the border zones accurately.</p>
+        </div>
+        <input type="checkbox" id="calib-on" aria-label="Record my route">
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="secondary" id="btn-gpx">Download GPX (<span id="calib-count">0</span>)</button>
+        <button class="secondary" id="btn-gpx-clear">Clear</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= JOURNEYS TAB ================= -->
+  <div id="tab-journeys" class="hidden">
+    <section class="card" id="hist-off">
+      <h2>Save my journeys</h2>
+      <p>Keep a record of your own crossings (date, direction and how long each part took) so you can look back and plan.</p>
+      <ul>
+        <li>Saved on our server under a <strong>private key kept on this phone</strong>, not your name or number.</li>
+        <li>Only the times are saved, not your route.</li>
+        <li>Each journey is <strong>deleted automatically</strong> after the period you choose.</li>
+      </ul>
+      <label for="h-days-new">Keep my journeys for</label>
+      <select id="h-days-new">
+        <option value="7">7 days</option><option value="30" selected>30 days</option>
+        <option value="60">60 days</option><option value="90">90 days</option>
+      </select>
+      <div style="margin-top:14px"><button class="primary" id="btn-hist-on">Start saving my journeys</button></div>
+      <div style="margin-top:10px"><button class="link" id="btn-restore-open">Already saving on another phone? Restore</button></div>
+      <div class="hidden" id="restore-box">
+        <label for="restore-key">Paste your history key</label>
+        <textarea id="restore-key" rows="2" autocomplete="off" spellcheck="false"></textarea>
+        <div style="margin-top:10px"><button class="secondary" id="btn-restore">Restore</button></div>
+      </div>
+    </section>
+
+    <section class="card hidden" id="hist-on">
+      <div class="summary">
+        <div><b id="h-count">0</b><span>crossings</span></div>
+        <div><b id="h-avg">&ndash;</b><span>average</span></div>
+        <div><b id="h-best">&ndash;</b><span>fastest</span></div>
+      </div>
+      <div id="h-list"><p class="muted">No saved crossings yet. They appear here after you finish a crossing with tracking on.</p></div>
+    </section>
+
+    <section class="card hidden" id="hist-settings">
+      <h2>History settings</h2>
+      <label for="h-days">Keep my journeys for</label>
+      <select id="h-days">
+        <option value="7">7 days</option><option value="30">30 days</option>
+        <option value="60">60 days</option><option value="90">90 days</option>
+      </select>
+      <p class="muted" style="margin:6px 0 0">Shortening the period deletes older journeys straight away.</p>
+      <div class="row" style="margin-top:14px">
+        <button class="secondary" id="btn-pause">Pause saving</button>
+        <button class="secondary" id="btn-showkey">Show history key</button>
+      </div>
+      <div class="hidden" id="key-box">
+        <p class="muted" style="margin:10px 0 0">Keep this key private. Use it to see your journeys on another phone.</p>
+        <code class="key" id="key-text"></code>
+        <button class="secondary" id="btn-copykey">Copy key</button>
+      </div>
+      <div style="margin-top:10px"><button class="danger" id="btn-hist-delete">Delete all my journeys</button></div>
+    </section>
+  </div>
+
+  <footer>
+    &copy; 2026 4D Climate Solutions (Pty) Ltd &middot; <a href="/privacy">Privacy Policy</a> &middot; <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a>
+  </footer>
+</main>
+
+<nav class="tabs" aria-label="Sections">
+  <button class="on" data-tab="now">Now</button>
+  <button data-tab="journeys">My journeys</button>
+</nav>
+<div class="toast hidden" id="toast" role="status"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  const toast = (msg) => {
+    const t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 3500);
+  };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function api(method, path, body, headers) {
+    const r = await fetch('/api' + path, {
+      method,
+      headers: Object.assign({ 'Content-Type': 'application/json' }, headers || {}),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(j.message || r.status); e.status = r.status; throw e; }
+    return j;
+  }
+
+  // ---- Geometry (mirrors src/core.js) ----
+  const toRad = (d) => d * Math.PI / 180;
+  function distanceM(a, b, c, d) {
+    const dLat = toRad(c - a), dLng = toRad(d - b);
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a)) * Math.cos(toRad(c)) * Math.sin(dLng / 2) ** 2;
+    return 2 * 6371000 * Math.asin(Math.sqrt(x));
+  }
+  let ZONES = null;
+  const inArea = (lat, lng) => ZONES && distanceM(ZONES.area.lat, ZONES.area.lng, lat, lng) <= ZONES.area.radius_m;
+  const zoneFor = (lat, lng) => (ZONES && ZONES.zones.find((z) => distanceM(z.lat, z.lng, lat, lng) <= z.radius_m)) || null;
+
+  function fmtMin(m) {
+    if (m == null || !isFinite(m)) return '–';
+    m = Math.round(m);
+    if (m < 60) return `${m} min`;
+    return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}`;
+  }
+  const DIR_LABEL = { LS_to_SA: 'Lesotho → SA', SA_to_LS: 'SA → Lesotho' };
+
+  // ---- Tabs ----
+  function showTab(name) {
+    document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    $('tab-now').classList.toggle('hidden', name !== 'now');
+    $('tab-journeys').classList.toggle('hidden', name !== 'journeys');
+    if (name === 'journeys') loadHistory();
+    store.set('mb_tab', name);
+  }
+  document.querySelectorAll('nav.tabs button').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+
+  // ---- Estimates ----
+  const SRC = {
+    measured: (e) => `Measured from ${e.sample} crossings in the last 90 min`,
+    early: (e) => `Early estimate, ${e.sample} recent crossing${e.sample > 1 ? 's' : ''}`,
+    reported: (e) => `From ${e.sample} traveller report${e.sample > 1 ? 's' : ''}`,
+    live_lower_bound: (e) => `At least this long: ${e.live_devices} phone${e.live_devices > 1 ? 's' : ''} in the queue now`,
+    typical: () => 'Typical for this day and hour',
+    none: () => 'No data yet. Be the first!',
+  };
+  async function loadEstimates() {
+    try {
+      const j = await api('GET', '/estimate');
+      $('estimates').innerHTML = j.directions.map((e) => `
+        <div class="est"><div class="dir">${DIR_LABEL[e.direction]}</div>
+        <div class="min">${fmtMin(e.minutes)}</div>
+        <div class="src">${esc((SRC[e.source] || SRC.none)(e))}</div></div>`).join('');
+      $('calib-note').textContent = j.zones_calibrated ? '' : 'Beta: border zones are still being mapped, so times may be off.';
+    } catch {
+      const s = $('estimates').querySelector('.src'); if (s) s.textContent = 'Could not load. Check your connection.';
+    }
+  }
+
+  // ---- Journey history ----
+  let historyKey = store.get('mb_history_key', null);
+  let historyPaused = store.get('mb_history_paused', false);
+  const histHeaders = () => ({ 'X-History-Key': historyKey });
+  const savingNow = () => !!historyKey && !historyPaused;
+
+  function renderSaveHint() {
+    $('save-hint').innerHTML = savingNow()
+      ? 'Your crossing will be saved to <b>My journeys</b>.'
+      : 'Want a record of your crossings? Turn on saving in <b>My journeys</b>.';
+    $('btn-pause').textContent = historyPaused ? 'Resume saving' : 'Pause saving';
+  }
+
+  async function loadHistory() {
+    renderSaveHint();
+    const on = !!historyKey;
+    $('hist-off').classList.toggle('hidden', on);
+    $('hist-on').classList.toggle('hidden', !on);
+    $('hist-settings').classList.toggle('hidden', !on);
+    if (!on) return;
+    try {
+      const j = await api('GET', '/history', null, histHeaders());
+      $('h-days').value = String(j.retention_days);
+      const js = j.journeys;
+      $('h-count').textContent = js.length;
+      const totals = js.map((x) => x.total_minutes);
+      $('h-avg').textContent = js.length ? fmtMin(totals.reduce((a, b) => a + b, 0) / js.length) : '–';
+      $('h-best').textContent = js.length ? fmtMin(Math.min(...totals)) : '–';
+      $('h-list').innerHTML = js.length ? js.map((x) => {
+        const d = new Date(x.crossing_started_at);
+        const when = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ', ' +
+          d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        const parts = [
+          x.queue_minutes != null && `queue ${fmtMin(x.queue_minutes)}`,
+          x.origin_post_minutes != null && `first post ${fmtMin(x.origin_post_minutes)}`,
+          x.bridge_minutes != null && `bridge ${fmtMin(x.bridge_minutes)}`,
+          x.dest_post_minutes != null && `second post ${fmtMin(x.dest_post_minutes)}`,
+        ].filter(Boolean).join(' · ');
+        return `<div class="journey">
+          <div><b>${esc(DIR_LABEL[x.direction] || x.direction)}</b> <span class="muted">${x.mode === 'pedestrian' ? 'on foot' : 'vehicle'}</span>
+          <div class="muted">${esc(when)}</div></div>
+          <div class="t">${fmtMin(x.total_minutes)}</div>
+          ${parts ? `<div class="segs">${esc(parts)}</div>` : ''}
+          <button class="del" data-id="${esc(x.id)}">Delete</button></div>`;
+      }).join('') : '<p class="muted">No saved crossings yet. They appear here after you finish a crossing with tracking on.</p>';
+      $('h-list').querySelectorAll('button.del').forEach((b) => {
+        b.onclick = async () => {
+          if (!confirm('Delete this journey?')) return;
+          try { await api('DELETE', '/history/journeys/' + b.dataset.id, null, histHeaders()); loadHistory(); }
+          catch (e) { toast(e.message); }
+        };
+      });
+    } catch (e) {
+      if (e.status === 401) {
+        historyKey = null; store.del('mb_history_key'); loadHistory();
+        toast('Your saved history was not found. It may have been deleted.');
+      } else {
+        $('h-list').innerHTML = '<p class="muted">Could not load your journeys. Check your connection.</p>';
+      }
+    }
+  }
+
+  $('btn-hist-on').onclick = async () => {
+    try {
+      const j = await api('POST', '/history/register', { retention_days: Number($('h-days-new').value) });
+      historyKey = j.history_key; historyPaused = false;
+      store.set('mb_history_key', historyKey); store.set('mb_history_paused', false);
+      toast(`Saving on. Journeys are kept for ${j.retention_days} days.`);
+      loadHistory();
+    } catch (e) { toast(e.message || 'Could not turn on saving.'); }
+  };
+  $('btn-restore-open').onclick = () => $('restore-box').classList.toggle('hidden');
+  $('btn-restore').onclick = async () => {
+    const key = $('restore-key').value.trim();
+    if (!key) return;
+    try {
+      await api('GET', '/history', null, { 'X-History-Key': key });
+      historyKey = key; historyPaused = false;
+      store.set('mb_history_key', key); store.set('mb_history_paused', false);
+      $('restore-key').value = ''; toast('History restored.'); loadHistory();
+    } catch { toast('That key was not found.'); }
+  };
+  $('h-days').onchange = async () => {
+    const days = Number($('h-days').value);
+    try { await api('PUT', '/history/settings', { retention_days: days }, histHeaders()); toast(`Journeys now kept for ${days} days.`); loadHistory(); }
+    catch (e) { toast(e.message); }
+  };
+  $('btn-pause').onclick = () => {
+    historyPaused = !historyPaused; store.set('mb_history_paused', historyPaused);
+    toast(historyPaused ? 'Saving paused. New crossings will not be saved.' : 'Saving resumed.');
+    renderSaveHint();
+  };
+  $('btn-showkey').onclick = () => { $('key-text').textContent = historyKey; $('key-box').classList.toggle('hidden'); };
+  $('btn-copykey').onclick = async () => {
+    try { await navigator.clipboard.writeText(historyKey); toast('Key copied.'); } catch { toast('Copy failed. Select the key and copy it.'); }
+  };
+  $('btn-hist-delete').onclick = async () => {
+    if (!confirm('Delete all your saved journeys and turn off saving? This cannot be undone.')) return;
+    try {
+      await api('DELETE', '/history', null, histHeaders());
+      historyKey = null; store.del('mb_history_key'); store.del('mb_history_paused');
+      toast('All your journeys were deleted.'); loadHistory();
+    } catch (e) { toast(e.message); }
+  };
+
+  // ---- Trip state (survives page reloads) ----
+  let mode = store.get('mb_mode', 'vehicle');
+  let trip = store.get('mb_trip', null);        // { id, key, startedAt, outside }
+  let queue = store.get('mb_queue', []);        // unsent fixes
+  let sent = store.get('mb_sent', 0);
+  let watchId = null, wakeLock = null, flushTimer = null, tickTimer = null, lastZone = null, tracking = false;
+  const promptedPosts = new Set();
+  const ZONE_LABEL = { ls_queue: 'LS queue', ls_post: 'LS post', bridge: 'Bridge', sa_post: 'SA post', sa_queue: 'SA queue' };
+
+  function setStatus(kind, text, sub) {
+    $('dot').className = 'dot ' + (kind || '');
+    $('status-text').textContent = text;
+    $('status-sub').textContent = sub || '';
+  }
+  function renderStats() {
+    $('st-sent').textContent = sent;
+    $('st-zone').textContent = lastZone ? (ZONE_LABEL[lastZone.id] || lastZone.id) : '–';
+    if (trip) {
+      const s = Math.floor((Date.now() - trip.startedAt) / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+      $('st-elapsed').textContent = (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s % 60).padStart(2, '0');
+    } else {
+      $('st-elapsed').textContent = '0:00';
+    }
+  }
+  const saveState = () => { store.set('mb_trip', trip); store.set('mb_queue', queue.slice(-2000)); store.set('mb_sent', sent); };
+
+  let creating = null;
+  function ensureTrip() {
+    if (trip) return Promise.resolve(trip);
+    if (!creating) {
+      creating = api('POST', '/trips', { mode, history_key: savingNow() ? historyKey : undefined }).then((j) => {
+        trip = { id: j.trip_id, key: j.trip_key, startedAt: Date.now(), outside: 0 };
+        sent = 0; saveState();
+        return trip;
+      }).finally(() => { creating = null; });
+    }
+    return creating;
+  }
+
+  async function flush() {
+    if (!trip || !queue.length) return;
+    const batch = queue.slice(0, 200);
+    try {
+      const j = await api('POST', `/trips/${trip.id}/pings`, { pings: batch }, { 'X-Trip-Key': trip.key });
+      queue = queue.slice(batch.length); sent += j.accepted; saveState(); renderStats();
+    } catch (e) {
+      if (e.status === 401 || e.status === 409) { trip = null; queue = []; saveState(); }
+      // otherwise keep the queue and retry on the next flush (offline, server busy)
+    }
+  }
+
+  async function endTrip(reason) {
+    if (!trip) return;
+    await flush();
+    try {
+      const j = await api('POST', `/trips/${trip.id}/end`, {}, { 'X-Trip-Key': trip.key });
+      const r = j.result || {};
+      if (r.status === 'completed') {
+        toast(`Crossing recorded: ${fmtMin(r.total_minutes)}.${r.saved_to_history ? ' Saved to My journeys.' : ''} Thank you!`);
+      } else if (reason !== 'manual') toast('Left the border area.');
+    } catch {}
+    trip = null; queue = []; sent = 0; saveState(); renderStats(); loadEstimates();
+  }
+
+  // ---- Calibration recorder (device only) ----
+  let calib = store.get('mb_calib', []);
+  const calibOn = () => $('calib-on').checked;
+  const renderCalib = () => { $('calib-count').textContent = calib.length; };
+  function downloadGpx() {
+    if (!calib.length) return toast('No points recorded yet.');
+    const pts = calib.map((p) => `<trkpt lat="${p.lat}" lon="${p.lng}"><time>${new Date(p.t).toISOString()}</time></trkpt>`).join('\n');
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Maseru Border Times" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>Maseru Bridge crossing ${new Date(calib[0].t).toISOString()}</name><trkseg>\n${pts}\n</trkseg></trk></gpx>`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([gpx], { type: 'application/gpx+xml' }));
+    a.download = `maseru-crossing-${new Date(calib[0].t).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.gpx`;
+    a.click();
+  }
+
+  // ---- Location handling ----
+  function onFix(pos) {
+    const { latitude: lat, longitude: lng, accuracy, speed } = pos.coords;
+    const t = pos.timestamp || Date.now();
+    if (calibOn()) { calib.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), t }); store.set('mb_calib', calib.slice(-20000)); renderCalib(); }
+
+    if (!inArea(lat, lng)) {
+      lastZone = null;
+      if (trip && ++trip.outside >= 3) endTrip('left');
+      setStatus('wait', 'Waiting for the border area', 'Nothing is shared until you are within about 3 km of the bridge.');
+      renderStats();
+      return;
+    }
+    if (accuracy > 150) { setStatus('wait', 'Weak GPS signal', 'Move into the open if you can.'); return; }
+
+    const z = zoneFor(lat, lng);
+    lastZone = z;
+    ensureTrip().then(() => {
+      trip.outside = 0;
+      queue.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), t, acc: Math.round(accuracy), spd: speed == null ? null : +speed.toFixed(1) });
+      saveState();
+      setStatus('live', 'Measuring your crossing', z ? `You are at: ${z.label}` : 'Inside the border area');
+      renderStats();
+      maybePromptReport(z);
+    }).catch(() => setStatus('wait', 'Cannot reach the server', 'We will keep trying.'));
+  }
+  function onError(err) {
+    if (err.code === 1) {
+      setStatus('', 'Location permission denied', 'Allow location for this site in your browser settings, then try again.');
+      stop();
+    } else setStatus('wait', 'Looking for GPS…', '');
+  }
+
+  function maybePromptReport(z) {
+    if (!z || z.kind !== 'post' || !trip) return;
+    const key = trip.id + z.id;
+    if (promptedPosts.has(key)) return;
+    promptedPosts.add(key);
+    const dir = (trip.dirGuess = trip.dirGuess || (z.side === 'LS' ? 'LS_to_SA' : 'SA_to_LS'));
+    $('r-dir').value = dir; fillPosts();
+    const post = { LS_to_SA: { LS: 'ls_departure', SA: 'sa_arrival' }, SA_to_LS: { SA: 'sa_departure', LS: 'ls_arrival' } }[dir][z.side];
+    if (post) $('r-post').value = post;
+    $('r-queue').value = Math.round((Date.now() - trip.startedAt) / 60000);
+    toast('You reached the border post. Tap "Send report" below to help others.');
+  }
+
+  async function start() {
+    if (!('geolocation' in navigator)) return toast('This browser has no location support.');
+    if (!ZONES) return toast('Still loading the border map. Try again in a moment.');
+    tracking = true;
+    $('btn-start').classList.add('hidden'); $('btn-stop').classList.remove('hidden');
+    setStatus('wait', 'Looking for GPS…', '');
+    watchId = navigator.geolocation.watchPosition(onFix, onError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+    flushTimer = setInterval(flush, 20000);
+    tickTimer = setInterval(renderStats, 1000);
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+    store.set('mb_tracking', true);
+  }
+  async function stop() {
+    tracking = false;
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    clearInterval(flushTimer); clearInterval(tickTimer);
+    watchId = null;
+    try { if (wakeLock) await wakeLock.release(); } catch {}
+    wakeLock = null;
+    store.set('mb_tracking', false);
+    $('btn-start').classList.remove('hidden'); $('btn-stop').classList.add('hidden');
+    if (trip) await endTrip('manual');
+    lastZone = null;
+    setStatus('', 'Not tracking', 'Tap Start when you join the queue.');
+    renderStats();
+  }
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && tracking) {
+      try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+      flush();
+    }
+  });
+
+  // ---- Window report ----
+  const POSTS = {
+    LS_to_SA: [['ls_departure', 'Lesotho departure'], ['sa_arrival', 'SA arrival']],
+    SA_to_LS: [['sa_departure', 'SA departure'], ['ls_arrival', 'Lesotho arrival']],
+  };
+  function fillPosts() { $('r-post').innerHTML = POSTS[$('r-dir').value].map(([v, l]) => `<option value="${v}">${l}</option>`).join(''); }
+  async function sendReport() {
+    const val = (id) => ($(id).value === '' ? null : Number($(id).value));
+    try {
+      const j = await api('POST', '/window-report', {
+        direction: $('r-dir').value, post: $('r-post').value, mode,
+        windows_open: val('r-windows'), people_ahead: val('r-ahead'),
+        queue_minutes: val('r-queue'), minutes_at_window: val('r-window'),
+      });
+      toast(j.message || 'Thanks!');
+      ['r-windows', 'r-ahead', 'r-queue', 'r-window'].forEach((id) => { $(id).value = ''; });
+      loadEstimates();
+    } catch (e) { toast(e.message || 'Could not send. Try again.'); }
+  }
+
+  // ---- Wire up ----
+  function showApp() {
+    $('consent').classList.add('hidden');
+    ['tracker', 'report', 'calib'].forEach((id) => $(id).classList.remove('hidden'));
+  }
+  $('btn-consent').onclick = () => { store.set('mb_consent', new Date().toISOString()); showApp(); };
+  $('btn-start').onclick = start;
+  $('btn-stop').onclick = stop;
+  $('btn-report').onclick = sendReport;
+  $('r-dir').onchange = fillPosts;
+  $('btn-gpx').onclick = downloadGpx;
+  $('btn-gpx-clear').onclick = () => { if (confirm('Delete the recorded route from this phone?')) { calib = []; store.del('mb_calib'); renderCalib(); } };
+  $('calib-on').checked = store.get('mb_calib_on', false);
+  $('calib-on').onchange = () => store.set('mb_calib_on', $('calib-on').checked);
+  document.querySelectorAll('#mode-seg button').forEach((b) => {
+    b.classList.toggle('on', b.dataset.mode === mode);
+    b.onclick = () => {
+      if (trip) return toast('Stop the current crossing to change this.');
+      mode = b.dataset.mode; store.set('mb_mode', mode);
+      document.querySelectorAll('#mode-seg button').forEach((x) => x.classList.toggle('on', x === b));
+    };
+  });
+
+  fillPosts(); renderCalib(); renderStats(); renderSaveHint();
+  if (store.get('mb_consent', null)) showApp(); else $('consent').classList.remove('hidden');
+  showTab(store.get('mb_tab', 'now'));
+
+  fetch('/api/zones').then((r) => r.json()).then((z) => {
+    ZONES = z;
+    if (store.get('mb_consent', null) && store.get('mb_tracking', false)) start();  // resume after reload
+  });
+  loadEstimates();
+  setInterval(loadEstimates, 60000);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>

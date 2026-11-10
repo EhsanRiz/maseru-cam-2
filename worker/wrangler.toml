@@ -1,0 +1,26 @@
+name = "maseru-border-times"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Pages in ./public are bundled into the Worker as modules (see src/static.js).
+rules = [
+  { type = "Text", globs = ["**/*.html", "**/*.txt"], fallthrough = true },
+  { type = "Data", globs = ["**/*.png"], fallthrough = true },
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "maseru-border-times"
+database_id = "7e5fcc21-1f7b-48a1-ada6-629438f56f38"
+migrations_dir = "migrations"
+
+# Clean-up every 5 minutes: finalise silent trips, purge raw GPS after 48 h,
+# delete journeys past each user's chosen retention period.
+[triggers]
+crons = ["*/5 * * * *"]
+
+[observability]
+enabled = true
+
+# Served at traffic.4dcs.co.za (Workers custom domain; Cloudflare manages the DNS record).
+routes = [{ pattern = "traffic.4dcs.co.za", custom_domain = true }]

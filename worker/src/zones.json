@@ -1,0 +1,13 @@
+{
+  "version": "2026-11-07-draft",
+  "calibrated": false,
+  "note": "DRAFT coordinates placed around the published Maseru Bridge location (29.2980 S, 27.4546 E). Lesotho side is south-east of the Caledon River, South Africa side north-west. Replace with positions taken from real GPS tracks before trusting the numbers.",
+  "area": { "lat": -29.2980, "lng": 27.4546, "radius_m": 3000 },
+  "zones": [
+    { "id": "ls_post",  "side": "LS",     "kind": "post",   "label": "Lesotho border post",      "lat": -29.2992, "lng": 27.4562, "radius_m": 150 },
+    { "id": "sa_post",  "side": "SA",     "kind": "post",   "label": "South Africa border post", "lat": -29.2968, "lng": 27.4530, "radius_m": 150 },
+    { "id": "bridge",   "side": "BRIDGE", "kind": "bridge", "label": "Maseru Bridge",            "lat": -29.2980, "lng": 27.4546, "radius_m": 80 },
+    { "id": "ls_queue", "side": "LS",     "kind": "queue",  "label": "Lesotho-side queue",       "lat": -29.3020, "lng": 27.4620, "radius_m": 650 },
+    { "id": "sa_queue", "side": "SA",     "kind": "queue",  "label": "SA-side queue",            "lat": -29.2945, "lng": 27.4495, "radius_m": 500 }
+  ]
+}
