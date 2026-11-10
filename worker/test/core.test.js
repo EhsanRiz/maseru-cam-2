@@ -65,3 +65,16 @@ test('median', () => {
   assert.equal(median([1, 2, 3, 4]), 2.5);
   assert.equal(median([]), null);
 });
+
+test('simplifyRoute drops jitter, keeps ends and caps size', async () => {
+  const { simplifyRoute } = await import('../src/core.js');
+  const t = Date.parse('2026-11-07T08:00:00Z');
+  const pts = [];
+  for (let i = 0; i < 1000; i++) pts.push({ lat: -29.30 + i * 0.0001, lng: 27.45, t: t + i * 1000 });
+  pts.splice(1, 0, { lat: -29.30, lng: 27.45, t: t + 500 });           // jitter next to the first point
+  const r = simplifyRoute(pts, { maxPoints: 100 });
+  assert.equal(r.length, 100);
+  assert.deepEqual(r[0], [-29.3, 27.45, 0]);
+  assert.equal(r[r.length - 1][2], 999);
+  assert.deepEqual(simplifyRoute([]), []);
+});

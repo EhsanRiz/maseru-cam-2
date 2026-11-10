@@ -7,6 +7,9 @@ import serviceWorker from '../public/sw.js.txt';
 import icon192 from '../public/icon-192.png';
 import icon512 from '../public/icon-512.png';
 import ogImage from '../public/og-image.png';
+import logo from '../public/logo.png';
+import appleIcon from '../public/apple-touch-icon.png';
+import favicon from '../public/favicon.png';
 
 const HTML = 'text/html; charset=utf-8';
 const PAGE_CACHE = 'public, max-age=0, must-revalidate';
@@ -22,6 +25,9 @@ const FILES = {
   '/icon-192.png': [icon192, 'image/png', IMAGE_CACHE],
   '/icon-512.png': [icon512, 'image/png', IMAGE_CACHE],
   '/og-image.png': [ogImage, 'image/png', IMAGE_CACHE],
+  '/logo.png': [logo, 'image/png', IMAGE_CACHE],
+  '/apple-touch-icon.png': [appleIcon, 'image/png', IMAGE_CACHE],
+  '/favicon.png': [favicon, 'image/png', IMAGE_CACHE],
 };
 
 const SECURITY_HEADERS = {

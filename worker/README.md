@@ -1,4 +1,4 @@
-# Maseru Border Times (Cloudflare)
+# Tsela: Maseru Bridge crossing times (Cloudflare)
 
 Live Maseru Bridge crossing times measured by travellers' phones inside a
 geofence around the border. It runs as one Cloudflare Worker: static pages from

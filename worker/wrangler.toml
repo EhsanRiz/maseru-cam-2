@@ -11,6 +11,11 @@ rules = [
   { type = "Data", globs = ["**/*.png"], fallthrough = true },
 ]
 
+# Sender for PIN emails (Resend). Set the API key as a secret:
+#   npx wrangler secret put RESEND_API_KEY
+[vars]
+MAIL_FROM = "Tsela <no-reply@4dcs.co.za>"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "maseru-border-times"
