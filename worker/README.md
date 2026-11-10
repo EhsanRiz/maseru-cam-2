@@ -24,6 +24,9 @@ scheduled clean-up job. There are no cameras.
   90 days. Journeys are stored under the hash of a random history key kept on
   the phone, with no name or phone number. The link between an anonymous trip
   and a history is removed as soon as the trip is finalised.
+- **Route map.** The Now tab shows the zones, your position and your route on an
+  OpenStreetMap map (Leaflet from cdnjs). The route is kept in the browser's
+  local storage only and is never sent to the server.
 - **Clean-up (cron, every 5 min).** Finalises trips silent for 30 min, deletes
   raw fixes older than 48 h, deletes journeys past their retention period, and
   deletes window reports older than 24 months.

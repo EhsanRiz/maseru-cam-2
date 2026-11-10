@@ -2,6 +2,9 @@ name = "maseru-border-times"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
 
+# Served at traffic.4dcs.co.za (Workers custom domain; Cloudflare manages the DNS record).
+routes = [{ pattern = "traffic.4dcs.co.za", custom_domain = true }]
+
 # Pages in ./public are bundled into the Worker as modules (see src/static.js).
 rules = [
   { type = "Text", globs = ["**/*.html", "**/*.txt"], fallthrough = true },
@@ -21,6 +24,3 @@ crons = ["*/5 * * * *"]
 
 [observability]
 enabled = true
-
-# Served at traffic.4dcs.co.za (Workers custom domain; Cloudflare manages the DNS record).
-routes = [{ pattern = "traffic.4dcs.co.za", custom_domain = true }]
