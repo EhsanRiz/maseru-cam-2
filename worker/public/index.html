@@ -224,6 +224,7 @@
         <span><i style="background:var(--taupe)"></i>SA side</span>
         <span><i style="background:var(--green)"></i>Your route</span>
       </div>
+      <p class="muted" style="margin:0 0 6px;font-size:.8rem">The circles are the border zones Tsela uses to time each part of a crossing (queue, border post, bridge). They are still being mapped.</p>
       <p class="muted" id="map-caption" style="margin:0 0 10px">Tap Start crossing to draw your route.</p>
       <div class="row">
         <button class="secondary" id="btn-center">Centre on me</button>
@@ -373,6 +374,10 @@
   <!-- ================= SIGN IN ================= -->
   <div id="view-signin" class="hidden">
     <section class="card">
+      <div class="banner card hidden" id="si-signedout" style="margin:0 0 14px;box-shadow:none">
+        <b>You're signed out.</b> <span class="muted">Live crossing times still work without an account.</span>
+        <div style="margin-top:8px"><button class="link" data-nav="dashboard">Back to the Dashboard</button></div>
+      </div>
       <div id="si-step-email">
         <h2>Sign in or create an account</h2>
         <p class="muted" style="margin-top:0">Enter your email. If you are new, we will email you a 6-digit PIN.</p>
@@ -918,7 +923,13 @@
   };
   async function signOut() {
     try { await api('POST', '/auth/logout'); } catch {}
-    setSession(null, null); toast('Signed out.'); show('dashboard');
+    setSession(null, null);
+    // Don't leave personal details on a shared phone.
+    ['p-name', 'p-phone', 'p-email', 's-cur', 's-new', 's-new2', 'si-pin', 'si-email'].forEach((i) => { $(i).value = ''; });
+    $('h-list').innerHTML = ''; journeys = []; closeJourney();
+    lastTrail = null; store.del('mb_last_trail'); drawTrail(false);
+    $('si-signedout').classList.remove('hidden'); siStep('email');
+    show('signin');
   }
   $('btn-signout').onclick = signOut;
   $('btn-export').onclick = async () => {
@@ -970,7 +981,8 @@
     try {
       const j = await api('POST', '/auth/login', { email: siEmail, pin, history_key: store.get('mb_history_key', undefined) });
       store.del('mb_history_key'); store.del('mb_history_paused');
-      setSession(j.token, j.user); toast('Signed in. Welcome!'); siStep('email'); show('dashboard');
+      setSession(j.token, j.user); toast('Signed in. Welcome!'); siStep('email');
+      $('si-signedout').classList.add('hidden'); show('dashboard');
     } catch (e) { toast(e.message); }
     $('btn-si-login').disabled = false;
   }
