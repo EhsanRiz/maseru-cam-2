@@ -80,8 +80,15 @@ export function parsePrefs(text) {
   };
 }
 
-function publicUser(u, retentionDays) {
+// Staff who may open the admin page: ADMIN_EMAILS, comma-separated (a Worker secret).
+export function isAdmin(env, user) {
+  const list = String(env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return !!user && list.includes(String(user.email).toLowerCase());
+}
+
+function publicUser(u, retentionDays, admin = false) {
   return {
+    is_admin: admin,
     id: u.id,
     email: u.email,
     name: u.name || '',
@@ -277,7 +284,7 @@ async function login(request, env) {
       .bind(await sha256(token), user.id, iso(now), expires, iso(now)),
   ]);
   await claimLegacyHistory(env, user, b.history_key);
-  return json({ success: true, token, expires_at: expires, user: publicUser(user, await retentionFor(env, user)) });
+  return json({ success: true, token, expires_at: expires, user: publicUser(user, await retentionFor(env, user), isAdmin(env, user)) });
 }
 
 async function logout(request, env) {
@@ -287,7 +294,7 @@ async function logout(request, env) {
 }
 
 async function me(request, env, user) {
-  return json({ success: true, user: publicUser(user, await retentionFor(env, user)) });
+  return json({ success: true, user: publicUser(user, await retentionFor(env, user), isAdmin(env, user)) });
 }
 
 async function updateMe(request, env, user) {
@@ -299,7 +306,7 @@ async function updateMe(request, env, user) {
   await env.DB.prepare('UPDATE users SET name = ?, phone = ?, prefs = ? WHERE id = ?')
     .bind(name || null, phone || null, JSON.stringify(prefs), user.id).run();
   const fresh = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first();
-  return json({ success: true, user: publicUser(fresh, await retentionFor(env, fresh)) });
+  return json({ success: true, user: publicUser(fresh, await retentionFor(env, fresh), isAdmin(env, fresh)) });
 }
 
 async function changePin(request, env, user) {

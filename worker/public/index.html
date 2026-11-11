@@ -170,6 +170,17 @@
     .fc-x span { flex: 1; text-align: center; font-size: .68rem; color: var(--muted); white-space: nowrap; overflow: visible; }
     .fc-cap { margin: 8px 0 0; font-size: .88rem; min-height: 1.3em; }
 
+    /* Admin */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+    .tile { background: var(--card-2); border-radius: 12px; padding: 12px; }
+    .tile b { display: block; font-size: 1.6rem; line-height: 1.2; }
+    .tile span { font-size: .78rem; color: var(--muted); }
+    .tbl-wrap { overflow-x: auto; margin: 0 -4px; }
+    table.tbl { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .tbl th, .tbl td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .tbl th { color: var(--muted); font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; }
+    .tbl td.num, .tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
     /* Sign-in / signed-out hero */
     .si-hero { position: relative; overflow: hidden; border-radius: 20px; margin: 12px 0; color: #fff; padding: 16px 20px 8px;
       background: linear-gradient(135deg, #00ADEF 0%, #00A54F 58%, #A6CC38 100%); box-shadow: 0 8px 24px rgba(0,165,79,.25); }
@@ -221,6 +232,7 @@
   <a class="item" href="#dashboard" data-nav="dashboard"><i class="dot4" style="background:var(--blue)"></i>Dashboard</a>
   <a class="item" href="#journeys" data-nav="journeys"><i class="dot4" style="background:var(--lime)"></i>My journeys</a>
   <a class="item" href="#settings" data-nav="settings"><i class="dot4" style="background:var(--taupe)"></i>Settings</a>
+  <a class="item hidden" href="#admin" data-nav="admin" id="menu-admin"><i class="dot4" style="background:var(--text)"></i>Admin</a>
   <a class="item" href="/privacy"><i class="dot4" style="background:var(--grey)"></i>Privacy Policy</a>
   <a class="item" href="mailto:info@4dcs.co.za"><i class="dot4" style="background:var(--grey)"></i>Contact us</a>
   <button class="item" id="menu-auth"></button>
@@ -442,6 +454,35 @@
     </section>
   </div>
 
+  <!-- ================= ADMIN (4DCS staff) ================= -->
+  <div id="view-admin" class="hidden">
+    <section class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:baseline">Admin <small class="muted" id="ad-updated"></small></h2>
+      <div class="tiles" id="ad-tiles"></div>
+      <p class="muted" style="margin:10px 0 0;font-size:.8rem">Accounts and totals only. Individual locations and routes are never shown here.</p>
+    </section>
+    <section class="card">
+      <h2>Crossings by direction (last 30 days)</h2>
+      <div class="tbl-wrap"><table class="tbl" id="ad-dirs"></table></div>
+    </section>
+    <section class="card">
+      <h2>Last 14 days</h2>
+      <div class="tbl-wrap"><table class="tbl" id="ad-days"></table></div>
+    </section>
+    <section class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:baseline">Users <small class="muted" id="ad-ucount"></small></h2>
+      <div class="row" style="margin-bottom:10px">
+        <input id="ad-q" type="search" placeholder="Search email, name or phone" aria-label="Search users">
+        <button class="secondary" id="ad-csv" style="flex:0 0 auto;width:auto">Download CSV</button>
+      </div>
+      <div class="tbl-wrap"><table class="tbl" id="ad-users"></table></div>
+      <div class="row" style="margin-top:10px">
+        <button class="secondary" id="ad-prev">&larr; Newer</button>
+        <button class="secondary" id="ad-next">Older &rarr;</button>
+      </div>
+    </section>
+  </div>
+
   <!-- ================= SIGN IN ================= -->
   <div id="view-signin" class="hidden">
     <section class="si-hero" aria-live="polite">
@@ -581,7 +622,7 @@
   applyTheme();
 
   // ---- Menu & navigation ----
-  const VIEWS = ['dashboard', 'journeys', 'settings', 'signin'];
+  const VIEWS = ['dashboard', 'journeys', 'settings', 'signin', 'admin'];
   function openMenu(open) {
     $('drawer').classList.toggle('open', open); $('scrim').classList.toggle('open', open);
     $('btn-menu').setAttribute('aria-expanded', String(open));
@@ -594,6 +635,7 @@
   function show(view) {
     if (!VIEWS.includes(view)) view = 'dashboard';
     if (view === 'signin' && signedIn()) view = 'settings';
+    if (view === 'admin' && !(user && user.is_admin)) view = signedIn() ? 'dashboard' : 'signin';
     VIEWS.forEach((v) => $('view-' + v).classList.toggle('hidden', v !== view));
     document.querySelectorAll('.drawer [data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === view));
     openMenu(false);
@@ -601,6 +643,7 @@
     if (view !== 'signin') setSignedOutHero(false);   // the goodbye greeting is only for right after sign-out
     if (view === 'journeys') loadHistory();
     if (view === 'settings') renderSettings();
+    if (view === 'admin') loadAdmin();
     if (view === 'dashboard' && map) setTimeout(() => map.invalidateSize(), 60);
     window.scrollTo(0, 0);
   }
@@ -611,6 +654,7 @@
   window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
   function renderAuth() {
+    $('menu-admin').classList.toggle('hidden', !(signedIn() && user && user.is_admin));
     $('who').innerHTML = signedIn()
       ? `<b>${esc(user && user.name ? user.name : 'Signed in')}</b><span class="muted">${esc(user ? user.email : '')}</span>`
       : '<b>Tsela</b><span class="muted">Not signed in</span>';
@@ -1178,6 +1222,59 @@
     if (!confirm('Clear this phone’s app data, including the map and settings? You will be signed out.')) return;
     try { localStorage.clear(); } catch {}
     location.reload();
+  };
+
+  // ---- Admin (4DCS staff) ----
+  let adPage = 1, adTimer = null;
+  const fmtDate = (v) => (v ? new Date(v).toLocaleString(undefined, { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '\u2013');
+  async function loadAdmin() {
+    try {
+      const st = await api('GET', '/admin/stats');
+      $('ad-updated').textContent = 'Updated ' + new Date(st.generated_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      const tile = (n, label) => `<div class="tile"><b>${esc(n)}</b><span>${esc(label)}</span></div>`;
+      $('ad-tiles').innerHTML = [
+        tile(st.users.total, `users (${st.users.new_7d} new this week)`),
+        tile(st.users.signed_in_24h, 'signed in, last 24 h'),
+        tile(st.users.signed_in_7d, 'signed in, last 7 days'),
+        tile(st.users.with_active_session, 'with an active session'),
+        tile(st.crossings.live_now, 'phones crossing now'),
+        tile(st.crossings.last_7d, `crossings this week (${st.crossings.total} total)`),
+        tile(st.crossings.saved_journeys, 'saved journeys'),
+        tile(st.reports_7d, 'window reports this week'),
+      ].join('');
+      const dirs = st.crossings.by_direction_30d;
+      $('ad-dirs').innerHTML = '<tr><th>Direction</th><th class="num">Crossings</th><th class="num">Average time</th></tr>' +
+        (dirs.length ? dirs.map((d) => `<tr><td>${esc(DIR_LABEL[d.direction] || d.direction)}</td><td class="num">${d.n}</td><td class="num">${fmtMin(d.avg_minutes)}</td></tr>`).join('')
+          : '<tr><td colspan="3" class="muted">No completed crossings yet.</td></tr>');
+      $('ad-days').innerHTML = '<tr><th>Day</th><th class="num">Sign-ups</th><th class="num">Sign-ins</th><th class="num">Crossings</th></tr>' +
+        st.days.slice().reverse().map((d) => `<tr><td>${esc(new Date(d.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))}</td>` +
+          `<td class="num">${d.signups}</td><td class="num">${d.sign_ins}</td><td class="num">${d.crossings}</td></tr>`).join('');
+      await loadAdminUsers();
+    } catch (e) {
+      if (e.status === 403) { toast(e.message); show('dashboard'); } else toast(e.message);
+    }
+  }
+  async function loadAdminUsers() {
+    const q = $('ad-q').value.trim();
+    const j = await api('GET', `/admin/users?page=${adPage}&q=${encodeURIComponent(q)}`);
+    $('ad-ucount').textContent = `${j.total} account${j.total === 1 ? '' : 's'}`;
+    $('ad-users').innerHTML = '<tr><th>Email</th><th>Name</th><th>Phone</th><th>Joined</th><th>Last sign-in</th><th class="num">Journeys</th></tr>' +
+      (j.users.length ? j.users.map((u) => `<tr><td>${esc(u.email)}${u.active_sessions ? ' <span class="tag ls">signed in</span>' : ''}</td><td>${esc(u.name || '')}</td>` +
+        `<td>${esc(u.phone || '')}</td><td>${esc(fmtDate(u.created_at))}</td><td>${esc(fmtDate(u.last_login_at))}</td><td class="num">${u.journeys}</td></tr>`).join('')
+        : '<tr><td colspan="6" class="muted">No accounts found.</td></tr>');
+    $('ad-prev').disabled = adPage <= 1;
+    $('ad-next').disabled = adPage * j.per_page >= j.total;
+  }
+  $('ad-q').addEventListener('input', () => { clearTimeout(adTimer); adTimer = setTimeout(() => { adPage = 1; loadAdminUsers().catch((e) => toast(e.message)); }, 300); });
+  $('ad-prev').onclick = () => { if (adPage > 1) { adPage--; loadAdminUsers().catch((e) => toast(e.message)); } };
+  $('ad-next').onclick = () => { adPage++; loadAdminUsers().catch((e) => toast(e.message)); };
+  $('ad-csv').onclick = async () => {
+    try {
+      const r = await fetch('/api/admin/users.csv', { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) throw new Error('Could not download the user list.');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob());
+      a.download = `tsela-users-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    } catch (e) { toast(e.message); }
   };
 
   // ---- Sign in ----

@@ -4,6 +4,7 @@
 import zones from './zones.json';
 import { serveStatic } from './static.js';
 import { authRoutes, authSweep, getSessionUser, ensureUserHistory } from './auth.js';
+import { adminRoutes } from './admin.js';
 import {
   LIMITS, DIRECTIONS, POSTS, MODES, RETENTION_DAYS,
   inArea, zoneFor, analyzeTrip, buildEstimate, buildForecast, localSlot, simplifyRoute,
@@ -375,6 +376,8 @@ async function route(request, env) {
 
   const authResponse = await authRoutes(request, env, p, m);
   if (authResponse) return authResponse;
+  const adminResponse = await adminRoutes(request, env, p, m);
+  if (adminResponse) return adminResponse;
   if (p === '/api/zones' && m === 'GET') return json(zones);
   if (p === '/api/estimate' && m === 'GET') return estimate(env);
   if (p === '/api/trips' && m === 'POST') return createTrip(request, env);
