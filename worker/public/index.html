@@ -143,6 +143,29 @@
 
     .toast { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto;
       background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: 12px; font-size: .95rem; z-index: 60; }
+    /* Sign-in / signed-out hero */
+    .si-hero { position: relative; overflow: hidden; border-radius: 20px; margin: 12px 0; color: #fff; padding: 20px 20px 16px;
+      background: linear-gradient(135deg, #00ADEF 0%, #00A54F 58%, #A6CC38 100%); box-shadow: 0 8px 24px rgba(0,165,79,.25); }
+    .si-hero .eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .9; }
+    .si-hero h1 { font-size: 1.7rem; line-height: 1.15; margin: 4px 0 6px; }
+    .si-hero p { margin: 0; opacity: .95; }
+    .si-hero svg.scene { display: block; width: calc(100% + 40px); height: auto; margin: 12px -20px 4px; }
+    .scene .car { animation: drive 7s linear infinite; }
+    .scene .car.rev { animation-name: drive-rev; }
+    .scene .river { stroke-dasharray: 14 10; animation: flow 3s linear infinite; }
+    @keyframes drive { from { transform: translateX(-60px); } to { transform: translateX(420px); } }
+    @keyframes drive-rev { from { transform: translateX(420px); } to { transform: translateX(-60px); } }
+    @keyframes flow { to { stroke-dashoffset: -48; } }
+    @media (prefers-reduced-motion: reduce) { .scene .car, .scene .river { animation: none; } }
+    .si-live { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .si-live span { background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); border-radius: 99px; padding: 5px 12px;
+      font-size: .85rem; font-weight: 600; backdrop-filter: blur(4px); }
+    .si-live b { font-weight: 800; }
+    .si-hero .cta { display: inline-block; margin-top: 12px; color: #fff; font-weight: 700; text-decoration: none; border-bottom: 2px solid rgba(255,255,255,.6); }
+    .perks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 14px; }
+    .perks div { background: var(--card-2); border-radius: 12px; padding: 10px 8px; text-align: center; font-size: .78rem; color: var(--muted); line-height: 1.3; }
+    .perks svg { display: block; margin: 0 auto 4px; }
+    .perks b { display: block; color: var(--text); font-size: .85rem; }
     footer.site { max-width: 640px; margin: 8px auto 0; padding: 0 16px calc(24px + env(safe-area-inset-bottom)); text-align: center; font-size: .78rem; color: var(--muted); }
     footer.site .stripe { display: flex; height: 4px; border-radius: 4px; overflow: hidden; margin: 0 auto 12px; max-width: 160px; }
     footer.site .stripe i { flex: 1; }
@@ -373,12 +396,45 @@
 
   <!-- ================= SIGN IN ================= -->
   <div id="view-signin" class="hidden">
-    <section class="card">
-      <div class="banner card hidden" id="si-signedout" style="margin:0 0 14px;box-shadow:none">
-        <b>You're signed out.</b> <span class="muted">Live crossing times still work without an account.</span>
-        <div style="margin-top:8px"><button class="link" data-nav="dashboard">Back to the Dashboard</button></div>
+    <section class="si-hero" aria-live="polite">
+      <div id="si-hello">
+        <div class="eyebrow">Lumela! Welcome to Tsela</div>
+        <h1>Cross smarter at Maseru Bridge</h1>
+        <p>Live times from travellers like you, plus your own journey history.</p>
       </div>
+      <div id="si-signedout" class="hidden">
+        <div class="eyebrow">You're signed out</div>
+        <h1>Tsamaea hantle! Go well.</h1>
+        <p>Safe travels. Live crossing times still work without an account.</p>
+      </div>
+      <svg class="scene" viewBox="0 54 400 76" role="img" aria-label="Cars crossing Maseru Bridge over the Caledon River">
+        <path d="M0 78 Q60 40 120 66 T240 58 T400 62 V130 H0Z" fill="#fff" opacity=".12"/>
+        <path d="M0 92 Q90 70 180 88 T400 84 V130 H0Z" fill="#fff" opacity=".12"/>
+        <path class="river" d="M-10 114 Q40 106 90 114 T190 114 T290 114 T410 114" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".55"/>
+        <path d="M20 122 Q70 116 120 122 T220 122 T320 122 T420 122" fill="none" stroke="#fff" stroke-width="2" opacity=".3"/>
+        <g fill="none" stroke="#fff" stroke-width="3" opacity=".9">
+          <path d="M60 92 Q100 64 140 92 Q180 64 220 92 Q260 64 300 92 Q330 70 350 92"/>
+          <line x1="40" y1="92" x2="360" y2="92"/>
+          <line x1="100" y1="78" x2="100" y2="116"/><line x1="180" y1="78" x2="180" y2="116"/><line x1="260" y1="78" x2="260" y2="116"/>
+        </g>
+        <text x="10" y="106" fill="#fff" font-size="10" font-weight="700" opacity=".9">SA</text>
+        <text x="374" y="106" fill="#fff" font-size="10" font-weight="700" opacity=".9">LS</text>
+        <g class="car"><rect x="0" y="80" width="24" height="9" rx="3" fill="#A6CC38"/><rect x="5" y="76" width="12" height="6" rx="2" fill="#A6CC38"/><circle cx="6" cy="90" r="2.4" fill="#1f2a24"/><circle cx="18" cy="90" r="2.4" fill="#1f2a24"/></g>
+        <g class="car" style="animation-delay:-3.5s"><rect x="0" y="80" width="30" height="10" rx="2" fill="#A78E87"/><rect x="20" y="76" width="10" height="7" rx="2" fill="#A78E87"/><circle cx="7" cy="91" r="2.4" fill="#1f2a24"/><circle cx="24" cy="91" r="2.4" fill="#1f2a24"/></g>
+        <g class="car rev" style="animation-duration:9s;animation-delay:-2s"><rect x="0" y="80" width="24" height="9" rx="3" fill="#ffffff"/><rect x="7" y="76" width="12" height="6" rx="2" fill="#ffffff"/><circle cx="6" cy="90" r="2.4" fill="#1f2a24"/><circle cx="18" cy="90" r="2.4" fill="#1f2a24"/></g>
+        <g class="car rev" style="animation-duration:9s;animation-delay:-6.5s"><rect x="0" y="80" width="24" height="9" rx="3" fill="#7fdcff"/><rect x="7" y="76" width="12" height="6" rx="2" fill="#7fdcff"/><circle cx="6" cy="90" r="2.4" fill="#1f2a24"/><circle cx="18" cy="90" r="2.4" fill="#1f2a24"/></g>
+      </svg>
+      <div class="si-live" id="si-live"></div>
+      <a class="cta" href="#dashboard" data-nav="dashboard">See live times on the Dashboard &rarr;</a>
+    </section>
+
+    <section class="card">
       <div id="si-step-email">
+        <div class="perks">
+          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00ADEF" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Your times</b>every crossing, each part</div>
+          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00A54F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg><b>Route maps</b>see the way you went</div>
+          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A78E87" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg><b>Your choice</b>kept 7 to 90 days</div>
+        </div>
         <h2>Sign in or create an account</h2>
         <p class="muted" style="margin-top:0">Enter your email. If you are new, we will email you a 6-digit PIN.</p>
         <label for="si-email">Email</label>
@@ -487,6 +543,7 @@
     document.querySelectorAll('.drawer [data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === view));
     openMenu(false);
     if (location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
+    if (view !== 'signin') setSignedOutHero(false);   // the goodbye greeting is only for right after sign-out
     if (view === 'journeys') loadHistory();
     if (view === 'settings') renderSettings();
     if (view === 'dashboard' && map) setTimeout(() => map.invalidateSize(), 60);
@@ -545,7 +602,16 @@
     typical: () => 'Typical for this day and hour',
     none: () => 'No data yet. Be the first!',
   };
-  let lastEstimateAt = 0;
+  let lastEstimateAt = 0, lastEstimates = null;
+  function renderSiLive() {
+    if (!lastEstimates) return;
+    $('si-live').innerHTML = lastEstimates.map((e) =>
+      `<span>${DIR_LABEL[e.direction]} &middot; <b>${e.minutes == null ? 'no data yet' : fmtMin(e.minutes)}</b></span>`).join('');
+  }
+  function setSignedOutHero(on) {
+    $('si-signedout').classList.toggle('hidden', !on);
+    $('si-hello').classList.toggle('hidden', on);
+  }
   async function loadEstimates() {
     try {
       const j = await api('GET', '/estimate');
@@ -555,6 +621,7 @@
         <div class="src">${esc((SRC[e.source] || SRC.none)(e))}</div></div>`).join('');
       $('calib-note').textContent = j.zones_calibrated ? '' : 'Beta: border zones are still being mapped, so times may be off.';
       lastEstimateAt = Date.now(); renderUpdated();
+      lastEstimates = j.directions; renderSiLive();
     } catch {
       const s = $('estimates').querySelector('.src'); if (s) s.textContent = 'Could not load. Check your connection.';
     }
@@ -928,7 +995,8 @@
     ['p-name', 'p-phone', 'p-email', 's-cur', 's-new', 's-new2', 'si-pin', 'si-email'].forEach((i) => { $(i).value = ''; });
     $('h-list').innerHTML = ''; journeys = []; closeJourney();
     lastTrail = null; store.del('mb_last_trail'); drawTrail(false);
-    $('si-signedout').classList.remove('hidden'); siStep('email');
+    $('toast').classList.add('hidden');
+    setSignedOutHero(true); siStep('email');
     show('signin');
   }
   $('btn-signout').onclick = signOut;
@@ -982,7 +1050,7 @@
       const j = await api('POST', '/auth/login', { email: siEmail, pin, history_key: store.get('mb_history_key', undefined) });
       store.del('mb_history_key'); store.del('mb_history_paused');
       setSession(j.token, j.user); toast('Signed in. Welcome!'); siStep('email');
-      $('si-signedout').classList.add('hidden'); show('dashboard');
+      setSignedOutHero(false); show('dashboard');
     } catch (e) { toast(e.message); }
     $('btn-si-login').disabled = false;
   }
