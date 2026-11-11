@@ -20,6 +20,17 @@ scheduled clean-up job. There are no cameras.
   best data available: measured (3 or more crossings in the last 90 min), early
   estimate, traveller window reports, phones in the queue now, or the typical
   time for that weekday and hour.
+- **What counts as a crossing.** Only trips seen at their own side's border
+  post and then the far side's post, in that order. Others are kept as
+  `abandoned` with a flag (`missed_origin_post`, `missed_dest_post`,
+  `did_not_cross`) and never feed the numbers or anyone's journeys.
+- **Parked cars.** A stop of 25+ min within 50 m in the queue zone with no
+  progress toward the post is checked against other phones in the same
+  direction. If 2+ of them moved 100 m+ closer meanwhile, it was parking: the
+  clock restarts after the stop (`parked_trimmed`, `parked_minutes`).
+  Otherwise the trip keeps its time (`long_stop_unverified`). Live and
+  forecast numbers also drop outliers (over 2.5x the median and an hour
+  above it) before taking the median.
 - **Best time to cross.** `/api/estimate` also returns a 12-hour forecast per
   direction: the median crossing time for each upcoming local weekday+hour
   over the last 8 weeks (falling back to the same hour on any day, then the

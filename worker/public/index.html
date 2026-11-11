@@ -170,6 +170,18 @@
     .fc-x span { flex: 1; text-align: center; font-size: .68rem; color: var(--muted); white-space: nowrap; overflow: visible; }
     .fc-cap { margin: 8px 0 0; font-size: .88rem; min-height: 1.3em; }
 
+    /* Window report pop-up */
+    .sheet { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
+    .sheet-card { background: var(--card); width: 100%; max-width: 560px; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+      box-shadow: 0 -8px 30px rgba(0,0,0,.25); animation: sheet-up .22s ease-out; max-height: 90vh; overflow-y: auto; }
+    @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .sheet-card { animation: none; } }
+    .sheet-card .eyebrow { font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--green); }
+    .sheet-card h2 { font-size: 1.2rem; margin: 2px 0 4px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+    .chips button { width: auto; flex: 1 0 auto; min-width: 52px; padding: 11px 12px; background: var(--card-2); color: var(--text); border: 1.5px solid var(--border); }
+    .chips button.on { background: var(--green); color: #fff; border-color: var(--green); }
+
     /* Admin */
     .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
     .tile { background: var(--card-2); border-radius: 12px; padding: 12px; }
@@ -557,6 +569,27 @@
   &copy; <span class="year">2026</span> 4D Climate Solutions (Pty) Ltd. All rights reserved.<br>
   <a href="/privacy">Privacy Policy</a> &middot; <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a>
 </footer>
+<div class="sheet hidden" id="rs" role="dialog" aria-modal="true" aria-labelledby="rs-title">
+  <div class="sheet-card">
+    <div class="eyebrow" id="rs-eyebrow">You've reached the window</div>
+    <h2 id="rs-title">How is the queue here?</h2>
+    <p class="muted" style="margin:0 0 6px" id="rs-sub">Two taps help everyone behind you.</p>
+    <label>Windows open</label>
+    <div class="chips" id="rs-windows" role="group" aria-label="Windows open">
+      <button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button>
+      <button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6+</button>
+    </div>
+    <label>People ahead of you</label>
+    <div class="chips" id="rs-ahead" role="group" aria-label="People ahead of you">
+      <button data-v="5">Under 10</button><button data-v="20">10&ndash;30</button><button data-v="45">30&ndash;60</button><button data-v="80">60+</button>
+    </div>
+    <p class="muted" style="margin:8px 0 12px;font-size:.85rem" id="rs-queue"></p>
+    <div class="row">
+      <button class="secondary" id="rs-later">Not now</button>
+      <button class="primary" id="rs-send">Send</button>
+    </div>
+  </div>
+</div>
 <div class="toast hidden" id="toast" role="status"></div>
 
 <script>
@@ -906,8 +939,13 @@
     try {
       const j = await api('POST', `/trips/${trip.id}/end`, {}, { 'X-Trip-Key': trip.key });
       r = j.result || {};
-      if (r.status === 'completed') toast(`Crossing recorded: ${fmtMin(r.total_minutes)}.${r.saved_to_history ? ' Saved to My journeys.' : ''} Thank you!`);
-      else if (reason !== 'manual') toast('Left the border area.');
+      if (r.status === 'completed') {
+        toast(`Crossing recorded: ${fmtMin(r.total_minutes)}.` +
+          (r.parked_minutes ? ` We left out ${fmtMin(r.parked_minutes)} when you were parked.` : '') +
+          (r.saved_to_history ? ' Saved to My journeys.' : '') + ' Thank you!');
+      } else if ((r.flags || []).some((f) => f.startsWith('missed_'))) {
+        toast('Not counted: Tsela did not see you at both border posts. Only complete crossings are recorded.');
+      } else if (reason !== 'manual') toast('Left the border area.');
     } catch {}
     trip = null; queue = []; sent = 0; saveState(); renderStats(); loadEstimates();
     finishTrail(r);
@@ -955,8 +993,49 @@
     const post = { LS_to_SA: { LS: 'ls_departure', SA: 'sa_arrival' }, SA_to_LS: { SA: 'sa_departure', LS: 'ls_arrival' } }[dir][z.side];
     if (post) $('r-post').value = post;
     $('r-queue').value = Math.round((Date.now() - trip.startedAt) / 60000);
-    toast('You reached the border post. Tap "Send report" to help others.');
+    openReportSheet(dir, post, z);
   }
+
+  // ---- Window report pop-up (shown when you reach a border post) ----
+  const POST_NAME = { ls_departure: 'Lesotho departure', sa_arrival: 'SA arrival', sa_departure: 'SA departure', ls_arrival: 'Lesotho arrival' };
+  let rsCtx = null;
+  function openReportSheet(dir, post, z) {
+    const queueMin = trip ? Math.round((Date.now() - trip.startedAt) / 60000) : null;
+    rsCtx = { dir, post, queueMin, windows: null, ahead: null };
+    $('rs-eyebrow').textContent = `You've reached ${POST_NAME[post] || z.label}`;
+    $('rs-queue').textContent = queueMin != null ? `Your time so far: ${fmtMin(queueMin)} (added automatically).` : '';
+    document.querySelectorAll('#rs-windows button, #rs-ahead button').forEach((b) => b.classList.remove('on'));
+    $('rs').classList.remove('hidden');
+    $('rs-send').focus();
+    // In the Android app with the screen off, also show a phone notification.
+    if (NATIVE && document.visibilityState !== 'visible') {
+      const LN = plugin('LocalNotifications');
+      if (LN) LN.schedule({ notifications: [{ id: Math.floor(Date.now() / 1000) % 2147483647,
+        title: `At ${POST_NAME[post] || 'the border post'}?`, body: 'Tap to report how many windows are open. It takes 2 seconds.' }] }).catch(() => {});
+    }
+  }
+  function closeReportSheet() { $('rs').classList.add('hidden'); rsCtx = null; }
+  const pickChip = (group, key) => (e) => {
+    const b = e.target.closest('button[data-v]'); if (!b || !rsCtx) return;
+    document.querySelectorAll(`#${group} button`).forEach((x) => x.classList.toggle('on', x === b));
+    rsCtx[key] = Number(b.dataset.v);
+  };
+  $('rs-windows').addEventListener('click', pickChip('rs-windows', 'windows'));
+  $('rs-ahead').addEventListener('click', pickChip('rs-ahead', 'ahead'));
+  $('rs-later').onclick = closeReportSheet;
+  $('rs').addEventListener('click', (e) => { if (e.target.id === 'rs') closeReportSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && rsCtx) closeReportSheet(); });
+  $('rs-send').onclick = async () => {
+    if (!rsCtx) return;
+    if (rsCtx.windows == null && rsCtx.ahead == null) return toast('Tap how many windows are open or how many people are ahead.');
+    try {
+      const j = await api('POST', '/window-report', {
+        direction: rsCtx.dir, post: rsCtx.post, mode,
+        windows_open: rsCtx.windows, people_ahead: rsCtx.ahead, queue_minutes: rsCtx.queueMin,
+      });
+      closeReportSheet(); toast(j.message || 'Thanks!'); loadEstimates();
+    } catch (e) { toast(e.message); }
+  };
   async function keepAwake() {
     try { if (prefs.keep_screen_on && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
   }
@@ -1241,6 +1320,9 @@
         tile(st.crossings.last_7d, `crossings this week (${st.crossings.total} total)`),
         tile(st.crossings.saved_journeys, 'saved journeys'),
         tile(st.reports_7d, 'window reports this week'),
+        tile(st.quality_7d.not_counted, 'trips not counted this week (incomplete)'),
+        tile(st.quality_7d.parked_trimmed, 'crossings with parked time removed'),
+        tile(st.quality_7d.long_stop, 'long stops, nobody to compare'),
       ].join('');
       const dirs = st.crossings.by_direction_30d;
       $('ad-dirs').innerHTML = '<tr><th>Direction</th><th class="num">Crossings</th><th class="num">Average time</th></tr>' +

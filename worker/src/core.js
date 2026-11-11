@@ -46,57 +46,126 @@ export function zoneFor(zones, lat, lng) {
 const minutesBetween = (a, b) => Math.round(((b - a) / 60000) * 10) / 10;
 
 // Work out direction and segment times from a trip's fixes.
-// Returns { status: 'completed' | 'abandoned' | 'invalid', direction, ...summary }.
-export function analyzeTrip(zones, pings) {
+//
+// A crossing only counts when the phone is seen at its own side's border
+// post and then at the far side's border post, in that order. Anything else
+// (turned back, GPS gap, never reached a post) is 'abandoned' with a flag.
+//
+// opts.startAfter (ms): ignore origin-side fixes before this time. Used to
+// cut off a parked spell before the person actually joined the queue.
+//
+// Returns { status: 'completed' | 'abandoned' | 'invalid', direction, flags,
+//           parked_spell?, ...summary }.
+export function analyzeTrip(zones, pings, opts = {}) {
   const byId = Object.fromEntries(zones.zones.map((z) => [z.id, z]));
   const fixes = pings
     .filter((p) => p.accuracy_m == null || p.accuracy_m <= LIMITS.MAX_ACCURACY_M)
     .map((p) => {
       const z = p.zone ? byId[p.zone] : zoneFor(zones, p.lat, p.lng);
-      return { t: new Date(p.ts).getTime(), zone: z || null };
+      return { t: new Date(p.ts).getTime(), lat: p.lat, lng: p.lng, zone: z || null };
     })
     .sort((a, b) => a.t - b.t);
 
   const sided = fixes.filter((f) => f.zone && (f.zone.side === 'LS' || f.zone.side === 'SA'));
-  if (sided.length === 0) return { status: 'abandoned', direction: null };
+  if (sided.length === 0) return { status: 'abandoned', direction: null, flags: ['never_in_zone'] };
 
   const origin = sided[0].zone.side;
   const dest = origin === 'LS' ? 'SA' : 'LS';
   const direction = origin === 'LS' ? 'LS_to_SA' : 'SA_to_LS';
 
   const firstDestIdx = fixes.findIndex((f) => f.zone && f.zone.side === dest);
-  if (firstDestIdx === -1) return { status: 'abandoned', direction };
+  if (firstDestIdx === -1) return { status: 'abandoned', direction, flags: ['did_not_cross'] };
 
   const before = fixes.slice(0, firstDestIdx);
   const after = fixes.slice(firstDestIdx);
-  const originFixes = before.filter((f) => f.zone && f.zone.side === origin);
-  const originPost = originFixes.filter((f) => f.zone.kind === 'post');
+  const originPost = before.filter((f) => f.zone && f.zone.side === origin && f.zone.kind === 'post');
   const destPost = after.filter((f) => f.zone && f.zone.side === dest && f.zone.kind === 'post');
+  if (!originPost.length) return { status: 'abandoned', direction, flags: ['missed_origin_post'] };
+  if (!destPost.length) return { status: 'abandoned', direction, flags: ['missed_dest_post'] };
+
+  let originFixes = before.filter((f) => f.zone && f.zone.side === origin);
+  const flags = [];
+  if (opts.startAfter) {
+    const kept = originFixes.filter((f) => f.t >= opts.startAfter);
+    originFixes = kept.length ? kept : [originPost[0]];
+    flags.push('parked_trimmed');
+  }
+
+  // Look for a long stop in the origin queue before the post (possible parking).
+  const queueBeforePost = originFixes.filter((f) => f.t < originPost[0].t && f.zone.kind === 'queue');
+  const parked = opts.startAfter ? null : findParkedSpell(queueBeforePost, originPost[0].zone);
 
   const start = originFixes[0].t;
-  // End = leaving the destination post; if we never saw the post, the first
-  // destination-side fix is the best we have.
-  const end = destPost.length ? destPost[destPost.length - 1].t : fixes[firstDestIdx].t;
-
+  const end = destPost[destPost.length - 1].t;      // leaving the far border post
   const total = minutesBetween(start, end);
   const summary = {
     direction,
+    flags,
     crossing_started_at: new Date(start).toISOString(),
     crossing_ended_at: new Date(end).toISOString(),
     total_minutes: total,
-    queue_minutes: originPost.length ? minutesBetween(start, originPost[0].t) : null,
-    origin_post_minutes: originPost.length
-      ? minutesBetween(originPost[0].t, originPost[originPost.length - 1].t) : null,
-    bridge_minutes: originPost.length && destPost.length
-      ? minutesBetween(originPost[originPost.length - 1].t, destPost[0].t) : null,
-    dest_post_minutes: destPost.length
-      ? minutesBetween(destPost[0].t, destPost[destPost.length - 1].t) : null,
+    queue_minutes: minutesBetween(start, Math.max(start, originPost[0].t)),
+    origin_post_minutes: minutesBetween(originPost[0].t, originPost[originPost.length - 1].t),
+    bridge_minutes: minutesBetween(originPost[originPost.length - 1].t, destPost[0].t),
+    dest_post_minutes: minutesBetween(destPost[0].t, destPost[destPost.length - 1].t),
   };
+  if (parked) summary.parked_spell = parked;
 
   if (total < LIMITS.MIN_TRIP_MINUTES || total > LIMITS.MAX_TRIP_MINUTES) {
-    return { status: 'invalid', ...summary };
+    return { status: 'invalid', ...summary, flags: [...flags, 'implausible_duration'] };
   }
   return { status: 'completed', ...summary };
+}
+
+// A "parked spell" is a stop of PARK_MIN_MS or more where the phone stays
+// within PARK_RADIUS_M and gets no closer to the border post than
+// PARK_PROGRESS_M. In a jammed queue this also happens, so the caller checks
+// other phones before treating it as parking. Returns the latest spell
+// { from, to } (ms) or null.
+export const PARK = { MIN_MS: 25 * 60000, RADIUS_M: 50, PROGRESS_M: 25, CROWD_PROGRESS_M: 100, CROWD_MIN_PHONES: 2 };
+export function findParkedSpell(fixes, post) {
+  let found = null;
+  let i = 0;
+  while (i < fixes.length) {
+    let j = i;
+    while (j + 1 < fixes.length && distanceM(fixes[i].lat, fixes[i].lng, fixes[j + 1].lat, fixes[j + 1].lng) <= PARK.RADIUS_M) j++;
+    const span = fixes[j].t - fixes[i].t;
+    if (span >= PARK.MIN_MS) {
+      const progress = distanceM(fixes[i].lat, fixes[i].lng, post.lat, post.lng) -
+        distanceM(fixes[j].lat, fixes[j].lng, post.lat, post.lng);
+      if (progress < PARK.PROGRESS_M) found = { from: fixes[i].t, to: fixes[j].t };
+    }
+    i = j + 1;
+  }
+  return found;
+}
+
+// Did other phones in the queue move forward while this one sat still?
+// otherPings: [{ trip_id, ts, lat, lng }] from other trips during the spell.
+export function crowdProgressed(otherPings, post) {
+  const byTrip = new Map();
+  for (const p of otherPings) {
+    if (!byTrip.has(p.trip_id)) byTrip.set(p.trip_id, []);
+    byTrip.get(p.trip_id).push(p);
+  }
+  let moving = 0;
+  for (const rows of byTrip.values()) {
+    rows.sort((a, b) => (a.ts < b.ts ? -1 : 1));
+    const a = rows[0], b = rows[rows.length - 1];
+    const gain = distanceM(a.lat, a.lng, post.lat, post.lng) - distanceM(b.lat, b.lng, post.lat, post.lng);
+    if (gain >= PARK.CROWD_PROGRESS_M) moving++;
+  }
+  return moving >= PARK.CROWD_MIN_PHONES;
+}
+
+// Drop crossings far longer than the rest (someone who parked, took a
+// detour, or forgot to stop tracking): more than 2.5x the median AND more
+// than an hour above it. Needs at least 4 values to judge.
+export function withoutOutliers(values) {
+  const v = values.filter((x) => x != null && isFinite(x));
+  if (v.length < 4) return v;
+  const m = median(v);
+  return v.filter((x) => x <= Math.max(2.5 * m, m + 60));
 }
 
 export function median(values) {
@@ -121,10 +190,10 @@ export function buildEstimate({ direction, now, completed, active, windowReports
   const base = { direction, live_devices: live.length, live_longest_minutes: liveLongest };
 
   if (recent.length >= LIMITS.MIN_MEASURED_TRIPS) {
-    return { ...base, source: 'measured', minutes: Math.round(median(recent.map((t) => Number(t.total_minutes)))), sample: recent.length };
+    return { ...base, source: 'measured', minutes: Math.round(median(withoutOutliers(recent.map((t) => Number(t.total_minutes))))), sample: recent.length };
   }
   if (recent.length > 0) {
-    const m = median(recent.map((t) => Number(t.total_minutes)));
+    const m = median(withoutOutliers(recent.map((t) => Number(t.total_minutes))));
     return { ...base, source: 'early', minutes: Math.round(Math.max(m, liveLongest || 0)), sample: recent.length };
   }
   const reports = windowReports.filter((r) => r.direction === direction && r.queue_minutes != null);
@@ -136,7 +205,7 @@ export function buildEstimate({ direction, now, completed, active, windowReports
   }
   const typ = typical.filter((t) => t.direction === direction);
   if (typ.length) {
-    return { ...base, source: 'typical', minutes: Math.round(median(typ.map((t) => Number(t.total_minutes)))), sample: typ.length };
+    return { ...base, source: 'typical', minutes: Math.round(median(withoutOutliers(typ.map((t) => Number(t.total_minutes))))), sample: typ.length };
   }
   return { ...base, source: 'none', minutes: null, sample: 0 };
 }
@@ -186,7 +255,7 @@ export function buildForecast({ direction, now, completed, live, hours = 12 }) {
       const startMs = new Date(t.crossing_ended_at).getTime() - total * 60000;
       return { total, ...localSlot(startMs) };
     });
-  const overall = median(trips.map((t) => t.total));
+  const overall = median(withoutOutliers(trips.map((t) => t.total)));
   const liveMin = live && LIVE_SOURCES.includes(live.source) && live.minutes != null ? live.minutes : null;
 
   const hourStart = Math.floor(now / HOUR_MS) * HOUR_MS;
@@ -197,8 +266,8 @@ export function buildForecast({ direction, now, completed, live, hours = 12 }) {
     const same = trips.filter((t) => t.day === slot.day && t.hour === slot.hour).map((t) => t.total);
     const sameHour = trips.filter((t) => t.hour === slot.hour).map((t) => t.total);
     let typical = null, confidence = 'none', sample = 0;
-    if (same.length >= 2) { typical = median(same); sample = same.length; confidence = same.length >= 5 ? 'high' : 'medium'; }
-    else if (sameHour.length >= 3) { typical = median(sameHour); sample = sameHour.length; confidence = 'low'; }
+    if (same.length >= 2) { typical = median(withoutOutliers(same)); sample = same.length; confidence = same.length >= 5 ? 'high' : 'medium'; }
+    else if (sameHour.length >= 3) { typical = median(withoutOutliers(sameHour)); sample = sameHour.length; confidence = 'low'; }
     else if (overall != null) { typical = overall; sample = trips.length; confidence = 'low'; }
 
     let minutes = typical;

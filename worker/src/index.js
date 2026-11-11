@@ -7,7 +7,7 @@ import { authRoutes, authSweep, getSessionUser, ensureUserHistory } from './auth
 import { adminRoutes } from './admin.js';
 import {
   LIMITS, DIRECTIONS, POSTS, MODES, RETENTION_DAYS,
-  inArea, zoneFor, analyzeTrip, buildEstimate, buildForecast, localSlot, simplifyRoute,
+  inArea, zoneFor, analyzeTrip, crowdProgressed, buildEstimate, buildForecast, localSlot, simplifyRoute,
 } from './core.js';
 
 const ZONE_BY_ID = Object.fromEntries(zones.zones.map((z) => [z.id, z]));
@@ -143,17 +143,42 @@ async function finalise(env, id) {
   const { results: pings } = await env.DB.prepare(
     'SELECT ts, lat, lng, accuracy_m, zone FROM pings WHERE trip_id = ? ORDER BY ts',
   ).bind(id).all();
-  const r = analyzeTrip(zones, pings);
+  let r = analyzeTrip(zones, pings);
+  let parkedMinutes = null;
+
+  // A long stop in the queue: parked, or a jammed queue? If other phones in
+  // the same direction moved forward meanwhile, it was parking, so restart
+  // the clock when this phone started moving again. With no one to compare
+  // against, keep the time; the outlier filter guards the public numbers.
+  if (r.status === 'completed' && r.parked_spell) {
+    const spell = r.parked_spell;
+    const originSide = r.direction === 'LS_to_SA' ? 'LS' : 'SA';
+    const post = zones.zones.find((z) => z.side === originSide && z.kind === 'post');
+    const zoneIds = zones.zones.filter((z) => z.side === originSide).map((z) => z.id);
+    const { results: others } = await env.DB.prepare(
+      `SELECT p.trip_id, p.ts, p.lat, p.lng FROM pings p JOIN trips t ON t.id = p.trip_id
+       WHERE p.trip_id != ? AND p.ts BETWEEN ? AND ? AND (t.direction = ? OR t.direction IS NULL)
+         AND p.zone IN (${zoneIds.map(() => '?').join(',')})`,
+    ).bind(id, iso(spell.from), iso(spell.to), r.direction, ...zoneIds).all();
+    if (crowdProgressed(others, post)) {
+      const trimmed = analyzeTrip(zones, pings, { startAfter: spell.to });
+      parkedMinutes = Math.round((r.total_minutes - (trimmed.total_minutes || 0)) * 10) / 10;
+      r = trimmed;
+    } else {
+      r.flags = [...(r.flags || []), 'long_stop_unverified'];
+    }
+  }
 
   const upd = await env.DB.prepare(
     `UPDATE trips SET status = ?, direction = COALESCE(?, direction), crossing_started_at = ?, crossing_ended_at = ?,
        total_minutes = ?, queue_minutes = ?, origin_post_minutes = ?, bridge_minutes = ?, dest_post_minutes = ?,
-       finalised_at = ?, history_hash = NULL
+       finalised_at = ?, history_hash = NULL, flags = ?, parked_minutes = ?
      WHERE id = ? AND status = 'active'`,
   ).bind(
     r.status, r.direction ?? null, r.crossing_started_at ?? null, r.crossing_ended_at ?? null,
     r.total_minutes ?? null, r.queue_minutes ?? null, r.origin_post_minutes ?? null,
-    r.bridge_minutes ?? null, r.dest_post_minutes ?? null, iso(Date.now()), id,
+    r.bridge_minutes ?? null, r.dest_post_minutes ?? null, iso(Date.now()),
+    r.flags && r.flags.length ? r.flags.join(',') : null, parkedMinutes, id,
   ).run();
   if (!upd.meta.changes) return { status: 'already_finalised' };   // another request got there first
 
@@ -178,7 +203,7 @@ async function finalise(env, id) {
       saved = true;
     }
   }
-  return { ...r, saved_to_history: saved };
+  return { ...r, parked_minutes: parkedMinutes, saved_to_history: saved };
 }
 
 async function endTrip(request, env, id) {

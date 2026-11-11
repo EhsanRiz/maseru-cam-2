@@ -33,6 +33,12 @@ async function stats(env) {
     one("SELECT COUNT(*) AS n FROM trips WHERE status = 'active' AND last_ping_at >= ?", iso(now - 5 * 60000)),
     one('SELECT COUNT(*) AS n FROM journeys WHERE expires_at > ?', iso(now)),
   ]);
+  const quality = await one(
+    `SELECT SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS counted,
+            SUM(CASE WHEN status IN ('abandoned', 'invalid') THEN 1 ELSE 0 END) AS not_counted,
+            SUM(CASE WHEN flags LIKE '%parked_trimmed%' THEN 1 ELSE 0 END) AS parked_trimmed,
+            SUM(CASE WHEN flags LIKE '%long_stop_unverified%' THEN 1 ELSE 0 END) AS long_stop
+     FROM trips WHERE finalised_at >= ?`, d7);
   const { results: byDir } = await env.DB.prepare(
     `SELECT direction, COUNT(*) AS n, ROUND(AVG(total_minutes)) AS avg_minutes
      FROM trips WHERE status = 'completed' AND crossing_ended_at >= ? GROUP BY direction`,
@@ -60,6 +66,10 @@ async function stats(env) {
     users: { total: users.n, new_7d: new7.n, new_30d: new30.n, signed_in_24h: login1.n, signed_in_7d: login7.n, with_active_session: sessions.n },
     crossings: { total: crossings.n, last_7d: crossings7.n, live_now: live.n, saved_journeys: journeys.n, by_direction_30d: byDir },
     reports_7d: reports7.n,
+    quality_7d: {
+      counted: quality.counted || 0, not_counted: quality.not_counted || 0,
+      parked_trimmed: quality.parked_trimmed || 0, long_stop: quality.long_stop || 0,
+    },
     days,
   });
 }

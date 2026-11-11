@@ -125,3 +125,35 @@ assert.equal((await call('DELETE', '/me', null, a2)).status, 200);
 assert.equal((await call('GET', '/me', null, a2)).status, 401);
 assert.equal((await call('POST', '/auth/start', { email: 'not-an-email' })).status, 400);
 console.log('AUTH E2E OK');
+
+// ---------------- Parked car vs moving queue ----------------
+{
+  const base = Date.now() - 150 * 60000;               // 150 min ago
+  const tAt = (m) => base + m * 60000;
+  // two other phones moving forward in the LS queue during the parked spell
+  for (const [la0, lo0, la1, lo1] of [[-29.3035, 27.4650, -29.3005, 27.4590], [-29.3040, 27.4660, -29.3012, 27.4605]]) {
+    const o = await call('POST', '/trips', { mode: 'vehicle' });
+    await call('POST', `/trips/${o.j.trip_id}/pings`, { pings: [
+      { lat: la0, lng: lo0, t: tAt(5), acc: 8 }, { lat: la1, lng: lo1, t: tAt(50), acc: 8 }] }, { 'X-Trip-Key': o.j.trip_key });
+  }
+  const P = [
+    [-29.3030, 27.4640, 0], [-29.3030, 27.4640, 20], [-29.3030, 27.4640, 40], [-29.3030, 27.4640, 60],
+    [-29.3020, 27.4620, 70], [-29.3010, 27.4600, 80],
+    [-29.2992, 27.4562, 85], [-29.2980, 27.4546, 92], [-29.2968, 27.4530, 95], [-29.2968, 27.4530, 100],
+  ];
+  const pk = await call('POST', '/trips', { mode: 'vehicle' });
+  await call('POST', `/trips/${pk.j.trip_id}/pings`, { pings: P.map(([lat, lng, m]) => ({ lat, lng, t: tAt(m), acc: 8 })) }, { 'X-Trip-Key': pk.j.trip_key });
+  const res = (await call('POST', `/trips/${pk.j.trip_id}/end`, {}, { 'X-Trip-Key': pk.j.trip_key })).j.result;
+  assert.equal(res.status, 'completed');
+  assert.equal(res.total_minutes, 40, 'parked hour removed');
+  assert.equal(res.parked_minutes, 60);
+  assert.deepEqual(res.flags, ['parked_trimmed']);
+
+  // incomplete: never reaches the SA post -> not counted
+  const ic = await call('POST', '/trips', { mode: 'vehicle' });
+  await call('POST', `/trips/${ic.j.trip_id}/pings`, { pings: [[-29.3025, 27.4630, 0], [-29.2992, 27.4562, 40], [-29.2945, 27.4495, 62]]
+    .map(([lat, lng, m]) => ({ lat, lng, t: tAt(m), acc: 8 })) }, { 'X-Trip-Key': ic.j.trip_key });
+  const icr = (await call('POST', `/trips/${ic.j.trip_id}/end`, {}, { 'X-Trip-Key': ic.j.trip_key })).j.result;
+  assert.equal(icr.status, 'abandoned'); assert.deepEqual(icr.flags, ['missed_dest_post']);
+  console.log('PARKED E2E OK');
+}
