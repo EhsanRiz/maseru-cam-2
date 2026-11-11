@@ -1,0 +1,14 @@
+{
+  "appId": "za.co.fourdcs.tsela",
+  "appName": "Tsela",
+  "webDir": "www",
+  "server": {
+    "url": "https://traffic.4dcs.co.za",
+    "cleartext": false,
+    "allowNavigation": ["traffic.4dcs.co.za"]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#ffffff"
+  }
+}

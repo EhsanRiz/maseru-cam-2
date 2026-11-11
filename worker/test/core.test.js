@@ -107,3 +107,50 @@ test('forecast picks the quietest upcoming hour and blends in live data', async 
   const e = buildForecast({ direction: 'SA_to_LS', now, completed: [], live: null, hours: 3 });
   assert.equal(e.best, -1); assert.equal(e.hours[0].minutes, null);
 });
+
+test('only crossings that reach both border posts count', async () => {
+  const { analyzeTrip } = await import('../src/core.js');
+  // Lesotho queue -> LS post -> bridge -> SA queue (skips the SA post zone)
+  const noDestPost = [[-29.3025, 27.4630, 0], [-29.2992, 27.4562, 40], [-29.2980, 27.4546, 50], [-29.2945, 27.4495, 62]];
+  const r = analyzeTrip(zones, pings(noDestPost));
+  assert.equal(r.status, 'abandoned'); assert.deepEqual(r.flags, ['missed_dest_post']);
+  // Lesotho queue -> SA side without the LS post
+  const noOriginPost = [[-29.3025, 27.4630, 0], [-29.2968, 27.4530, 53], [-29.2945, 27.4495, 62]];
+  assert.deepEqual(analyzeTrip(zones, pings(noOriginPost)).flags, ['missed_origin_post']);
+});
+
+test('a long stop in the queue is detected and can be trimmed', async () => {
+  const { analyzeTrip, findParkedSpell, crowdProgressed } = await import('../src/core.js');
+  // Parked 60 min in the LS queue zone (no movement), then queues 20 min, then crosses.
+  const path = [
+    [-29.3030, 27.4640, 0], [-29.3030, 27.4640, 20], [-29.3030, 27.4640, 40], [-29.3030, 27.4640, 60],
+    [-29.3020, 27.4620, 70], [-29.3010, 27.4600, 80],
+    [-29.2992, 27.4562, 85], [-29.2980, 27.4546, 92], [-29.2968, 27.4530, 95], [-29.2968, 27.4530, 100],
+  ];
+  const r = analyzeTrip(zones, pings(path));
+  assert.equal(r.status, 'completed'); assert.equal(r.total_minutes, 100);
+  assert.ok(r.parked_spell, 'parked spell found');
+  assert.equal(r.parked_spell.to - r.parked_spell.from, 60 * 60000);
+  // Other phones moved forward meanwhile -> parking; restart the clock after the spell.
+  const others = [
+    { trip_id: 'a', ts: at(5), lat: -29.3035, lng: 27.4650 }, { trip_id: 'a', ts: at(50), lat: -29.3005, lng: 27.4590 },
+    { trip_id: 'b', ts: at(10), lat: -29.3040, lng: 27.4660 }, { trip_id: 'b', ts: at(55), lat: -29.3012, lng: 27.4605 },
+  ];
+  assert.equal(crowdProgressed(others, zones.zones.find((z) => z.id === 'ls_post')), true);
+  assert.equal(crowdProgressed(others.slice(0, 2), zones.zones.find((z) => z.id === 'ls_post')), false, 'one phone is not enough');
+  const t = analyzeTrip(zones, pings(path), { startAfter: r.parked_spell.to });
+  assert.equal(t.total_minutes, 40); assert.deepEqual(t.flags, ['parked_trimmed']);
+  // A normal slow-moving queue is not flagged.
+  assert.equal(analyzeTrip(zones, pings(LS_TO_SA)).parked_spell, undefined);
+  assert.equal(findParkedSpell([], { lat: 0, lng: 0 }), null);
+});
+
+test('outliers are dropped before taking the median', async () => {
+  const { withoutOutliers, buildEstimate } = await import('../src/core.js');
+  assert.deepEqual(withoutOutliers([30, 35, 40, 400]), [30, 35, 40]);
+  assert.deepEqual(withoutOutliers([30, 400]), [30, 400], 'too few to judge');
+  const now = T0 + 120 * 60000;
+  const done = (total) => ({ direction: 'LS_to_SA', crossing_ended_at: at(110), total_minutes: total });
+  const e = buildEstimate({ direction: 'LS_to_SA', now, completed: [done(30), done(35), done(40), done(300)], active: [], windowReports: [], typical: [] });
+  assert.equal(e.minutes, 35);
+});

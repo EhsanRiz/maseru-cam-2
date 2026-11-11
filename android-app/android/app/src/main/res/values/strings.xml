@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tsela</string>
+    <string name="title_activity_main">Tsela</string>
+    <string name="package_name">za.co.fourdcs.tsela</string>
+    <string name="custom_url_scheme">za.co.fourdcs.tsela</string>
+</resources>

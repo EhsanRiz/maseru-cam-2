@@ -170,6 +170,29 @@
     .fc-x span { flex: 1; text-align: center; font-size: .68rem; color: var(--muted); white-space: nowrap; overflow: visible; }
     .fc-cap { margin: 8px 0 0; font-size: .88rem; min-height: 1.3em; }
 
+    /* Window report pop-up */
+    .sheet { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
+    .sheet-card { background: var(--card); width: 100%; max-width: 560px; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+      box-shadow: 0 -8px 30px rgba(0,0,0,.25); animation: sheet-up .22s ease-out; max-height: 90vh; overflow-y: auto; }
+    @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .sheet-card { animation: none; } }
+    .sheet-card .eyebrow { font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--green); }
+    .sheet-card h2 { font-size: 1.2rem; margin: 2px 0 4px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+    .chips button { width: auto; flex: 1 0 auto; min-width: 52px; padding: 11px 12px; background: var(--card-2); color: var(--text); border: 1.5px solid var(--border); }
+    .chips button.on { background: var(--green); color: #fff; border-color: var(--green); }
+
+    /* Admin */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+    .tile { background: var(--card-2); border-radius: 12px; padding: 12px; }
+    .tile b { display: block; font-size: 1.6rem; line-height: 1.2; }
+    .tile span { font-size: .78rem; color: var(--muted); }
+    .tbl-wrap { overflow-x: auto; margin: 0 -4px; }
+    table.tbl { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .tbl th, .tbl td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .tbl th { color: var(--muted); font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; }
+    .tbl td.num, .tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
     /* Sign-in / signed-out hero */
     .si-hero { position: relative; overflow: hidden; border-radius: 20px; margin: 12px 0; color: #fff; padding: 16px 20px 8px;
       background: linear-gradient(135deg, #00ADEF 0%, #00A54F 58%, #A6CC38 100%); box-shadow: 0 8px 24px rgba(0,165,79,.25); }
@@ -221,6 +244,7 @@
   <a class="item" href="#dashboard" data-nav="dashboard"><i class="dot4" style="background:var(--blue)"></i>Dashboard</a>
   <a class="item" href="#journeys" data-nav="journeys"><i class="dot4" style="background:var(--lime)"></i>My journeys</a>
   <a class="item" href="#settings" data-nav="settings"><i class="dot4" style="background:var(--taupe)"></i>Settings</a>
+  <a class="item hidden" href="#admin" data-nav="admin" id="menu-admin"><i class="dot4" style="background:var(--text)"></i>Admin</a>
   <a class="item" href="/privacy"><i class="dot4" style="background:var(--grey)"></i>Privacy Policy</a>
   <a class="item" href="mailto:info@4dcs.co.za"><i class="dot4" style="background:var(--grey)"></i>Contact us</a>
   <button class="item" id="menu-auth"></button>
@@ -260,7 +284,8 @@
         <li>Your location is used <strong>only while you are inside the border area</strong> (about 3 km around the bridge).</li>
         <li>The public times are <strong>anonymous</strong>: each crossing gets a random ID. Raw locations are deleted within 48 hours.</li>
         <li>If you sign in, your crossings and their <strong>route maps are saved to your account</strong> for the period you choose (7, 30, 60 or 90 days). You can turn this off in Settings.</li>
-        <li>On this website, tracking only works <strong>while this page is open</strong>.</li>
+        <li class="web-only">On this website, tracking only works <strong>while this page is open</strong>. The Android app keeps going with the screen off.</li>
+        <li class="app-only hidden">While you cross, Android shows a notification. Tracking continues with the screen off and stops when you tap Stop or leave the border area.</li>
       </ul>
       <p class="muted">Details in our <a href="/privacy">Privacy Policy</a>.</p>
       <button class="primary" id="btn-consent">I agree, continue</button>
@@ -441,6 +466,35 @@
     </section>
   </div>
 
+  <!-- ================= ADMIN (4DCS staff) ================= -->
+  <div id="view-admin" class="hidden">
+    <section class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:baseline">Admin <small class="muted" id="ad-updated"></small></h2>
+      <div class="tiles" id="ad-tiles"></div>
+      <p class="muted" style="margin:10px 0 0;font-size:.8rem">Accounts and totals only. Individual locations and routes are never shown here.</p>
+    </section>
+    <section class="card">
+      <h2>Crossings by direction (last 30 days)</h2>
+      <div class="tbl-wrap"><table class="tbl" id="ad-dirs"></table></div>
+    </section>
+    <section class="card">
+      <h2>Last 14 days</h2>
+      <div class="tbl-wrap"><table class="tbl" id="ad-days"></table></div>
+    </section>
+    <section class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:baseline">Users <small class="muted" id="ad-ucount"></small></h2>
+      <div class="row" style="margin-bottom:10px">
+        <input id="ad-q" type="search" placeholder="Search email, name or phone" aria-label="Search users">
+        <button class="secondary" id="ad-csv" style="flex:0 0 auto;width:auto">Download CSV</button>
+      </div>
+      <div class="tbl-wrap"><table class="tbl" id="ad-users"></table></div>
+      <div class="row" style="margin-top:10px">
+        <button class="secondary" id="ad-prev">&larr; Newer</button>
+        <button class="secondary" id="ad-next">Older &rarr;</button>
+      </div>
+    </section>
+  </div>
+
   <!-- ================= SIGN IN ================= -->
   <div id="view-signin" class="hidden">
     <section class="si-hero" aria-live="polite">
@@ -515,6 +569,27 @@
   &copy; <span class="year">2026</span> 4D Climate Solutions (Pty) Ltd. All rights reserved.<br>
   <a href="/privacy">Privacy Policy</a> &middot; <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a>
 </footer>
+<div class="sheet hidden" id="rs" role="dialog" aria-modal="true" aria-labelledby="rs-title">
+  <div class="sheet-card">
+    <div class="eyebrow" id="rs-eyebrow">You've reached the window</div>
+    <h2 id="rs-title">How is the queue here?</h2>
+    <p class="muted" style="margin:0 0 6px" id="rs-sub">Two taps help everyone behind you.</p>
+    <label>Windows open</label>
+    <div class="chips" id="rs-windows" role="group" aria-label="Windows open">
+      <button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button>
+      <button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6+</button>
+    </div>
+    <label>People ahead of you</label>
+    <div class="chips" id="rs-ahead" role="group" aria-label="People ahead of you">
+      <button data-v="5">Under 10</button><button data-v="20">10&ndash;30</button><button data-v="45">30&ndash;60</button><button data-v="80">60+</button>
+    </div>
+    <p class="muted" style="margin:8px 0 12px;font-size:.85rem" id="rs-queue"></p>
+    <div class="row">
+      <button class="secondary" id="rs-later">Not now</button>
+      <button class="primary" id="rs-send">Send</button>
+    </div>
+  </div>
+</div>
 <div class="toast hidden" id="toast" role="status"></div>
 
 <script>
@@ -580,7 +655,7 @@
   applyTheme();
 
   // ---- Menu & navigation ----
-  const VIEWS = ['dashboard', 'journeys', 'settings', 'signin'];
+  const VIEWS = ['dashboard', 'journeys', 'settings', 'signin', 'admin'];
   function openMenu(open) {
     $('drawer').classList.toggle('open', open); $('scrim').classList.toggle('open', open);
     $('btn-menu').setAttribute('aria-expanded', String(open));
@@ -593,6 +668,7 @@
   function show(view) {
     if (!VIEWS.includes(view)) view = 'dashboard';
     if (view === 'signin' && signedIn()) view = 'settings';
+    if (view === 'admin' && !(user && user.is_admin)) view = signedIn() ? 'dashboard' : 'signin';
     VIEWS.forEach((v) => $('view-' + v).classList.toggle('hidden', v !== view));
     document.querySelectorAll('.drawer [data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === view));
     openMenu(false);
@@ -600,6 +676,7 @@
     if (view !== 'signin') setSignedOutHero(false);   // the goodbye greeting is only for right after sign-out
     if (view === 'journeys') loadHistory();
     if (view === 'settings') renderSettings();
+    if (view === 'admin') loadAdmin();
     if (view === 'dashboard' && map) setTimeout(() => map.invalidateSize(), 60);
     window.scrollTo(0, 0);
   }
@@ -610,6 +687,7 @@
   window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
   function renderAuth() {
+    $('menu-admin').classList.toggle('hidden', !(signedIn() && user && user.is_admin));
     $('who').innerHTML = signedIn()
       ? `<b>${esc(user && user.name ? user.name : 'Signed in')}</b><span class="muted">${esc(user ? user.email : '')}</span>`
       : '<b>Tsela</b><span class="muted">Not signed in</span>';
@@ -861,8 +939,13 @@
     try {
       const j = await api('POST', `/trips/${trip.id}/end`, {}, { 'X-Trip-Key': trip.key });
       r = j.result || {};
-      if (r.status === 'completed') toast(`Crossing recorded: ${fmtMin(r.total_minutes)}.${r.saved_to_history ? ' Saved to My journeys.' : ''} Thank you!`);
-      else if (reason !== 'manual') toast('Left the border area.');
+      if (r.status === 'completed') {
+        toast(`Crossing recorded: ${fmtMin(r.total_minutes)}.` +
+          (r.parked_minutes ? ` We left out ${fmtMin(r.parked_minutes)} when you were parked.` : '') +
+          (r.saved_to_history ? ' Saved to My journeys.' : '') + ' Thank you!');
+      } else if ((r.flags || []).some((f) => f.startsWith('missed_'))) {
+        toast('Not counted: Tsela did not see you at both border posts. Only complete crossings are recorded.');
+      } else if (reason !== 'manual') toast('Left the border area.');
     } catch {}
     trip = null; queue = []; sent = 0; saveState(); renderStats(); loadEstimates();
     finishTrail(r);
@@ -887,7 +970,9 @@
     ensureTrip().then(() => {
       trip.outside = 0;
       queue.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), t, acc: Math.round(accuracy), spd: speed == null ? null : +speed.toFixed(1) });
+      lastFix = { lat: +lat.toFixed(6), lng: +lng.toFixed(6), acc: Math.round(accuracy), at: Date.now() };
       saveState();
+      if (queue.length >= 15) flush();
       setStatus('live', 'Measuring your crossing', z ? `You are at: ${z.label}` : 'Inside the border area');
       renderStats(); maybePromptReport(z);
     }).catch(() => setStatus('wait', 'Cannot reach the server', 'We will keep trying.'));
@@ -908,25 +993,112 @@
     const post = { LS_to_SA: { LS: 'ls_departure', SA: 'sa_arrival' }, SA_to_LS: { SA: 'sa_departure', LS: 'ls_arrival' } }[dir][z.side];
     if (post) $('r-post').value = post;
     $('r-queue').value = Math.round((Date.now() - trip.startedAt) / 60000);
-    toast('You reached the border post. Tap "Send report" to help others.');
+    openReportSheet(dir, post, z);
   }
+
+  // ---- Window report pop-up (shown when you reach a border post) ----
+  const POST_NAME = { ls_departure: 'Lesotho departure', sa_arrival: 'SA arrival', sa_departure: 'SA departure', ls_arrival: 'Lesotho arrival' };
+  let rsCtx = null;
+  function openReportSheet(dir, post, z) {
+    const queueMin = trip ? Math.round((Date.now() - trip.startedAt) / 60000) : null;
+    rsCtx = { dir, post, queueMin, windows: null, ahead: null };
+    $('rs-eyebrow').textContent = `You've reached ${POST_NAME[post] || z.label}`;
+    $('rs-queue').textContent = queueMin != null ? `Your time so far: ${fmtMin(queueMin)} (added automatically).` : '';
+    document.querySelectorAll('#rs-windows button, #rs-ahead button').forEach((b) => b.classList.remove('on'));
+    $('rs').classList.remove('hidden');
+    $('rs-send').focus();
+    // In the Android app with the screen off, also show a phone notification.
+    if (NATIVE && document.visibilityState !== 'visible') {
+      const LN = plugin('LocalNotifications');
+      if (LN) LN.schedule({ notifications: [{ id: Math.floor(Date.now() / 1000) % 2147483647,
+        title: `At ${POST_NAME[post] || 'the border post'}?`, body: 'Tap to report how many windows are open. It takes 2 seconds.' }] }).catch(() => {});
+    }
+  }
+  function closeReportSheet() { $('rs').classList.add('hidden'); rsCtx = null; }
+  const pickChip = (group, key) => (e) => {
+    const b = e.target.closest('button[data-v]'); if (!b || !rsCtx) return;
+    document.querySelectorAll(`#${group} button`).forEach((x) => x.classList.toggle('on', x === b));
+    rsCtx[key] = Number(b.dataset.v);
+  };
+  $('rs-windows').addEventListener('click', pickChip('rs-windows', 'windows'));
+  $('rs-ahead').addEventListener('click', pickChip('rs-ahead', 'ahead'));
+  $('rs-later').onclick = closeReportSheet;
+  $('rs').addEventListener('click', (e) => { if (e.target.id === 'rs') closeReportSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && rsCtx) closeReportSheet(); });
+  $('rs-send').onclick = async () => {
+    if (!rsCtx) return;
+    if (rsCtx.windows == null && rsCtx.ahead == null) return toast('Tap how many windows are open or how many people are ahead.');
+    try {
+      const j = await api('POST', '/window-report', {
+        direction: rsCtx.dir, post: rsCtx.post, mode,
+        windows_open: rsCtx.windows, people_ahead: rsCtx.ahead, queue_minutes: rsCtx.queueMin,
+      });
+      closeReportSheet(); toast(j.message || 'Thanks!'); loadEstimates();
+    } catch (e) { toast(e.message); }
+  };
   async function keepAwake() {
     try { if (prefs.keep_screen_on && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
   }
+  // Inside the Tsela Android app (Capacitor), location comes from a native
+  // foreground service, so tracking continues with the screen off.
+  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const plugin = (name) => NATIVE && (window.Capacitor.Plugins[name] || window.Capacitor.registerPlugin(name));
+  let bgWatcherId = null, lastFix = null;
+  if (NATIVE) {
+    document.querySelectorAll('.web-only').forEach((e) => e.classList.add('hidden'));
+    document.querySelectorAll('.app-only').forEach((e) => e.classList.remove('hidden'));
+  }
+  async function startNativeWatch() {
+    try {
+      const LN = plugin('LocalNotifications');
+      if (LN) { const perm = await LN.checkPermissions(); if (perm.display !== 'granted') await LN.requestPermissions(); }
+    } catch {}
+    const BG = plugin('BackgroundGeolocation');
+    bgWatcherId = await BG.addWatcher({
+      backgroundTitle: 'Tsela is measuring your crossing',
+      backgroundMessage: 'Location is used only inside the Maseru Bridge border area. Tap to open.',
+      requestPermissions: true, stale: false, distanceFilter: 5,
+    }, (loc, err) => {
+      if (err) {
+        if (err.code === 'NOT_AUTHORIZED') {
+          setStatus('', 'Location permission denied', 'Allow location for Tsela in your phone settings, then try again.');
+          stop();
+        }
+        return;
+      }
+      onFix({ coords: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, speed: loc.speed }, timestamp: loc.time || Date.now() });
+    });
+  }
+  // While standing still in a long queue the phone may not report new fixes;
+  // resend the last one each minute so the trip is not mistaken for finished.
+  function heartbeat() {
+    if (trip && lastFix && Date.now() - lastFix.at > 60000 && inArea(lastFix.lat, lastFix.lng)) {
+      queue.push({ lat: lastFix.lat, lng: lastFix.lng, t: Date.now(), acc: lastFix.acc, spd: 0 });
+      lastFix.at = Date.now(); saveState();
+    }
+    flush();
+  }
   async function start() {
-    if (!('geolocation' in navigator)) return toast('This browser has no location support.');
+    if (!NATIVE && !('geolocation' in navigator)) return toast('This browser has no location support.');
     if (!ZONES) return toast('Still loading the border map. Try again in a moment.');
     tracking = true;
     $('btn-start').classList.add('hidden'); $('btn-stop').classList.remove('hidden');
     setStatus('wait', 'Looking for GPS…', '');
-    watchId = navigator.geolocation.watchPosition(onFix, onError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
-    flushTimer = setInterval(flush, 20000); tickTimer = setInterval(renderStats, 1000);
-    keepAwake(); store.set('mb_tracking', true);
+    if (NATIVE) {
+      try { await startNativeWatch(); }
+      catch (e) { toast('Could not start location tracking.'); tracking = false; $('btn-start').classList.remove('hidden'); $('btn-stop').classList.add('hidden'); return; }
+    } else {
+      watchId = navigator.geolocation.watchPosition(onFix, onError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+      keepAwake();
+    }
+    flushTimer = setInterval(heartbeat, 20000); tickTimer = setInterval(renderStats, 1000);
+    store.set('mb_tracking', true);
   }
   async function stop() {
     tracking = false;
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
-    clearInterval(flushTimer); clearInterval(tickTimer); watchId = null;
+    if (bgWatcherId != null) { try { await plugin('BackgroundGeolocation').removeWatcher({ id: bgWatcherId }); } catch {} bgWatcherId = null; }
+    clearInterval(flushTimer); clearInterval(tickTimer); watchId = null; lastFix = null;
     try { if (wakeLock) await wakeLock.release(); } catch {}
     wakeLock = null; store.set('mb_tracking', false);
     $('btn-start').classList.remove('hidden'); $('btn-stop').classList.add('hidden');
@@ -1129,6 +1301,62 @@
     if (!confirm('Clear this phone’s app data, including the map and settings? You will be signed out.')) return;
     try { localStorage.clear(); } catch {}
     location.reload();
+  };
+
+  // ---- Admin (4DCS staff) ----
+  let adPage = 1, adTimer = null;
+  const fmtDate = (v) => (v ? new Date(v).toLocaleString(undefined, { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '\u2013');
+  async function loadAdmin() {
+    try {
+      const st = await api('GET', '/admin/stats');
+      $('ad-updated').textContent = 'Updated ' + new Date(st.generated_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      const tile = (n, label) => `<div class="tile"><b>${esc(n)}</b><span>${esc(label)}</span></div>`;
+      $('ad-tiles').innerHTML = [
+        tile(st.users.total, `users (${st.users.new_7d} new this week)`),
+        tile(st.users.signed_in_24h, 'signed in, last 24 h'),
+        tile(st.users.signed_in_7d, 'signed in, last 7 days'),
+        tile(st.users.with_active_session, 'with an active session'),
+        tile(st.crossings.live_now, 'phones crossing now'),
+        tile(st.crossings.last_7d, `crossings this week (${st.crossings.total} total)`),
+        tile(st.crossings.saved_journeys, 'saved journeys'),
+        tile(st.reports_7d, 'window reports this week'),
+        tile(st.quality_7d.not_counted, 'trips not counted this week (incomplete)'),
+        tile(st.quality_7d.parked_trimmed, 'crossings with parked time removed'),
+        tile(st.quality_7d.long_stop, 'long stops, nobody to compare'),
+      ].join('');
+      const dirs = st.crossings.by_direction_30d;
+      $('ad-dirs').innerHTML = '<tr><th>Direction</th><th class="num">Crossings</th><th class="num">Average time</th></tr>' +
+        (dirs.length ? dirs.map((d) => `<tr><td>${esc(DIR_LABEL[d.direction] || d.direction)}</td><td class="num">${d.n}</td><td class="num">${fmtMin(d.avg_minutes)}</td></tr>`).join('')
+          : '<tr><td colspan="3" class="muted">No completed crossings yet.</td></tr>');
+      $('ad-days').innerHTML = '<tr><th>Day</th><th class="num">Sign-ups</th><th class="num">Sign-ins</th><th class="num">Crossings</th></tr>' +
+        st.days.slice().reverse().map((d) => `<tr><td>${esc(new Date(d.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))}</td>` +
+          `<td class="num">${d.signups}</td><td class="num">${d.sign_ins}</td><td class="num">${d.crossings}</td></tr>`).join('');
+      await loadAdminUsers();
+    } catch (e) {
+      if (e.status === 403) { toast(e.message); show('dashboard'); } else toast(e.message);
+    }
+  }
+  async function loadAdminUsers() {
+    const q = $('ad-q').value.trim();
+    const j = await api('GET', `/admin/users?page=${adPage}&q=${encodeURIComponent(q)}`);
+    $('ad-ucount').textContent = `${j.total} account${j.total === 1 ? '' : 's'}`;
+    $('ad-users').innerHTML = '<tr><th>Email</th><th>Name</th><th>Phone</th><th>Joined</th><th>Last sign-in</th><th class="num">Journeys</th></tr>' +
+      (j.users.length ? j.users.map((u) => `<tr><td>${esc(u.email)}${u.active_sessions ? ' <span class="tag ls">signed in</span>' : ''}</td><td>${esc(u.name || '')}</td>` +
+        `<td>${esc(u.phone || '')}</td><td>${esc(fmtDate(u.created_at))}</td><td>${esc(fmtDate(u.last_login_at))}</td><td class="num">${u.journeys}</td></tr>`).join('')
+        : '<tr><td colspan="6" class="muted">No accounts found.</td></tr>');
+    $('ad-prev').disabled = adPage <= 1;
+    $('ad-next').disabled = adPage * j.per_page >= j.total;
+  }
+  $('ad-q').addEventListener('input', () => { clearTimeout(adTimer); adTimer = setTimeout(() => { adPage = 1; loadAdminUsers().catch((e) => toast(e.message)); }, 300); });
+  $('ad-prev').onclick = () => { if (adPage > 1) { adPage--; loadAdminUsers().catch((e) => toast(e.message)); } };
+  $('ad-next').onclick = () => { adPage++; loadAdminUsers().catch((e) => toast(e.message)); };
+  $('ad-csv').onclick = async () => {
+    try {
+      const r = await fetch('/api/admin/users.csv', { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) throw new Error('Could not download the user list.');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob());
+      a.download = `tsela-users-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    } catch (e) { toast(e.message); }
   };
 
   // ---- Sign in ----
