@@ -78,3 +78,32 @@ test('simplifyRoute drops jitter, keeps ends and caps size', async () => {
   assert.equal(r[r.length - 1][2], 999);
   assert.deepEqual(simplifyRoute([]), []);
 });
+
+test('forecast picks the quietest upcoming hour and blends in live data', async () => {
+  const { buildForecast } = await import('../src/core.js');
+  // "now" = Wednesday 06:10 local (04:10 UTC). Build history: 07:00 local busy (90 min), 09:00 local quiet (20 min).
+  const now = Date.parse('2026-11-11T04:10:00Z');
+  const completed = [];
+  for (let w = 1; w <= 4; w++) {
+    const day = now - w * 7 * 86400000;
+    const at = (localHour, total) => ({
+      direction: 'LS_to_SA', total_minutes: total,
+      crossing_ended_at: new Date(Math.floor(day / 3600000) * 3600000 + (localHour - 6) * 3600000 + total * 60000 + 600000).toISOString(),
+    });
+    completed.push(at(7, 90), at(9, 20));
+  }
+  const f = buildForecast({ direction: 'LS_to_SA', now, completed, live: null, hours: 6 });
+  assert.equal(f.hours.length, 6);
+  assert.equal(f.hours[0].local_hour, 6);
+  assert.equal(f.hours[1].minutes, 90); assert.equal(f.hours[1].confidence, 'medium');
+  assert.equal(f.hours[3].minutes, 20);
+  assert.equal(f.best, 3, 'best is 09:00 local');
+  assert.equal(f.based_on, 8);
+  // live 120 min dominates the current hour
+  const g = buildForecast({ direction: 'LS_to_SA', now, completed, live: { source: 'measured', minutes: 120 }, hours: 6 });
+  assert.equal(g.hours[0].minutes, 120);
+  assert.ok(g.hours[1].minutes > 90 && g.hours[1].minutes < 120);
+  // no data at all
+  const e = buildForecast({ direction: 'SA_to_LS', now, completed: [], live: null, hours: 3 });
+  assert.equal(e.best, -1); assert.equal(e.hours[0].minutes, null);
+});
