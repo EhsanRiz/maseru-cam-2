@@ -116,7 +116,14 @@
     label { display: block; font-size: .85rem; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
     select, input, textarea { width: 100%; font: inherit; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--text); }
     input:focus, select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
-    input.pin { font-size: 1.6rem; letter-spacing: .5em; text-align: center; font-weight: 700; }
+    input.pin { font-size: 1.6rem; letter-spacing: .5em; text-align: center; font-weight: 700; padding-left: 52px; padding-right: 52px; }
+    .pin-wrap { position: relative; }
+    .pin-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; padding: 0;
+      background: none; border-radius: 10px; color: var(--muted); display: grid; place-items: center; }
+    .pin-eye:hover { color: var(--text); }
+    .pin-eye:focus-visible { outline: 2px solid var(--blue); }
+    @media (max-width: 559px) { .tbl .hide-sm { display: none; } }
+    @media (min-width: 560px) { .tbl .show-sm { display: none; } }
     .switch { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
     .switch:last-child { border-bottom: 0; }
     .switch input { width: 22px; height: 22px; accent-color: var(--green); flex: none; }
@@ -183,10 +190,20 @@
     .chips button.on { background: var(--green); color: #fff; border-color: var(--green); }
 
     /* Admin */
-    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
-    .tile { background: var(--card-2); border-radius: 12px; padding: 12px; }
-    .tile b { display: block; font-size: 1.6rem; line-height: 1.2; }
-    .tile span { font-size: .78rem; color: var(--muted); }
+    .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (min-width: 560px) { .kpis { grid-template-columns: repeat(4, 1fr); } }
+    .kpi { background: var(--card-2); border-radius: 12px; padding: 12px; border-top: 4px solid var(--blue); }
+    .kpi:nth-child(2) { border-top-color: var(--lime); } .kpi:nth-child(3) { border-top-color: var(--green); } .kpi:nth-child(4) { border-top-color: var(--taupe); }
+    .kpi .lbl { font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .kpi b { display: block; font-size: 1.8rem; line-height: 1.15; margin: 2px 0; }
+    .kpi .sub { font-size: .78rem; color: var(--muted); }
+    .ad-more { padding: 4px 16px; }
+    .ad-more details { border-bottom: 1px solid var(--border); }
+    .ad-more details:last-child { border-bottom: 0; }
+    .ad-more summary { cursor: pointer; padding: 14px 0; font-weight: 700; list-style-position: inside; }
+    .ad-more summary .muted { font-weight: 500; font-size: .85rem; margin-left: 6px; }
+    .ad-more details[open] summary { padding-bottom: 6px; }
+    .ad-more .tbl-wrap { padding-bottom: 12px; }
     .tbl-wrap { overflow-x: auto; margin: 0 -4px; }
     table.tbl { width: 100%; border-collapse: collapse; font-size: .85rem; }
     .tbl th, .tbl td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -469,30 +486,38 @@
   <!-- ================= ADMIN (4DCS staff) ================= -->
   <div id="view-admin" class="hidden">
     <section class="card">
-      <h2 style="display:flex;justify-content:space-between;align-items:baseline">Admin <small class="muted" id="ad-updated"></small></h2>
-      <div class="tiles" id="ad-tiles"></div>
-      <p class="muted" style="margin:10px 0 0;font-size:.8rem">Accounts and totals only. Individual locations and routes are never shown here.</p>
+      <h2 style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">Admin <small class="muted" id="ad-updated"></small></h2>
+      <div class="kpis" id="ad-tiles"></div>
     </section>
-    <section class="card">
-      <h2>Crossings by direction (last 30 days)</h2>
-      <div class="tbl-wrap"><table class="tbl" id="ad-dirs"></table></div>
-    </section>
-    <section class="card">
-      <h2>Last 14 days</h2>
-      <div class="tbl-wrap"><table class="tbl" id="ad-days"></table></div>
-    </section>
+
     <section class="card">
       <h2 style="display:flex;justify-content:space-between;align-items:baseline">Users <small class="muted" id="ad-ucount"></small></h2>
       <div class="row" style="margin-bottom:10px">
         <input id="ad-q" type="search" placeholder="Search email, name or phone" aria-label="Search users">
-        <button class="secondary" id="ad-csv" style="flex:0 0 auto;width:auto">Download CSV</button>
+        <button class="secondary" id="ad-csv" style="flex:0 0 auto;width:auto">CSV</button>
       </div>
       <div class="tbl-wrap"><table class="tbl" id="ad-users"></table></div>
-      <div class="row" style="margin-top:10px">
+      <div class="row" style="margin-top:10px" id="ad-pager">
         <button class="secondary" id="ad-prev">&larr; Newer</button>
         <button class="secondary" id="ad-next">Older &rarr;</button>
       </div>
     </section>
+
+    <section class="card ad-more">
+      <details>
+        <summary>Crossings by direction <span class="muted" id="ad-dirs-sum"></span></summary>
+        <div class="tbl-wrap"><table class="tbl" id="ad-dirs"></table></div>
+      </details>
+      <details>
+        <summary>Data quality this week <span class="muted" id="ad-q-sum"></span></summary>
+        <div class="tbl-wrap"><table class="tbl" id="ad-quality"></table></div>
+      </details>
+      <details>
+        <summary>Daily activity, last 14 days <span class="muted" id="ad-days-sum"></span></summary>
+        <div class="tbl-wrap"><table class="tbl" id="ad-days"></table></div>
+      </details>
+    </section>
+    <p class="muted" style="margin:4px 4px 0;font-size:.8rem">Accounts and totals only. Individual locations and routes are never shown here.</p>
   </div>
 
   <!-- ================= SIGN IN ================= -->
@@ -1266,7 +1291,7 @@
     const cur = $('s-cur').value, n1 = $('s-new').value, n2 = $('s-new2').value;
     if (!/^\d{6}$/.test(n1)) return toast('Your new PIN must be 6 digits.');
     if (n1 !== n2) return toast('The new PINs do not match.');
-    try { await api('PUT', '/me/pin', { current_pin: cur, new_pin: n1 }); ['s-cur', 's-new', 's-new2'].forEach((i) => { $(i).value = ''; }); toast('PIN changed.'); }
+    try { await api('PUT', '/me/pin', { current_pin: cur, new_pin: n1 }); ['s-cur', 's-new', 's-new2'].forEach((i) => { $(i).value = ''; }); hideAllPins(); toast('PIN changed.'); }
     catch (e) { toast(e.message); }
   };
   async function signOut() {
@@ -1277,7 +1302,7 @@
     $('h-list').innerHTML = ''; journeys = []; closeJourney();
     lastTrail = null; store.del('mb_last_trail'); drawTrail(false);
     $('toast').classList.add('hidden');
-    setSignedOutHero(true); siStep('email');
+    hideAllPins(); setSignedOutHero(true); siStep('email');
     show('signin');
   }
   $('btn-signout').onclick = signOut;
@@ -1310,27 +1335,33 @@
     try {
       const st = await api('GET', '/admin/stats');
       $('ad-updated').textContent = 'Updated ' + new Date(st.generated_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-      const tile = (n, label) => `<div class="tile"><b>${esc(n)}</b><span>${esc(label)}</span></div>`;
+      const kpi = (lbl, n, sub) => `<div class="kpi"><div class="lbl">${esc(lbl)}</div><b>${esc(n)}</b><div class="sub">${esc(sub)}</div></div>`;
+      const today = st.days[st.days.length - 1] || { sign_ins: 0 };
       $('ad-tiles').innerHTML = [
-        tile(st.users.total, `users (${st.users.new_7d} new this week)`),
-        tile(st.users.signed_in_24h, 'signed in, last 24 h'),
-        tile(st.users.signed_in_7d, 'signed in, last 7 days'),
-        tile(st.users.with_active_session, 'with an active session'),
-        tile(st.crossings.live_now, 'phones crossing now'),
-        tile(st.crossings.last_7d, `crossings this week (${st.crossings.total} total)`),
-        tile(st.crossings.saved_journeys, 'saved journeys'),
-        tile(st.reports_7d, 'window reports this week'),
-        tile(st.quality_7d.not_counted, 'trips not counted this week (incomplete)'),
-        tile(st.quality_7d.parked_trimmed, 'crossings with parked time removed'),
-        tile(st.quality_7d.long_stop, 'long stops, nobody to compare'),
+        kpi('Users', st.users.total, `+${st.users.new_7d} this week`),
+        kpi('Active', st.users.signed_in_7d, `signed in this week \u00b7 ${today.sign_ins} today`),
+        kpi('Crossings', st.crossings.last_7d, `this week \u00b7 ${st.crossings.total} total \u00b7 ${st.crossings.live_now} live now`),
+        kpi('Reports', st.reports_7d, `this week \u00b7 ${st.crossings.saved_journeys} saved journeys`),
       ].join('');
       const dirs = st.crossings.by_direction_30d;
-      $('ad-dirs').innerHTML = '<tr><th>Direction</th><th class="num">Crossings</th><th class="num">Average time</th></tr>' +
+      $('ad-dirs-sum').textContent = dirs.length ? `\u00b7 ${dirs.reduce((a, d) => a + d.n, 0)} in 30 days` : '\u00b7 none yet';
+      $('ad-dirs').innerHTML = '<tr><th>Direction</th><th class="num">Crossings</th><th class="num">Average</th></tr>' +
         (dirs.length ? dirs.map((d) => `<tr><td>${esc(DIR_LABEL[d.direction] || d.direction)}</td><td class="num">${d.n}</td><td class="num">${fmtMin(d.avg_minutes)}</td></tr>`).join('')
-          : '<tr><td colspan="3" class="muted">No completed crossings yet.</td></tr>');
+          : '<tr><td colspan="3" class="muted">No completed crossings in the last 30 days.</td></tr>');
+      const q = st.quality_7d;
+      $('ad-q-sum').textContent = `\u00b7 ${q.counted} counted, ${q.not_counted} not counted`;
+      $('ad-quality').innerHTML = [
+        ['Counted crossings', q.counted],
+        ['Not counted (did not reach both border posts)', q.not_counted],
+        ['Parked time removed', q.parked_trimmed],
+        ['Long stops, no other phones to compare', q.long_stop],
+      ].map(([l, n]) => `<tr><td>${esc(l)}</td><td class="num">${n}</td></tr>`).join('');
+      const active = st.days.filter((d) => d.signups || d.sign_ins || d.crossings).reverse();
+      $('ad-days-sum').textContent = `\u00b7 ${active.length} active day${active.length === 1 ? '' : 's'}`;
       $('ad-days').innerHTML = '<tr><th>Day</th><th class="num">Sign-ups</th><th class="num">Sign-ins</th><th class="num">Crossings</th></tr>' +
-        st.days.slice().reverse().map((d) => `<tr><td>${esc(new Date(d.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))}</td>` +
-          `<td class="num">${d.signups}</td><td class="num">${d.sign_ins}</td><td class="num">${d.crossings}</td></tr>`).join('');
+        (active.length ? active.map((d) => `<tr><td>${esc(new Date(d.day + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))}</td>` +
+          `<td class="num">${d.signups}</td><td class="num">${d.sign_ins}</td><td class="num">${d.crossings}</td></tr>`).join('')
+          : '<tr><td colspan="4" class="muted">No activity in the last 14 days.</td></tr>');
       await loadAdminUsers();
     } catch (e) {
       if (e.status === 403) { toast(e.message); show('dashboard'); } else toast(e.message);
@@ -1340,12 +1371,15 @@
     const q = $('ad-q').value.trim();
     const j = await api('GET', `/admin/users?page=${adPage}&q=${encodeURIComponent(q)}`);
     $('ad-ucount').textContent = `${j.total} account${j.total === 1 ? '' : 's'}`;
-    $('ad-users').innerHTML = '<tr><th>Email</th><th>Name</th><th>Phone</th><th>Joined</th><th>Last sign-in</th><th class="num">Journeys</th></tr>' +
-      (j.users.length ? j.users.map((u) => `<tr><td>${esc(u.email)}${u.active_sessions ? ' <span class="tag ls">signed in</span>' : ''}</td><td>${esc(u.name || '')}</td>` +
-        `<td>${esc(u.phone || '')}</td><td>${esc(fmtDate(u.created_at))}</td><td>${esc(fmtDate(u.last_login_at))}</td><td class="num">${u.journeys}</td></tr>`).join('')
-        : '<tr><td colspan="6" class="muted">No accounts found.</td></tr>');
+    $('ad-users').innerHTML = '<tr><th>User</th><th class="hide-sm">Last sign-in</th><th class="num hide-sm">Journeys</th></tr>' +
+      (j.users.length ? j.users.map((u) => `<tr><td style="white-space:normal"><b>${esc(u.name || u.email)}</b>${u.active_sessions ? ' <span class="tag ls">signed in</span>' : ''}` +
+        `<div class="muted" style="font-size:.78rem">${esc([u.name ? u.email : '', u.phone || ''].filter(Boolean).join(' \u00b7 ') || 'joined ' + fmtDate(u.created_at))}</div>` +
+        `<div class="muted show-sm" style="font-size:.78rem">Last sign-in ${esc(fmtDate(u.last_login_at))} \u00b7 ${u.journeys} journey${u.journeys === 1 ? '' : 's'}</div></td>` +
+        `<td class="hide-sm">${esc(fmtDate(u.last_login_at))}</td><td class="num hide-sm">${u.journeys}</td></tr>`).join('')
+        : '<tr><td colspan="3" class="muted">No accounts found.</td></tr>');
     $('ad-prev').disabled = adPage <= 1;
     $('ad-next').disabled = adPage * j.per_page >= j.total;
+    $('ad-pager').classList.toggle('hidden', j.total <= j.per_page);
   }
   $('ad-q').addEventListener('input', () => { clearTimeout(adTimer); adTimer = setTimeout(() => { adPage = 1; loadAdminUsers().catch((e) => toast(e.message)); }, 300); });
   $('ad-prev').onclick = () => { if (adPage > 1) { adPage--; loadAdminUsers().catch((e) => toast(e.message)); } };
@@ -1387,12 +1421,30 @@
       const j = await api('POST', '/auth/login', { email: siEmail, pin, history_key: store.get('mb_history_key', undefined) });
       store.del('mb_history_key'); store.del('mb_history_paused');
       setSession(j.token, j.user); toast('Signed in. Welcome!'); siStep('email');
-      setSignedOutHero(false); show('dashboard');
+      hideAllPins(); setSignedOutHero(false); show('dashboard');
     } catch (e) { toast(e.message); }
     $('btn-si-login').disabled = false;
   }
   $('btn-si-login').onclick = siLogin;
   $('si-pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') siLogin(); });
+
+  // ---- Show / hide PIN (eye icon) ----
+  const EYE = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+  function setPinVisible(input, btn, show) {
+    input.type = show ? 'text' : 'password';
+    btn.innerHTML = show ? EYE_OFF : EYE;
+    btn.setAttribute('aria-label', show ? 'Hide PIN' : 'Show PIN');
+    btn.setAttribute('aria-pressed', String(show));
+  }
+  document.querySelectorAll('input.pin').forEach((input) => {
+    const wrap = document.createElement('div'); wrap.className = 'pin-wrap';
+    input.parentNode.insertBefore(wrap, input); wrap.appendChild(input);
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'pin-eye';
+    wrap.appendChild(btn); setPinVisible(input, btn, false);
+    btn.onclick = () => { setPinVisible(input, btn, input.type === 'password'); input.focus(); };
+  });
+  const hideAllPins = () => document.querySelectorAll('.pin-wrap').forEach((w) => setPinVisible(w.querySelector('input'), w.querySelector('.pin-eye'), false));
 
   // ---- Wire up ----
   function showApp() {
