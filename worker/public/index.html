@@ -43,8 +43,11 @@
     /* Header + burger menu */
     header.top { position: sticky; top: 0; z-index: 30; background: var(--header); border-bottom: 1px solid var(--border);
       padding-top: env(safe-area-inset-top); }
-    header.top .bar { max-width: 640px; margin: 0 auto; padding: 8px 12px 8px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; min-width: 0; }
+    header.top .bar { max-width: none; margin: 0; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand a { text-decoration: none; color: inherit; display: block; }
+    .brand .logo-link { border-radius: 8px; flex: none; }
+    .brand .logo-link:focus-visible, .brand .app-link:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     .brand .logo { height: 38px; width: auto; background: #fff; border-radius: 8px; padding: 2px 4px; display: block; }
     .brand .app { font-weight: 700; font-size: .95rem; line-height: 1.15; white-space: nowrap; }
     .brand .app small { display: block; font-weight: 500; color: var(--muted); font-size: .72rem; }
@@ -59,7 +62,9 @@
       transform: translateX(100%); transition: transform .22s ease; display: flex; flex-direction: column;
       padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: -4px 0 24px rgba(0,0,0,.15); }
     nav.drawer.open { transform: none; }
-    .drawer .who { padding: 4px 4px 14px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+    .drawer-x { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; width: 40px; height: 40px; padding: 0;
+      border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--text); font-size: 1.3rem; line-height: 1; }
+    .drawer .who { padding: 4px 52px 14px 4px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
     .drawer .who b { display: block; }
     .drawer a.item, .drawer button.item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px; border-radius: 10px;
       color: var(--text); text-decoration: none; background: none; border: 0; font: inherit; font-weight: 600; cursor: pointer; }
@@ -166,12 +171,14 @@
     .fc-cap { margin: 8px 0 0; font-size: .88rem; min-height: 1.3em; }
 
     /* Sign-in / signed-out hero */
-    .si-hero { position: relative; overflow: hidden; border-radius: 20px; margin: 12px 0; color: #fff; padding: 20px 20px 16px;
+    .si-hero { position: relative; overflow: hidden; border-radius: 20px; margin: 12px 0; color: #fff; padding: 16px 20px 8px;
       background: linear-gradient(135deg, #00ADEF 0%, #00A54F 58%, #A6CC38 100%); box-shadow: 0 8px 24px rgba(0,165,79,.25); }
     .si-hero .eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .9; }
-    .si-hero h1 { font-size: 1.7rem; line-height: 1.15; margin: 4px 0 6px; }
+    .si-hero h1 { font-size: 1.45rem; line-height: 1.15; margin: 4px 0 4px; }
     .si-hero p { margin: 0; opacity: .95; }
-    .si-hero svg.scene { display: block; width: calc(100% + 40px); height: auto; margin: 12px -20px 4px; }
+    .si-hero svg.scene { display: block; width: calc(100% + 40px); height: auto; max-height: 76px; margin: 8px -20px 0; }
+    .si-now { padding: 14px 20px 16px; }
+    .si-now .si-live { margin-top: 6px; }
     .scene .car { animation: drive 7s linear infinite; }
     .scene .car.rev { animation-name: drive-rev; }
     .scene .river { stroke-dasharray: 14 10; animation: flow 3s linear infinite; }
@@ -196,15 +203,20 @@
 <body>
 <header class="top">
   <div class="bar">
-    <a class="brand" href="#dashboard" data-nav="dashboard" aria-label="Tsela home">
-      <img class="logo" src="/logo.png" alt="4D Climate Solutions" width="134" height="38">
-      <span class="app">Tsela<small>Maseru Bridge crossing times</small></span>
-    </a>
+    <div class="brand">
+      <a class="logo-link" href="https://4dcs.co.za" target="_blank" rel="noopener" title="4D Climate Solutions (opens in a new tab)" aria-label="4D Climate Solutions website (opens in a new tab)">
+        <img class="logo" src="/logo.png" alt="4D Climate Solutions" width="134" height="38">
+      </a>
+      <a class="app-link" href="#dashboard" data-nav="dashboard" aria-label="Tsela Dashboard">
+        <span class="app">Tsela<small>Maseru Bridge crossing times</small></span>
+      </a>
+    </div>
     <button class="burger" id="btn-menu" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><span></span></button>
   </div>
 </header>
 <div class="scrim" id="scrim"></div>
 <nav class="drawer" id="drawer" aria-label="Main menu">
+  <button class="drawer-x" id="btn-menu-close" aria-label="Close menu">&times;</button>
   <div class="who" id="who"></div>
   <a class="item" href="#dashboard" data-nav="dashboard"><i class="dot4" style="background:var(--blue)"></i>Dashboard</a>
   <a class="item" href="#journeys" data-nav="journeys"><i class="dot4" style="background:var(--lime)"></i>My journeys</a>
@@ -459,22 +471,22 @@
         <g class="car rev" style="animation-duration:9s;animation-delay:-2s"><rect x="0" y="80" width="24" height="9" rx="3" fill="#ffffff"/><rect x="7" y="76" width="12" height="6" rx="2" fill="#ffffff"/><circle cx="6" cy="90" r="2.4" fill="#1f2a24"/><circle cx="18" cy="90" r="2.4" fill="#1f2a24"/></g>
         <g class="car rev" style="animation-duration:9s;animation-delay:-6.5s"><rect x="0" y="80" width="24" height="9" rx="3" fill="#7fdcff"/><rect x="7" y="76" width="12" height="6" rx="2" fill="#7fdcff"/><circle cx="6" cy="90" r="2.4" fill="#1f2a24"/><circle cx="18" cy="90" r="2.4" fill="#1f2a24"/></g>
       </svg>
-      <div class="si-live" id="si-live"></div>
-      <a class="cta" href="#dashboard" data-nav="dashboard">See live times on the Dashboard &rarr;</a>
     </section>
 
     <section class="card">
       <div id="si-step-email">
-        <div class="perks">
-          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00ADEF" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Your times</b>every crossing, each part</div>
-          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00A54F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg><b>Route maps</b>see the way you went</div>
-          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A78E87" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg><b>Your choice</b>kept 7 to 90 days</div>
-        </div>
         <h2>Sign in or create an account</h2>
         <p class="muted" style="margin-top:0">Enter your email. If you are new, we will email you a 6-digit PIN.</p>
         <label for="si-email">Email</label>
         <input id="si-email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
         <div style="margin-top:14px"><button class="primary" id="btn-si-continue">Continue</button></div>
+        <div style="margin-top:16px">
+        <div class="perks">
+          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00ADEF" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Your times</b>every crossing, each part</div>
+          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00A54F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg><b>Route maps</b>see the way you went</div>
+          <div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A78E87" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg><b>Your choice</b>kept 7 to 90 days</div>
+        </div>
+        </div>
       </div>
       <div id="si-step-pin" class="hidden">
         <h2>Enter your PIN</h2>
@@ -488,6 +500,12 @@
         </div>
       </div>
       <p class="muted" style="margin-bottom:0">By signing in you agree to our <a href="/privacy">Privacy Policy</a>. You stay signed in for 7 days.</p>
+    </section>
+
+    <section class="si-hero si-now" aria-live="polite">
+      <div class="eyebrow">Right now at the bridge</div>
+      <div class="si-live" id="si-live"></div>
+      <a class="cta" href="#dashboard" data-nav="dashboard">See live times on the Dashboard &rarr;</a>
     </section>
   </div>
 </main>
@@ -567,7 +585,8 @@
     $('drawer').classList.toggle('open', open); $('scrim').classList.toggle('open', open);
     $('btn-menu').setAttribute('aria-expanded', String(open));
   }
-  $('btn-menu').onclick = () => openMenu(true);
+  $('btn-menu').onclick = () => { openMenu(true); $('btn-menu-close').focus(); };
+  $('btn-menu-close').onclick = () => { openMenu(false); $('btn-menu').focus(); };
   $('scrim').onclick = () => openMenu(false);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') openMenu(false); });
 
