@@ -6,7 +6,7 @@ import { serveStatic } from './static.js';
 import { authRoutes, authSweep, getSessionUser, ensureUserHistory } from './auth.js';
 import {
   LIMITS, DIRECTIONS, POSTS, MODES, RETENTION_DAYS,
-  inArea, zoneFor, analyzeTrip, buildEstimate, localSlot, simplifyRoute,
+  inArea, zoneFor, analyzeTrip, buildEstimate, buildForecast, localSlot, simplifyRoute,
 } from './core.js';
 
 const ZONE_BY_ID = Object.fromEntries(zones.zones.map((z) => [z.id, z]));
@@ -236,12 +236,17 @@ async function estimate(env) {
     const s = localSlot(new Date(t.crossing_ended_at).getTime());
     return s.day === slot.day && s.hour === slot.hour;
   });
+  const directions = DIRECTIONS.map((direction) => buildEstimate({
+    direction, now, completed: completed.results, active: activeRows, windowReports: reports.results, typical,
+  }));
   return json({
     success: true,
     generated_at: iso(now),
     zones_calibrated: !!zones.calibrated,
-    directions: DIRECTIONS.map((direction) => buildEstimate({
-      direction, now, completed: completed.results, active: activeRows, windowReports: reports.results, typical,
+    directions,
+    // Best time to cross: next 12 hours per direction, from weekday/hour history + live data.
+    forecast: directions.map((live) => buildForecast({
+      direction: live.direction, now, completed: completed.results, live, hours: 12,
     })),
   });
 }

@@ -165,3 +165,61 @@ export function simplifyRoute(points, { minGapM = 15, maxPoints = 400 } = {}) {
   const t0 = out[0].t;
   return out.map((p) => [+p.lat.toFixed(5), +p.lng.toFixed(5), Math.round((p.t - t0) / 1000)]);
 }
+
+// ---------------------------------------------------------------------------
+// Best time to cross: hour-by-hour forecast for the next `hours` hours.
+//
+// Each completed crossing is filed under the local weekday and hour it
+// started (Lesotho/SA are UTC+2). For each upcoming hour we take the median
+// of that weekday+hour; with too few samples we fall back to the same hour
+// on any day, then to the overall median. The current live estimate is
+// blended in for the next few hours, fading out as we look further ahead.
+// ---------------------------------------------------------------------------
+const HOUR_MS = 3600 * 1000;
+const LIVE_SOURCES = ['measured', 'early', 'reported', 'live_lower_bound'];
+
+export function buildForecast({ direction, now, completed, live, hours = 12 }) {
+  const trips = completed
+    .filter((t) => t.direction === direction && t.total_minutes != null)
+    .map((t) => {
+      const total = Number(t.total_minutes);
+      const startMs = new Date(t.crossing_ended_at).getTime() - total * 60000;
+      return { total, ...localSlot(startMs) };
+    });
+  const overall = median(trips.map((t) => t.total));
+  const liveMin = live && LIVE_SOURCES.includes(live.source) && live.minutes != null ? live.minutes : null;
+
+  const hourStart = Math.floor(now / HOUR_MS) * HOUR_MS;
+  const out = [];
+  for (let h = 0; h < hours; h++) {
+    const startMs = hourStart + h * HOUR_MS;
+    const slot = localSlot(startMs);
+    const same = trips.filter((t) => t.day === slot.day && t.hour === slot.hour).map((t) => t.total);
+    const sameHour = trips.filter((t) => t.hour === slot.hour).map((t) => t.total);
+    let typical = null, confidence = 'none', sample = 0;
+    if (same.length >= 2) { typical = median(same); sample = same.length; confidence = same.length >= 5 ? 'high' : 'medium'; }
+    else if (sameHour.length >= 3) { typical = median(sameHour); sample = sameHour.length; confidence = 'low'; }
+    else if (overall != null) { typical = overall; sample = trips.length; confidence = 'low'; }
+
+    let minutes = typical;
+    if (liveMin != null) {
+      const w = h === 0 ? 1 : Math.exp(-h / 2.5);
+      if (typical == null) minutes = h <= 2 ? liveMin : null;
+      else minutes = w * liveMin + (1 - w) * typical;
+      if (h <= 1 && confidence === 'none') confidence = 'low';
+    }
+    out.push({
+      start: new Date(startMs).toISOString(),
+      local_hour: slot.hour,
+      minutes: minutes == null ? null : Math.round(minutes),
+      confidence,
+      sample,
+    });
+  }
+  let best = -1;
+  out.forEach((s, i) => {
+    if (s.minutes == null) return;
+    if (best === -1 || s.minutes < out[best].minutes) best = i;
+  });
+  return { direction, based_on: trips.length, best, hours: out };
+}

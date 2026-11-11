@@ -20,6 +20,10 @@ scheduled clean-up job. There are no cameras.
   best data available: measured (3 or more crossings in the last 90 min), early
   estimate, traveller window reports, phones in the queue now, or the typical
   time for that weekday and hour.
+- **Best time to cross.** `/api/estimate` also returns a 12-hour forecast per
+  direction: the median crossing time for each upcoming local weekday+hour
+  over the last 8 weeks (falling back to the same hour on any day, then the
+  overall median), blended with the live estimate for the next few hours.
 - **My journeys (opt-in).** Users can save their own crossings for 7, 30, 60 or
   90 days. Journeys are stored under the hash of a random history key kept on
   the phone, with no name or phone number. The link between an anonymous trip
