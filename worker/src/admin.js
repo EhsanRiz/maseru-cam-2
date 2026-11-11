@@ -79,8 +79,16 @@ async function listUsers(request, env) {
   const q = (url.searchParams.get('q') || '').trim().toLowerCase().slice(0, 100);
   const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
   const per = 50;
-  const where = q ? "WHERE lower(u.email) LIKE ? OR lower(coalesce(u.name, '')) LIKE ? OR coalesce(u.phone, '') LIKE ?" : '';
-  const args = q ? [`%${q}%`, `%${q}%`, `%${q}%`] : [];
+  // Optional filters behind the dashboard tiles.
+  const filter = url.searchParams.get('filter') || '';
+  const conds = [], args = [];
+  if (q) {
+    conds.push("(lower(u.email) LIKE ? OR lower(coalesce(u.name, '')) LIKE ? OR coalesce(u.phone, '') LIKE ?)");
+    args.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  if (filter === 'active7') { conds.push('u.last_login_at >= ?'); args.push(iso(Date.now() - 7 * DAY_MS)); }
+  if (filter === 'new7') { conds.push('u.created_at >= ?'); args.push(iso(Date.now() - 7 * DAY_MS)); }
+  const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
   const now = iso(Date.now());
   const total = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM users u ${where}`).bind(...args).first()).n;
   const { results } = await env.DB.prepare(
@@ -91,6 +99,15 @@ async function listUsers(request, env) {
      ORDER BY coalesce(u.last_login_at, u.created_at) DESC LIMIT ? OFFSET ?`,
   ).bind(now, now, ...args, per, (page - 1) * per).all();
   return json({ success: true, total, page, per_page: per, users: results });
+}
+
+// Latest window reports (anonymous: no account or trip is linked to them).
+async function listReports(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT reported_at, direction, post, mode, windows_open, people_ahead, queue_minutes, minutes_at_window
+     FROM window_reports ORDER BY reported_at DESC LIMIT 50`,
+  ).all();
+  return json({ success: true, reports: results });
 }
 
 async function exportUsersCsv(env) {
@@ -122,5 +139,6 @@ export async function adminRoutes(request, env, p, m) {
   if (p === '/api/admin/stats' && m === 'GET') return stats(env);
   if (p === '/api/admin/users' && m === 'GET') return listUsers(request, env);
   if (p === '/api/admin/users.csv' && m === 'GET') return exportUsersCsv(env);
+  if (p === '/api/admin/reports' && m === 'GET') return listReports(env);
   return fail(404, 'Not found');
 }

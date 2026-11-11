@@ -192,7 +192,15 @@
     /* Admin */
     .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     @media (min-width: 560px) { .kpis { grid-template-columns: repeat(4, 1fr); } }
-    .kpi { background: var(--card-2); border-radius: 12px; padding: 12px; border-top: 4px solid var(--blue); }
+    .kpi { background: var(--card-2); border-radius: 12px; padding: 12px; border-top: 4px solid var(--blue); width: 100%; text-align: left;
+      color: var(--text); font-weight: 400; cursor: pointer; transition: transform .1s, box-shadow .1s; position: relative; }
+    .kpi:hover { box-shadow: 0 2px 10px rgba(0,0,0,.08); transform: translateY(-1px); }
+    .kpi:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .kpi.on { box-shadow: inset 0 0 0 2px var(--green); }
+    .kpi .go { position: absolute; right: 10px; top: 10px; color: var(--muted); font-size: .9rem; }
+    .filter-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--green-soft); color: var(--green); font-size: .82rem;
+      font-weight: 700; border-radius: 99px; padding: 4px 6px 4px 12px; margin-bottom: 10px; }
+    .filter-chip button { width: 24px; height: 24px; padding: 0; border-radius: 50%; background: transparent; color: var(--green); font-size: 1rem; line-height: 1; }
     .kpi:nth-child(2) { border-top-color: var(--lime); } .kpi:nth-child(3) { border-top-color: var(--green); } .kpi:nth-child(4) { border-top-color: var(--taupe); }
     .kpi .lbl { font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
     .kpi b { display: block; font-size: 1.8rem; line-height: 1.15; margin: 2px 0; }
@@ -490,12 +498,13 @@
       <div class="kpis" id="ad-tiles"></div>
     </section>
 
-    <section class="card">
+    <section class="card" id="ad-users-card">
       <h2 style="display:flex;justify-content:space-between;align-items:baseline">Users <small class="muted" id="ad-ucount"></small></h2>
       <div class="row" style="margin-bottom:10px">
         <input id="ad-q" type="search" placeholder="Search email, name or phone" aria-label="Search users">
         <button class="secondary" id="ad-csv" style="flex:0 0 auto;width:auto">CSV</button>
       </div>
+      <div class="filter-chip hidden" id="ad-filter"><span id="ad-filter-label"></span><button id="ad-filter-x" aria-label="Clear filter">&times;</button></div>
       <div class="tbl-wrap"><table class="tbl" id="ad-users"></table></div>
       <div class="row" style="margin-top:10px" id="ad-pager">
         <button class="secondary" id="ad-prev">&larr; Newer</button>
@@ -504,13 +513,17 @@
     </section>
 
     <section class="card ad-more">
-      <details>
+      <details id="ad-dirs-box">
         <summary>Crossings by direction <span class="muted" id="ad-dirs-sum"></span></summary>
         <div class="tbl-wrap"><table class="tbl" id="ad-dirs"></table></div>
       </details>
-      <details>
+      <details id="ad-quality-box">
         <summary>Data quality this week <span class="muted" id="ad-q-sum"></span></summary>
         <div class="tbl-wrap"><table class="tbl" id="ad-quality"></table></div>
+      </details>
+      <details id="ad-reports-box">
+        <summary>Window reports <span class="muted" id="ad-rep-sum"></span></summary>
+        <div class="tbl-wrap"><table class="tbl" id="ad-reports"></table></div>
       </details>
       <details>
         <summary>Daily activity, last 14 days <span class="muted" id="ad-days-sum"></span></summary>
@@ -1335,13 +1348,14 @@
     try {
       const st = await api('GET', '/admin/stats');
       $('ad-updated').textContent = 'Updated ' + new Date(st.generated_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-      const kpi = (lbl, n, sub) => `<div class="kpi"><div class="lbl">${esc(lbl)}</div><b>${esc(n)}</b><div class="sub">${esc(sub)}</div></div>`;
+      const kpi = (act, lbl, n, sub, hint) => `<button class="kpi${adFilter === act ? ' on' : ''}" data-act="${act}" aria-label="${esc(lbl + ': ' + n + '. ' + hint)}">` +
+        `<span class="go" aria-hidden="true">&rsaquo;</span><div class="lbl">${esc(lbl)}</div><b>${esc(n)}</b><div class="sub">${esc(sub)}</div></button>`;
       const today = st.days[st.days.length - 1] || { sign_ins: 0 };
       $('ad-tiles').innerHTML = [
-        kpi('Users', st.users.total, `+${st.users.new_7d} this week`),
-        kpi('Active', st.users.signed_in_7d, `signed in this week \u00b7 ${today.sign_ins} today`),
-        kpi('Crossings', st.crossings.last_7d, `this week \u00b7 ${st.crossings.total} total \u00b7 ${st.crossings.live_now} live now`),
-        kpi('Reports', st.reports_7d, `this week \u00b7 ${st.crossings.saved_journeys} saved journeys`),
+        kpi('all', 'Users', st.users.total, `+${st.users.new_7d} this week`, 'Show all users'),
+        kpi('active7', 'Active', st.users.signed_in_7d, `signed in this week \u00b7 ${today.sign_ins} today`, 'Show users who signed in this week'),
+        kpi('crossings', 'Crossings', st.crossings.last_7d, `this week \u00b7 ${st.crossings.total} total \u00b7 ${st.crossings.live_now} live now`, 'Show crossing details'),
+        kpi('reports', 'Reports', st.reports_7d, `this week \u00b7 ${st.crossings.saved_journeys} saved journeys`, 'Show window reports'),
       ].join('');
       const dirs = st.crossings.by_direction_30d;
       $('ad-dirs-sum').textContent = dirs.length ? `\u00b7 ${dirs.reduce((a, d) => a + d.n, 0)} in 30 days` : '\u00b7 none yet';
@@ -1363,13 +1377,17 @@
           `<td class="num">${d.signups}</td><td class="num">${d.sign_ins}</td><td class="num">${d.crossings}</td></tr>`).join('')
           : '<tr><td colspan="4" class="muted">No activity in the last 14 days.</td></tr>');
       await loadAdminUsers();
+      loadAdminReports();
     } catch (e) {
       if (e.status === 403) { toast(e.message); show('dashboard'); } else toast(e.message);
     }
   }
   async function loadAdminUsers() {
     const q = $('ad-q').value.trim();
-    const j = await api('GET', `/admin/users?page=${adPage}&q=${encodeURIComponent(q)}`);
+    const f = adFilter === 'active7' ? 'active7' : '';
+    const j = await api('GET', `/admin/users?page=${adPage}&q=${encodeURIComponent(q)}&filter=${f}`);
+    $('ad-filter').classList.toggle('hidden', !f);
+    $('ad-filter-label').textContent = f ? 'Showing: signed in this week' : '';
     $('ad-ucount').textContent = `${j.total} account${j.total === 1 ? '' : 's'}`;
     $('ad-users').innerHTML = '<tr><th>User</th><th class="hide-sm">Last sign-in</th><th class="num hide-sm">Journeys</th></tr>' +
       (j.users.length ? j.users.map((u) => `<tr><td style="white-space:normal"><b>${esc(u.name || u.email)}</b>${u.active_sessions ? ' <span class="tag ls">signed in</span>' : ''}` +
@@ -1381,6 +1399,41 @@
     $('ad-next').disabled = adPage * j.per_page >= j.total;
     $('ad-pager').classList.toggle('hidden', j.total <= j.per_page);
   }
+  let adFilter = 'all';
+  const REPORT_POST = { ls_departure: 'LS departure', sa_arrival: 'SA arrival', sa_departure: 'SA departure', ls_arrival: 'LS arrival' };
+  async function loadAdminReports() {
+    try {
+      const j = await api('GET', '/admin/reports');
+      $('ad-rep-sum').textContent = `\u00b7 latest ${j.reports.length}`;
+      const ahead = (n) => (n == null ? '\u2013' : n < 10 ? 'under 10' : n < 30 ? '10\u201330' : n < 60 ? '30\u201360' : '60+');
+      $('ad-reports').innerHTML = '<tr><th>When</th><th>Window</th><th class="num">Open</th><th class="num">Ahead</th><th class="num">Waited</th></tr>' +
+        (j.reports.length ? j.reports.map((r) => `<tr><td>${esc(fmtDate(r.reported_at))}</td>` +
+          `<td>${esc(REPORT_POST[r.post] || r.post)}${r.mode === 'pedestrian' ? ' <span class="tag">on foot</span>' : ''}</td>` +
+          `<td class="num">${r.windows_open ?? '\u2013'}</td><td class="num">${esc(ahead(r.people_ahead))}</td>` +
+          `<td class="num">${r.queue_minutes != null ? fmtMin(r.queue_minutes) : r.minutes_at_window != null ? fmtMin(r.minutes_at_window) : '\u2013'}</td></tr>`).join('')
+          : '<tr><td colspan="5" class="muted">No window reports yet.</td></tr>');
+    } catch {}
+  }
+  // Tiles: each one opens the detail behind its number.
+  $('ad-tiles').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-act]'); if (!t) return;
+    const act = t.dataset.act;
+    const reveal = (el) => el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (act === 'all' || act === 'active7') {
+      adFilter = act; adPage = 1; $('ad-q').value = '';
+      document.querySelectorAll('#ad-tiles .kpi').forEach((k) => k.classList.toggle('on', k.dataset.act === act && act !== 'all'));
+      loadAdminUsers().then(() => reveal($('ad-users-card'))).catch((err) => toast(err.message));
+    } else if (act === 'crossings') {
+      $('ad-dirs-box').open = true; $('ad-quality-box').open = true; reveal($('ad-dirs-box'));
+    } else if (act === 'reports') {
+      $('ad-reports-box').open = true; reveal($('ad-reports-box'));
+    }
+  });
+  $('ad-filter-x').onclick = () => {
+    adFilter = 'all'; adPage = 1;
+    document.querySelectorAll('#ad-tiles .kpi').forEach((k) => k.classList.remove('on'));
+    loadAdminUsers().catch((err) => toast(err.message));
+  };
   $('ad-q').addEventListener('input', () => { clearTimeout(adTimer); adTimer = setTimeout(() => { adPage = 1; loadAdminUsers().catch((e) => toast(e.message)); }, 300); });
   $('ad-prev').onclick = () => { if (adPage > 1) { adPage--; loadAdminUsers().catch((e) => toast(e.message)); } };
   $('ad-next').onclick = () => { adPage++; loadAdminUsers().catch((e) => toast(e.message)); };
