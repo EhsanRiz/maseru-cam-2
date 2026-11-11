@@ -71,3 +71,57 @@ const ls = est.directions.find((d) => d.direction === 'LS_to_SA');
 assert.equal(ls.source, 'measured'); assert.equal(ls.minutes, 60);
 console.log(JSON.stringify(est.directions));
 console.log('E2E OK');
+
+// ---------------- Accounts (needs DEV_SHOW_PIN=true in .dev.vars) ----------------
+const email = `test${Date.now()}@example.com`;
+let s = await call('POST', '/auth/start', { email });
+assert.equal(s.j.pin_sent, true); assert.match(s.j.dev_pin, /^\d{6}$/);
+const pin1 = s.j.dev_pin;
+assert.equal((await call('POST', '/auth/login', { email, pin: '000000' === pin1 ? '111111' : '000000' })).status, 401);
+let login = await call('POST', '/auth/login', { email, pin: pin1 });
+assert.equal(login.status, 200);
+const auth = { Authorization: 'Bearer ' + login.j.token };
+assert.equal(login.j.user.email, email);
+assert.ok(Date.parse(login.j.expires_at) - Date.now() > 6.9 * 86400000, 'session lasts 7 days');
+// second start does not send a new PIN
+s = await call('POST', '/auth/start', { email });
+assert.equal(s.j.pin_sent, false);
+
+// profile + prefs
+let me = await call('PUT', '/me', { name: 'Test User', phone: '+266 5012 3456', prefs: { default_mode: 'pedestrian', theme: 'dark' } }, auth);
+assert.equal(me.j.user.name, 'Test User'); assert.equal(me.j.user.prefs.theme, 'dark'); assert.equal(me.j.user.prefs.save_journeys, true);
+assert.equal((await call('PUT', '/me', { phone: 'abc' }, auth)).status, 400);
+
+// saved crossing with route
+const t = await call('POST', '/trips', { mode: 'vehicle', save: true }, auth);
+const start = Date.now() - 70 * 60000;
+await call('POST', `/trips/${t.j.trip_id}/pings`, { pings: PATH.map(([lat, lng, m]) => ({ lat, lng, t: start + m * 60000, acc: 10 })) }, { 'X-Trip-Key': t.j.trip_key });
+const end = await call('POST', `/trips/${t.j.trip_id}/end`, {}, { 'X-Trip-Key': t.j.trip_key });
+assert.equal(end.j.result.saved_to_history, true);
+const hist = await call('GET', '/history', null, auth);
+assert.equal(hist.j.journeys.length, 1); assert.equal(hist.j.journeys[0].has_route, 1);
+const jd = await call('GET', '/history/journeys/' + hist.j.journeys[0].id, null, auth);
+assert.ok(jd.j.journey.route.length >= 5, 'route saved'); assert.deepEqual(jd.j.journey.route[0].slice(2), [0]);
+assert.equal((await call('GET', '/history/journeys/' + hist.j.journeys[0].id)).status, 401, 'not visible without sign-in');
+
+// change PIN, forgot PIN, lockout
+assert.equal((await call('PUT', '/me/pin', { current_pin: '999999' === pin1 ? '888888' : '999999', new_pin: '123456' }, auth)).status, 401);
+assert.equal((await call('PUT', '/me/pin', { current_pin: pin1, new_pin: '123456' }, auth)).status, 200);
+assert.equal((await call('POST', '/auth/login', { email, pin: '123456' })).status, 200);
+const f = await call('POST', '/auth/forgot', { email });
+assert.equal(f.j.pin_sent, true);
+assert.equal((await call('GET', '/me', null, auth)).status, 401, 'reset signs out other devices');
+for (let i = 0; i < 5; i++) await call('POST', '/auth/login', { email, pin: f.j.dev_pin === '000001' ? '000002' : '000001' });
+assert.equal((await call('POST', '/auth/login', { email, pin: f.j.dev_pin })).status, 429, 'locked after 5 wrong PINs');
+
+// new session via fresh account for export/delete
+const email2 = `del${Date.now()}@example.com`;
+const s2 = await call('POST', '/auth/start', { email: email2 });
+const l2 = await call('POST', '/auth/login', { email: email2, pin: s2.j.dev_pin });
+const a2 = { Authorization: 'Bearer ' + l2.j.token };
+const ex = await fetch(BASE + '/api/me/export', { headers: a2 });
+assert.equal(ex.status, 200); assert.equal((await ex.json()).account.email, email2);
+assert.equal((await call('DELETE', '/me', null, a2)).status, 200);
+assert.equal((await call('GET', '/me', null, a2)).status, 401);
+assert.equal((await call('POST', '/auth/start', { email: 'not-an-email' })).status, 400);
+console.log('AUTH E2E OK');

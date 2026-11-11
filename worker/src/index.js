@@ -1,11 +1,12 @@
-// Maseru Border Times: Cloudflare Worker (API + scheduled clean-up).
+// Tsela: Cloudflare Worker (API + scheduled clean-up).
 // Static pages from ./public are bundled into the Worker (see static.js).
 
 import zones from './zones.json';
 import { serveStatic } from './static.js';
+import { authRoutes, authSweep, getSessionUser, ensureUserHistory } from './auth.js';
 import {
   LIMITS, DIRECTIONS, POSTS, MODES, RETENTION_DAYS,
-  inArea, zoneFor, analyzeTrip, buildEstimate, localSlot,
+  inArea, zoneFor, analyzeTrip, buildEstimate, localSlot, simplifyRoute,
 } from './core.js';
 
 const ZONE_BY_ID = Object.fromEntries(zones.zones.map((z) => [z.id, z]));
@@ -68,7 +69,10 @@ async function createTrip(request, env) {
   if (limited(request, 'trip', 20, 3600 * 1000)) return fail(429, 'Too many requests, slow down.');
   const b = await body(request);
   const mode = MODES.includes(b.mode) ? b.mode : 'vehicle';
-  const historyHash = await historyHashFrom(env, b.history_key);
+  // Signed-in users save to their account when they ask to (b.save);
+  // older devices may still send a history key.
+  const user = b.save ? await getSessionUser(request, env) : null;
+  const historyHash = user ? await ensureUserHistory(env, user) : await historyHashFrom(env, b.history_key);
   const id = crypto.randomUUID();
   const key = randomKey();
   await env.DB.prepare(
@@ -157,14 +161,18 @@ async function finalise(env, id) {
     const h = await env.DB.prepare('SELECT retention_days FROM histories WHERE key_hash = ?')
       .bind(trip.history_hash).first();
     if (h) {
+      const route = simplifyRoute(pings
+        .filter((q) => q.accuracy_m == null || q.accuracy_m <= LIMITS.MAX_ACCURACY_M)
+        .map((q) => ({ lat: q.lat, lng: q.lng, t: Date.parse(q.ts) })));
       await env.DB.prepare(
         `INSERT INTO journeys (id, history_hash, direction, mode, crossing_started_at, crossing_ended_at,
-           total_minutes, queue_minutes, origin_post_minutes, bridge_minutes, dest_post_minutes, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           total_minutes, queue_minutes, origin_post_minutes, bridge_minutes, dest_post_minutes, expires_at, route)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         crypto.randomUUID(), trip.history_hash, r.direction, trip.mode, r.crossing_started_at, r.crossing_ended_at,
         r.total_minutes, r.queue_minutes, r.origin_post_minutes, r.bridge_minutes, r.dest_post_minutes,
         iso(new Date(r.crossing_ended_at).getTime() + h.retention_days * DAY_MS),
+        route.length > 1 ? JSON.stringify(route) : null,
       ).run();
       saved = true;
     }
@@ -243,8 +251,10 @@ async function estimate(env) {
 // ---------------------------------------------------------------------------
 
 async function authHistory(request, env) {
-  const key = request.headers.get('x-history-key') || '';
-  const hash = await historyHashFrom(env, key);
+  const user = await getSessionUser(request, env);
+  const hash = user
+    ? await ensureUserHistory(env, user)
+    : await historyHashFrom(env, request.headers.get('x-history-key') || '');
   if (hash) {
     await env.DB.prepare('UPDATE histories SET last_seen_at = ? WHERE key_hash = ?').bind(iso(Date.now()), hash).run();
   }
@@ -267,7 +277,7 @@ async function getHistory(request, env) {
   const h = await env.DB.prepare('SELECT retention_days, created_at FROM histories WHERE key_hash = ?').bind(hash).first();
   const { results } = await env.DB.prepare(
     `SELECT id, direction, mode, crossing_started_at, crossing_ended_at, total_minutes, queue_minutes,
-            origin_post_minutes, bridge_minutes, dest_post_minutes, expires_at
+            origin_post_minutes, bridge_minutes, dest_post_minutes, expires_at, route IS NOT NULL AS has_route
      FROM journeys WHERE history_hash = ? AND expires_at > ? ORDER BY crossing_ended_at DESC LIMIT 500`,
   ).bind(hash, iso(Date.now())).all();
   return json({ success: true, retention_days: h.retention_days, created_at: h.created_at, journeys: results });
@@ -290,6 +300,19 @@ async function updateHistorySettings(request, env) {
     env.DB.prepare('DELETE FROM journeys WHERE history_hash = ? AND expires_at <= ?').bind(hash, iso(Date.now())),
   ]);
   return json({ success: true, retention_days: days });
+}
+
+async function getJourney(request, env, id) {
+  const hash = await authHistory(request, env);
+  if (!hash) return fail(401, 'History not found.');
+  if (!UUID_RE.test(id)) return fail(400, 'Invalid id');
+  const j = await env.DB.prepare(
+    `SELECT id, direction, mode, crossing_started_at, crossing_ended_at, total_minutes, queue_minutes,
+            origin_post_minutes, bridge_minutes, dest_post_minutes, expires_at, route
+     FROM journeys WHERE id = ? AND history_hash = ? AND expires_at > ?`,
+  ).bind(id, hash, iso(Date.now())).first();
+  if (!j) return fail(404, 'Journey not found.');
+  return json({ success: true, journey: { ...j, route: j.route ? JSON.parse(j.route) : null } });
 }
 
 async function deleteJourney(request, env, id) {
@@ -322,6 +345,7 @@ export async function sweep(env) {
   ).bind(iso(now - LIMITS.STALE_AFTER_MS)).all();
   for (const t of stale) await finalise(env, t.id);
   await env.DB.batch([
+    ...authSweep(env, now),
     env.DB.prepare('DELETE FROM pings WHERE ts < ?').bind(iso(now - LIMITS.PING_RETENTION_MS)),
     env.DB.prepare('DELETE FROM journeys WHERE expires_at <= ?').bind(iso(now)),
     env.DB.prepare('DELETE FROM window_reports WHERE reported_at < ?').bind(iso(now - 730 * DAY_MS)),
@@ -344,6 +368,8 @@ async function route(request, env) {
   const m = request.method;
   let match;
 
+  const authResponse = await authRoutes(request, env, p, m);
+  if (authResponse) return authResponse;
   if (p === '/api/zones' && m === 'GET') return json(zones);
   if (p === '/api/estimate' && m === 'GET') return estimate(env);
   if (p === '/api/trips' && m === 'POST') return createTrip(request, env);
@@ -354,6 +380,7 @@ async function route(request, env) {
   if (p === '/api/history' && m === 'GET') return getHistory(request, env);
   if (p === '/api/history' && m === 'DELETE') return deleteHistory(request, env);
   if (p === '/api/history/settings' && m === 'PUT') return updateHistorySettings(request, env);
+  if ((match = p.match(/^\/api\/history\/journeys\/([^/]+)$/)) && m === 'GET') return getJourney(request, env, match[1]);
   if ((match = p.match(/^\/api\/history\/journeys\/([^/]+)$/)) && m === 'DELETE') return deleteJourney(request, env, match[1]);
   if (p === '/api/health') return json({ ok: true, zones_version: zones.version });
   if (p.startsWith('/api/')) return fail(404, 'Not found');

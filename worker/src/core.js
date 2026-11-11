@@ -146,3 +146,22 @@ export function localSlot(ms) {
   const d = new Date(ms + 2 * 3600 * 1000);
   return { day: d.getUTCDay(), hour: d.getUTCHours() };
 }
+
+// Thin a route for storage: drop points closer than minGapM to the last kept
+// point, always keep the last one, and cap the total by even sampling.
+// Input: [{lat, lng, t(ms)}] sorted by time. Output: [[lat, lng, seconds_from_start]].
+export function simplifyRoute(points, { minGapM = 15, maxPoints = 400 } = {}) {
+  if (!points.length) return [];
+  const kept = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const p = points[i], last = kept[kept.length - 1];
+    if (distanceM(last.lat, last.lng, p.lat, p.lng) >= minGapM || i === points.length - 1) kept.push(p);
+  }
+  let out = kept;
+  if (out.length > maxPoints) {
+    const step = (out.length - 1) / (maxPoints - 1);
+    out = Array.from({ length: maxPoints }, (_, i) => kept[Math.round(i * step)]);
+  }
+  const t0 = out[0].t;
+  return out.map((p) => [+p.lat.toFixed(5), +p.lng.toFixed(5), Math.round((p.t - t0) / 1000)]);
+}
