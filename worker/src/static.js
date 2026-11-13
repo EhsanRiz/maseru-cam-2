@@ -2,6 +2,7 @@
 import indexHtml from '../public/index.html';
 import privacyHtml from '../public/privacy.html';
 import termsHtml from '../public/terms.html';
+import deleteHtml from '../public/delete-account.html';
 import notFoundHtml from '../public/404.html';
 import manifest from '../public/manifest.json.txt';
 import serviceWorker from '../public/sw.js.txt';
@@ -23,6 +24,8 @@ const FILES = {
   '/privacy.html': [privacyHtml, HTML, PAGE_CACHE],
   '/terms': [termsHtml, HTML, PAGE_CACHE],
   '/terms.html': [termsHtml, HTML, PAGE_CACHE],
+  '/delete-account': [deleteHtml, HTML, PAGE_CACHE],
+  '/delete-account.html': [deleteHtml, HTML, PAGE_CACHE],
   '/manifest.json': [manifest, 'application/manifest+json', PAGE_CACHE],
   '/sw.js': [serviceWorker, 'text/javascript; charset=utf-8', 'no-cache'],
   '/icon-192.png': [icon192, 'image/png', IMAGE_CACHE],
