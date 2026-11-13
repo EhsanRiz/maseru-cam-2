@@ -130,7 +130,20 @@
     .banner { border-left: 5px solid var(--lime); }
     ul { padding-left: 1.2rem; margin: 8px 0; }
 
-    #map, #jmap { height: 300px; border-radius: 12px; margin: 4px 0 10px; background: var(--card-2); z-index: 0; }
+    #jmap { height: 300px; border-radius: 12px; margin: 4px 0 10px; background: var(--card-2); z-index: 0; }
+    /* Live map: #map is an oversized square inside a clipping frame so it can
+       turn with the direction of travel without showing empty corners. */
+    .mapwrap { position: relative; height: 300px; border-radius: 12px; overflow: hidden; margin: 4px 0 10px; background: var(--card-2); z-index: 0; isolation: isolate; }
+    .mapwrap #map { position: absolute; background: var(--card-2); transition: transform .6s ease; will-change: transform; }
+    .mapctl { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 500; }
+    .mapctl button { width: 40px; height: 40px; padding: 0; border-radius: 10px; background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.3); font-size: 1.3rem; line-height: 1; display: grid; place-items: center; }
+    .mapctl button[aria-pressed="true"] { outline: 2px solid var(--green); outline-offset: -2px; }
+    .mapctl svg { transition: transform .6s ease; }
+    .mapattr { position: absolute; right: 0; bottom: 0; z-index: 500; font-size: .68rem; background: rgba(255,255,255,.85); color: #333; padding: 1px 6px; border-top-left-radius: 6px; }
+    .mapattr a { color: #0a6b3a; }
+    .me-arrow svg { display: block; transition: transform .4s ease; }
+    .me-arrow .hd { opacity: 0; }
+    .me-arrow.has-heading .hd { opacity: 1; }
     .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .78rem; color: var(--muted); margin-bottom: 10px; }
     .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 
@@ -337,7 +350,17 @@
 
     <section class="card hidden" id="mapcard">
       <h2>Your route</h2>
-      <div id="map" role="img" aria-label="Map of the Maseru Bridge border area with your route"></div>
+      <div class="mapwrap" id="mapwrap">
+        <div id="map" role="img" aria-label="Map of the Maseru Bridge border area with your route"></div>
+        <div class="mapctl">
+          <button type="button" id="map-compass" aria-pressed="false" aria-label="Map direction" title="Map direction">
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 2 16.5 12h-9z" fill="#e53935"/><path d="M12 22 7.5 12h9z" fill="currentColor" opacity=".5"/></svg>
+          </button>
+          <button type="button" id="map-zin" aria-label="Zoom in">+</button>
+          <button type="button" id="map-zout" aria-label="Zoom out">&minus;</button>
+        </div>
+        <div class="mapattr">&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>
+      </div>
       <div class="legend">
         <span><i style="background:var(--blue)"></i>Lesotho side</span>
         <span><i style="background:var(--grey)"></i>Bridge</span>
@@ -715,7 +738,7 @@
     if (view === 'journeys') loadHistory();
     if (view === 'settings') renderSettings();
     if (view === 'admin') loadAdmin();
-    if (view === 'dashboard' && map) setTimeout(() => map.invalidateSize(), 60);
+    if (view === 'dashboard' && map) setTimeout(sizeMap, 60);
     window.scrollTo(0, 0);
   }
   document.addEventListener('click', (e) => {
@@ -859,16 +882,64 @@
 
   // ---- Map on the dashboard (current route kept on this phone) ----
   let map = null, trailLine = null, meMarker = null, accCircle = null, follow = true;
+  // Heading-up: while tracking, the map turns so the direction of travel points up.
+  let headUp = store.get('mb_headup', true), heading = null, headFrom = null, shownRot = 0;
   let trail = store.get('mb_trail', []);
   let lastTrail = store.get('mb_last_trail', null);
   function initMap() {
     if (map || !window.L || !ZONES || $('mapcard').classList.contains('hidden')) return;
-    map = L.map('map').setView([ZONES.area.lat, ZONES.area.lng], 15);
-    L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTR }).addTo(map);
+    sizeMap();
+    // Zoom buttons and the OpenStreetMap credit sit outside the turning map.
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([ZONES.area.lat, ZONES.area.lng], 15);
+    L.tileLayer(TILE_URL, { maxZoom: 19 }).addTo(map);
     drawZones(map);
     trailLine = L.polyline([], { color: '#00A54F', weight: 5, opacity: 0.95 }).addTo(map);
-    map.on('dragstart', () => { follow = false; });
+    map.on('dragstart', () => { follow = false; applyRotation(true); });
     drawTrail(true);
+    applyRotation(true);
+  }
+  // Make #map a square as wide as the frame's diagonal, centred in the frame,
+  // so any rotation still covers the whole visible area.
+  function sizeMap() {
+    const w = $('mapwrap'), m = $('map');
+    const W = w.clientWidth, H = w.clientHeight;
+    if (!W || !H) return;
+    const d = Math.ceil(Math.hypot(W, H));
+    Object.assign(m.style, { width: d + 'px', height: d + 'px', left: Math.floor((W - d) / 2) + 'px', top: Math.floor((H - d) / 2) + 'px' });
+    if (map) map.invalidateSize(false);
+  }
+  // Padding that keeps fitted routes inside the visible frame, not the oversized square.
+  function framePad() {
+    const w = $('mapwrap'), d = $('map').clientWidth || w.clientWidth;
+    return [Math.max(0, (d - w.clientWidth) / 2) + 30, Math.max(0, (d - w.clientHeight) / 2) + 30];
+  }
+  const isRotated = () => Math.abs((((shownRot % 360) + 540) % 360) - 180) > 0.5;
+  function applyRotation(instant) {
+    const target = headUp && follow && tracking && heading != null ? -heading : 0;
+    shownRot += (((target - shownRot) % 360) + 540) % 360 - 180;   // turn the short way round
+    const m = $('map');
+    if (instant) m.style.transition = 'none';
+    m.style.transform = `rotate(${shownRot}deg)`;   // always an angle, so turns animate the short way
+    if (instant) { void m.offsetWidth; m.style.transition = ''; }
+    const btn = $('map-compass');
+    btn.querySelector('svg').style.transform = `rotate(${shownRot}deg)`;
+    btn.setAttribute('aria-pressed', String(headUp));
+    const label = headUp ? 'Map turns with your direction. Tap for north up.' : 'North is up. Tap to turn the map with your direction.';
+    btn.setAttribute('aria-label', label); btn.title = label;
+  }
+  function bearingDeg(lat1, lng1, lat2, lng2) {
+    const r = Math.PI / 180, y = Math.sin((lng2 - lng1) * r) * Math.cos(lat2 * r);
+    const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos((lng2 - lng1) * r);
+    return (Math.atan2(y, x) / r + 360) % 360;
+  }
+  // Direction of travel: the phone's own heading while moving, otherwise the
+  // bearing from the last point at least 12 m back. Kept as is while standing still.
+  function updateHeading(lat, lng, acc, h, spd) {
+    let next = null;
+    if (h != null && !isNaN(h) && spd != null && spd >= 1) next = h;
+    else if (headFrom && acc <= 30 && distanceM(headFrom[0], headFrom[1], lat, lng) >= 12) next = bearingDeg(headFrom[0], headFrom[1], lat, lng);
+    if (next != null) heading = next;
+    if (next != null || !headFrom) headFrom = [lat, lng];
   }
   function drawTrail(fit) {
     const showing = trail.length ? trail : (lastTrail ? lastTrail.points : []);
@@ -879,7 +950,7 @@
     } else $('map-caption').textContent = 'Tap Start crossing to draw your route.';
     if (!map) return;
     trailLine.setLatLngs(showing.map((p) => [p[0], p[1]]));
-    if (fit && showing.length > 1) map.fitBounds(trailLine.getBounds(), { padding: [30, 30], maxZoom: 17 });
+    if (fit && showing.length > 1) { const pad = framePad(); map.fitBounds(trailLine.getBounds(), { paddingTopLeft: pad, paddingBottomRight: pad, maxZoom: 17 }); }
   }
   function addTrailPoint(lat, lng, t) {
     const last = trail[trail.length - 1];
@@ -888,13 +959,23 @@
     if (trail.length > 5000) trail = trail.slice(-5000);
     store.set('mb_trail', trail); drawTrail(false);
   }
+  const ME_ICON = '<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">'
+    + '<path class="hd" d="M20 1 28 14 20 10.5 12 14z" fill="#00A54F" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>'
+    + '<circle cx="20" cy="20" r="9" fill="#00A54F" stroke="#fff" stroke-width="3"/></svg>';
   function showMe(lat, lng, acc) {
     if (!map) return;
     if (!meMarker) {
-      accCircle = L.circle([lat, lng], { radius: acc, weight: 0, fillColor: '#00ADEF', fillOpacity: 0.15 }).addTo(map);
-      meMarker = L.circleMarker([lat, lng], { radius: 8, color: '#ffffff', weight: 3, fillColor: '#00A54F', fillOpacity: 1 }).addTo(map);
+      accCircle = L.circle([lat, lng], { radius: acc, weight: 0, fillColor: '#00ADEF', fillOpacity: 0.15, interactive: false }).addTo(map);
+      meMarker = L.marker([lat, lng], { interactive: false, keyboard: false,
+        icon: L.divIcon({ className: 'me-arrow', html: ME_ICON, iconSize: [40, 40], iconAnchor: [20, 20] }) }).addTo(map);
     } else { meMarker.setLatLng([lat, lng]); accCircle.setLatLng([lat, lng]).setRadius(acc); }
+    const el = meMarker.getElement();
+    if (el) {
+      el.classList.toggle('has-heading', heading != null);
+      if (heading != null) el.firstChild.style.transform = `rotate(${heading}deg)`;
+    }
     if (follow) map.panTo([lat, lng], { animate: true });
+    applyRotation(false);
   }
   function finishTrail(result) {
     if (trail.length > 1) {
@@ -907,7 +988,23 @@
   $('btn-center').onclick = () => {
     follow = true;
     if (meMarker) map.setView(meMarker.getLatLng(), 17); else if (map) map.setView([ZONES.area.lat, ZONES.area.lng], 15);
+    if (map) applyRotation(false);
   };
+  $('map-compass').onclick = () => {
+    headUp = !headUp; store.set('mb_headup', headUp);
+    if (headUp && meMarker) { follow = true; map.panTo(meMarker.getLatLng()); }
+    applyRotation(false);
+    toast(headUp ? (tracking ? 'The map now turns with your direction.' : 'The map will turn with your direction while you cross.') : 'North is up.');
+  };
+  $('map-zin').onclick = () => map && map.zoomIn();
+  $('map-zout').onclick = () => map && map.zoomOut();
+  // Touching a turned map to look around switches it back to north up first,
+  // so dragging moves the way your finger does. "Centre on me" turns it again.
+  $('mapwrap').addEventListener('pointerdown', (e) => {
+    if (!map || e.target.closest('.mapctl, .mapattr') || !isRotated()) return;
+    follow = false; applyRotation(true);
+  }, true);
+  window.addEventListener('resize', () => { if (map) sizeMap(); });
   $('btn-clear-route').onclick = () => {
     if (!confirm('Clear the route shown on this map?')) return;
     if (!tracking) { trail = []; store.del('mb_trail'); }
@@ -994,6 +1091,7 @@
     const t = pos.timestamp || Date.now();
     if (accuracy <= 150) {
       if (trip || inArea(lat, lng)) addTrailPoint(lat, lng, t);
+      updateHeading(lat, lng, accuracy, pos.coords.heading, speed);
       showMe(lat, lng, accuracy);
     }
     if (!inArea(lat, lng)) {
@@ -1007,7 +1105,15 @@
     lastZone = z;
     ensureTrip().then(() => {
       trip.outside = 0;
-      queue.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), t, acc: Math.round(accuracy), spd: speed == null ? null : +speed.toFixed(1) });
+      // Phones report about once a second. Send a point when 5 s have passed,
+      // the phone has moved 15 m, or it entered a different zone; that keeps
+      // zone times to within a few seconds with far fewer database writes.
+      const zid = z ? z.id : null;
+      if (!lastSent || lastSent.trip !== trip.id || t - lastSent.t >= SEND_EVERY_MS || zid !== lastSent.zone
+          || distanceM(lastSent.lat, lastSent.lng, lat, lng) >= SEND_MOVED_M) {
+        queue.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), t, acc: Math.round(accuracy), spd: speed == null ? null : +speed.toFixed(1) });
+        lastSent = { trip: trip.id, t, lat, lng, zone: zid };
+      }
       lastFix = { lat: +lat.toFixed(6), lng: +lng.toFixed(6), acc: Math.round(accuracy), at: Date.now() };
       saveState();
       if (queue.length >= 15) flush();
@@ -1081,7 +1187,8 @@
   // foreground service, so tracking continues with the screen off.
   const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   const plugin = (name) => NATIVE && (window.Capacitor.Plugins[name] || window.Capacitor.registerPlugin(name));
-  let bgWatcherId = null, lastFix = null;
+  let bgWatcherId = null, lastFix = null, lastSent = null;
+  const SEND_EVERY_MS = 5000, SEND_MOVED_M = 15;
   if (NATIVE) {
     document.querySelectorAll('.web-only').forEach((e) => e.classList.add('hidden'));
     document.querySelectorAll('.app-only').forEach((e) => e.classList.remove('hidden'));
@@ -1104,7 +1211,7 @@
         }
         return;
       }
-      onFix({ coords: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, speed: loc.speed }, timestamp: loc.time || Date.now() });
+      onFix({ coords: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, speed: loc.speed, heading: loc.bearing }, timestamp: loc.time || Date.now() });
     });
   }
   // While standing still in a long queue the phone may not report new fixes;
@@ -1136,11 +1243,12 @@
     tracking = false;
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     if (bgWatcherId != null) { try { await plugin('BackgroundGeolocation').removeWatcher({ id: bgWatcherId }); } catch {} bgWatcherId = null; }
-    clearInterval(flushTimer); clearInterval(tickTimer); watchId = null; lastFix = null;
+    clearInterval(flushTimer); clearInterval(tickTimer); watchId = null; lastFix = null; lastSent = null;
     try { if (wakeLock) await wakeLock.release(); } catch {}
     wakeLock = null; store.set('mb_tracking', false);
     $('btn-start').classList.remove('hidden'); $('btn-stop').classList.add('hidden');
     if (trip) await endTrip('manual'); else if (trail.length) finishTrail(null);
+    heading = null; headFrom = null; if (map) applyRotation(false);
     lastZone = null; setStatus('', 'Not tracking', 'Tap Start when you join the queue.'); renderStats();
   }
   document.addEventListener('visibilitychange', () => {
