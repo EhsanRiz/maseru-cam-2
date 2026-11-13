@@ -284,6 +284,7 @@
   <a class="item" href="#settings" data-nav="settings"><i class="dot4" style="background:var(--taupe)"></i>Settings</a>
   <a class="item hidden" href="#admin" data-nav="admin" id="menu-admin"><i class="dot4" style="background:var(--text)"></i>Admin</a>
   <a class="item" href="/privacy"><i class="dot4" style="background:var(--grey)"></i>Privacy Policy</a>
+  <a class="item" href="/terms"><i class="dot4" style="background:var(--grey)"></i>Terms of Use</a>
   <a class="item" href="mailto:info@4dcs.co.za"><i class="dot4" style="background:var(--grey)"></i>Contact us</a>
   <button class="item" id="menu-auth"></button>
   <div class="spacer"></div>
@@ -502,7 +503,7 @@
         <p style="margin-top:0"><b>Tsela</b> shows live crossing times at the Maseru Bridge border between Lesotho and South Africa, measured by travellers' phones.</p>
         <p>A service of <b>4D Climate Solutions (Pty) Ltd</b>, Maseru, Lesotho.<br>
           <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a> &middot; <a href="tel:+26622323442">+266 2232 3442</a></p>
-        <p><a href="/privacy">Privacy Policy</a></p>
+        <p><a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Use</a></p>
         <p class="muted">&copy; <span class="year">2026</span> 4D Climate Solutions (Pty) Ltd. All rights reserved.<br>
           Map data &copy; OpenStreetMap contributors.</p>
       </div>
@@ -614,7 +615,7 @@
           <button class="link" id="btn-si-back" style="text-align:right">Use a different email</button>
         </div>
       </div>
-      <p class="muted" style="margin-bottom:0">By signing in you agree to our <a href="/privacy">Privacy Policy</a>. You stay signed in for 7 days.</p>
+      <p class="muted" style="margin-bottom:0">By signing in you agree to our <a href="/terms">Terms of Use</a> and <a href="/privacy">Privacy Policy</a>. You stay signed in for 7 days.</p>
     </section>
 
     <section class="si-hero si-now" aria-live="polite">
@@ -628,7 +629,7 @@
 <footer class="site">
   <div class="stripe"><i style="background:var(--blue)"></i><i style="background:var(--lime)"></i><i style="background:var(--taupe)"></i><i style="background:var(--grey)"></i></div>
   &copy; <span class="year">2026</span> 4D Climate Solutions (Pty) Ltd. All rights reserved.<br>
-  <a href="/privacy">Privacy Policy</a> &middot; <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a>
+  <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Use</a> &middot; <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a>
 </footer>
 <div class="sheet hidden" id="rs" role="dialog" aria-modal="true" aria-labelledby="rs-title">
   <div class="sheet-card">
@@ -1564,7 +1565,8 @@
     try {
       const j = await api('POST', forgot ? '/auth/forgot' : '/auth/start', { email });
       siEmail = email;
-      $('si-msg').textContent = j.pin_sent ? j.message : `Enter the PIN for ${email}.`;
+      $('si-msg').textContent = j.pin_sent ? j.message
+        : `Enter the PIN for ${email}. It's the one from your first Tsela email, or the PIN you set in Settings. Forgotten it? Tap Forgot PIN for a new one.`;
       if (j.dev_pin) toast('Local test PIN: ' + j.dev_pin);
       siStep('pin'); $('si-pin').value = ''; $('si-pin').focus();
     } catch (e) { toast(e.message); }
