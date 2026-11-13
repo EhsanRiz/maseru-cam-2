@@ -1105,7 +1105,15 @@
     lastZone = z;
     ensureTrip().then(() => {
       trip.outside = 0;
-      queue.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), t, acc: Math.round(accuracy), spd: speed == null ? null : +speed.toFixed(1) });
+      // Phones report about once a second. Send a point when 5 s have passed,
+      // the phone has moved 15 m, or it entered a different zone; that keeps
+      // zone times to within a few seconds with far fewer database writes.
+      const zid = z ? z.id : null;
+      if (!lastSent || lastSent.trip !== trip.id || t - lastSent.t >= SEND_EVERY_MS || zid !== lastSent.zone
+          || distanceM(lastSent.lat, lastSent.lng, lat, lng) >= SEND_MOVED_M) {
+        queue.push({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), t, acc: Math.round(accuracy), spd: speed == null ? null : +speed.toFixed(1) });
+        lastSent = { trip: trip.id, t, lat, lng, zone: zid };
+      }
       lastFix = { lat: +lat.toFixed(6), lng: +lng.toFixed(6), acc: Math.round(accuracy), at: Date.now() };
       saveState();
       if (queue.length >= 15) flush();
@@ -1179,7 +1187,8 @@
   // foreground service, so tracking continues with the screen off.
   const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   const plugin = (name) => NATIVE && (window.Capacitor.Plugins[name] || window.Capacitor.registerPlugin(name));
-  let bgWatcherId = null, lastFix = null;
+  let bgWatcherId = null, lastFix = null, lastSent = null;
+  const SEND_EVERY_MS = 5000, SEND_MOVED_M = 15;
   if (NATIVE) {
     document.querySelectorAll('.web-only').forEach((e) => e.classList.add('hidden'));
     document.querySelectorAll('.app-only').forEach((e) => e.classList.remove('hidden'));
@@ -1234,7 +1243,7 @@
     tracking = false;
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     if (bgWatcherId != null) { try { await plugin('BackgroundGeolocation').removeWatcher({ id: bgWatcherId }); } catch {} bgWatcherId = null; }
-    clearInterval(flushTimer); clearInterval(tickTimer); watchId = null; lastFix = null;
+    clearInterval(flushTimer); clearInterval(tickTimer); watchId = null; lastFix = null; lastSent = null;
     try { if (wakeLock) await wakeLock.release(); } catch {}
     wakeLock = null; store.set('mb_tracking', false);
     $('btn-start').classList.remove('hidden'); $('btn-stop').classList.add('hidden');
