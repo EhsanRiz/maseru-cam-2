@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-128 -128 768 768"><defs><linearGradient id="l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2ec5f7"/><stop offset="1" stop-color="#0088c7"/></linearGradient>
+<linearGradient id="r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#35c46f"/><stop offset="1" stop-color="#00843f"/></linearGradient></defs><path d="M256 84 V428" stroke="#fff" stroke-width="12" stroke-dasharray="24 18" stroke-linecap="round"/>
+<rect x="92" y="338" width="328" height="16" rx="8" fill="#fff"/><g transform="translate(262 292) scale(1.42)">
+ <path d="M-92 18 Q-92 -6 -70 -10 L-46 -14 L-22 -40 Q-14 -48 0 -48 L40 -48 Q54 -48 62 -38 L80 -14 Q96 -12 96 6 L96 18 Q96 26 88 26 L-84 26 Q-92 26 -92 18Z" fill="#fff"/>
+ <path d="M-34 -14 L-16 -36 Q-12 -40 -6 -40 L14 -40 L14 -14Z M24 -14 L24 -40 L38 -40 Q46 -40 52 -32 L66 -14Z" fill="#00A54F"/>
+ <circle cx="-50" cy="26" r="20" fill="#1f2a24"/><circle cx="-50" cy="26" r="8" fill="#e6e6e6"/>
+ <circle cx="54" cy="26" r="20" fill="#1f2a24"/><circle cx="54" cy="26" r="8" fill="#e6e6e6"/></g></svg>
