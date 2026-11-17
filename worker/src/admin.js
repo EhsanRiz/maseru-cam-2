@@ -1,11 +1,15 @@
-// Admin: usage statistics and the account list, for 4DCS staff only.
+// Admin: usage statistics, accounts, crossings and site settings, for 4DCS
+// staff only.
 //
-// Access: a normal signed-in session whose email is listed in the
-// ADMIN_EMAILS setting (comma-separated; set it as a Worker secret so it is
-// not in the repository). Admins see accounts and aggregate numbers; they
-// never see anyone's locations or routes.
+// Access: a normal signed-in session whose email is listed in ADMIN_EMAILS
+// (role 'owner') or MANAGER_EMAILS (role 'manager'). Both are comma-separated
+// Worker secrets, so they are not in the repository. Managers can do
+// everything except download the full user list (CSV) and read the staff
+// action log. Staff see accounts, anonymous crossings and aggregate numbers;
+// they never see anyone's saved routes, and the zone map only shows spots
+// that at least two different phones passed through.
 
-import { getSessionUser, isAdmin } from './auth.js';
+import { getSessionUser, adminRole, roleForEmail, issuePin, deleteUserData } from './auth.js';
 
 const DAY_MS = 24 * 3600 * 1000;
 const iso = (ms) => new Date(ms).toISOString();
@@ -14,6 +18,12 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), {
   headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
 });
 const fail = (status, message) => json({ success: false, message }, status);
+const body = async (request) => { try { return await request.json(); } catch { return {}; } };
+
+async function logAction(env, actor, action, detail) {
+  await env.DB.prepare('INSERT INTO admin_log (at, actor, action, detail) VALUES (?, ?, ?, ?)')
+    .bind(iso(Date.now()), actor.email, action, detail == null ? null : String(detail).slice(0, 300)).run();
+}
 
 
 async function stats(env) {
@@ -33,6 +43,14 @@ async function stats(env) {
     one("SELECT COUNT(*) AS n FROM trips WHERE status = 'active' AND last_ping_at >= ?", iso(now - 5 * 60000)),
     one('SELECT COUNT(*) AS n FROM journeys WHERE expires_at > ?', iso(now)),
   ]);
+  // Live status: last finished crossing per direction, phones in the area by zone.
+  const { results: lastByDir } = await env.DB.prepare(
+    `SELECT direction, MAX(crossing_ended_at) AS last_at FROM trips WHERE status = 'completed' GROUP BY direction`,
+  ).all();
+  const { results: activeZones } = await env.DB.prepare(
+    `SELECT coalesce(current_zone, 'outside') AS zone, COUNT(*) AS n FROM trips
+     WHERE status = 'active' AND last_ping_at >= ? GROUP BY zone`,
+  ).bind(iso(now - 5 * 60000)).all();
   const quality = await one(
     `SELECT SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS counted,
             SUM(CASE WHEN status IN ('abandoned', 'invalid') THEN 1 ELSE 0 END) AS not_counted,
@@ -66,6 +84,7 @@ async function stats(env) {
     users: { total: users.n, new_7d: new7.n, new_30d: new30.n, signed_in_24h: login1.n, signed_in_7d: login7.n, with_active_session: sessions.n },
     crossings: { total: crossings.n, last_7d: crossings7.n, live_now: live.n, saved_journeys: journeys.n, by_direction_30d: byDir },
     reports_7d: reports7.n,
+    live: { last_crossing: lastByDir, active_by_zone: activeZones },
     quality_7d: {
       counted: quality.counted || 0, not_counted: quality.not_counted || 0,
       parked_trimmed: quality.parked_trimmed || 0, long_stop: quality.long_stop || 0,
@@ -92,12 +111,13 @@ async function listUsers(request, env) {
   const now = iso(Date.now());
   const total = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM users u ${where}`).bind(...args).first()).n;
   const { results } = await env.DB.prepare(
-    `SELECT u.email, u.name, u.phone, u.created_at, u.last_login_at,
+    `SELECT u.id, u.email, u.name, u.phone, u.created_at, u.last_login_at,
             (SELECT COUNT(*) FROM journeys j WHERE j.history_hash = u.history_hash AND j.expires_at > ?) AS journeys,
             (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ?) AS active_sessions
      FROM users u ${where}
      ORDER BY coalesce(u.last_login_at, u.created_at) DESC LIMIT ? OFFSET ?`,
   ).bind(now, now, ...args, per, (page - 1) * per).all();
+  for (const u of results) u.staff_role = roleForEmail(env, u.email);
   return json({ success: true, total, page, per_page: per, users: results });
 }
 
@@ -108,6 +128,99 @@ async function listReports(env) {
      FROM window_reports ORDER BY reported_at DESC LIMIT 50`,
   ).all();
   return json({ success: true, reports: results });
+}
+
+// Recent finished trips (anonymous): what was counted and why not.
+async function listCrossings(request, env) {
+  const url = new URL(request.url);
+  const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+  const show = url.searchParams.get('show') || 'all';
+  const per = 30;
+  const where = show === 'counted' ? "status = 'completed'"
+    : show === 'not' ? "status IN ('abandoned', 'invalid')"
+      : "status IN ('completed', 'abandoned', 'invalid')";
+  const total = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM trips WHERE ${where}`).first()).n;
+  const { results } = await env.DB.prepare(
+    `SELECT substr(id, 1, 6) AS ref, status, direction, mode, flags, parked_minutes,
+            started_at, crossing_started_at, crossing_ended_at, finalised_at, total_minutes,
+            queue_minutes, origin_post_minutes, bridge_minutes, dest_post_minutes, ping_count
+     FROM trips WHERE ${where} ORDER BY coalesce(finalised_at, started_at) DESC LIMIT ? OFFSET ?`,
+  ).bind(per, (page - 1) * per).all();
+  return json({ success: true, total, page, per_page: per, crossings: results });
+}
+
+// Where phones were in the last 48 h, as ~30 m squares. A square is shown only
+// if at least two different phones passed through it, so no single person's
+// path can be traced.
+const CELL = 0.0003;
+async function zoneMap(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT CAST(ROUND(lat / ${CELL}) AS INTEGER) AS gy, CAST(ROUND(lng / ${CELL}) AS INTEGER) AS gx,
+            COUNT(*) AS points, COUNT(DISTINCT trip_id) AS phones,
+            SUM(CASE WHEN speed_mps IS NOT NULL AND speed_mps < 1 THEN 1 ELSE 0 END) AS slow
+     FROM pings WHERE ts >= ? GROUP BY gy, gx HAVING phones >= 2`,
+  ).bind(iso(Date.now() - 48 * 3600 * 1000)).all();
+  const phones = (await env.DB.prepare('SELECT COUNT(DISTINCT trip_id) AS n FROM pings WHERE ts >= ?')
+    .bind(iso(Date.now() - 48 * 3600 * 1000)).first()).n;
+  return json({
+    success: true, cell_deg: CELL, phones_48h: phones,
+    cells: results.map((c) => ({ lat: +(c.gy * CELL).toFixed(5), lng: +(c.gx * CELL).toFixed(5), points: c.points, phones: c.phones, slow: c.slow })),
+  });
+}
+
+// Site-wide announcement shown at the top of the Dashboard.
+async function setAnnouncement(request, env, user) {
+  const b = await body(request);
+  const text = String(b.text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const level = b.level === 'warning' ? 'warning' : 'info';
+  if (!text) return clearAnnouncement(env, user);
+  const value = JSON.stringify({ text, level });
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('announcement', ?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+  ).bind(value, iso(Date.now()), user.email).run();
+  await logAction(env, user, 'announcement_set', text);
+  return json({ success: true, announcement: { text, level } });
+}
+async function clearAnnouncement(env, user) {
+  await env.DB.prepare("DELETE FROM settings WHERE key = 'announcement'").run();
+  await logAction(env, user, 'announcement_cleared');
+  return json({ success: true, announcement: null });
+}
+
+// Account actions. Nobody can act on their own account here (use Settings),
+// and managers cannot act on staff accounts.
+async function targetUser(env, actor, id) {
+  const u = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+  if (!u) return [null, fail(404, 'Account not found.')];
+  if (u.id === actor.id) return [null, fail(400, 'Use Settings to change your own account.')];
+  if (adminRole(env, actor) !== 'owner' && roleForEmail(env, u.email)) {
+    return [null, fail(403, 'Only an owner can change staff accounts.')];
+  }
+  return [u, null];
+}
+async function adminDeleteUser(env, actor, id) {
+  const [u, err] = await targetUser(env, actor, id);
+  if (err) return err;
+  await deleteUserData(env, u);
+  await logAction(env, actor, 'account_deleted', u.id);
+  return json({ success: true, message: 'Account deleted.' });
+}
+async function adminNewPin(env, actor, id) {
+  const [u, err] = await targetUser(env, actor, id);
+  if (err) return err;
+  try {
+    const extra = await issuePin(env, u, 'reset');
+    await logAction(env, actor, 'pin_sent', u.id);
+    return json({ success: true, message: `A new PIN was emailed to ${u.email}.`, ...extra });
+  } catch (e) {
+    return fail(e.status || 500, e.message);
+  }
+}
+
+async function actionLog(env) {
+  const { results } = await env.DB.prepare('SELECT at, actor, action, detail FROM admin_log ORDER BY id DESC LIMIT 50').all();
+  return json({ success: true, actions: results });
 }
 
 async function exportUsersCsv(env) {
@@ -135,10 +248,20 @@ export async function adminRoutes(request, env, p, m) {
   if (!p.startsWith('/api/admin')) return null;
   const user = await getSessionUser(request, env);
   if (!user) return fail(401, 'Please sign in.');
-  if (!isAdmin(env, user)) return fail(403, 'This page is for 4DCS staff only.');
+  const role = adminRole(env, user);
+  if (!role) return fail(403, 'This page is for 4DCS staff only.');
+  const ownerOnly = () => fail(403, 'Only an owner can do this.');
   if (p === '/api/admin/stats' && m === 'GET') return stats(env);
   if (p === '/api/admin/users' && m === 'GET') return listUsers(request, env);
-  if (p === '/api/admin/users.csv' && m === 'GET') return exportUsersCsv(env);
+  if (p === '/api/admin/users.csv' && m === 'GET') return role === 'owner' ? exportUsersCsv(env) : ownerOnly();
   if (p === '/api/admin/reports' && m === 'GET') return listReports(env);
+  if (p === '/api/admin/crossings' && m === 'GET') return listCrossings(request, env);
+  if (p === '/api/admin/zonemap' && m === 'GET') return zoneMap(env);
+  if (p === '/api/admin/announcement' && m === 'PUT') return setAnnouncement(request, env, user);
+  if (p === '/api/admin/announcement' && m === 'DELETE') return clearAnnouncement(env, user);
+  if (p === '/api/admin/log' && m === 'GET') return role === 'owner' ? actionLog(env) : ownerOnly();
+  const um = p.match(/^\/api\/admin\/users\/([0-9a-f-]{36})(\/pin)?$/);
+  if (um && !um[2] && m === 'DELETE') return adminDeleteUser(env, user, um[1]);
+  if (um && um[2] && m === 'POST') return adminNewPin(env, user, um[1]);
   return fail(404, 'Not found');
 }

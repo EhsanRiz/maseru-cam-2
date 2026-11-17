@@ -81,14 +81,28 @@ export function parsePrefs(text) {
 }
 
 // Staff who may open the admin page: ADMIN_EMAILS, comma-separated (a Worker secret).
+// Staff roles, from Worker settings (comma-separated emails):
+//   ADMIN_EMAILS   -> 'owner'   (everything, including the user CSV export)
+//   MANAGER_EMAILS -> 'manager' (day-to-day running: no CSV export)
+const emailList = (v) => String(v || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+export function roleForEmail(env, email) {
+  const e = String(email || '').toLowerCase();
+  if (!e) return null;
+  if (emailList(env.ADMIN_EMAILS).includes(e)) return 'owner';
+  if (emailList(env.MANAGER_EMAILS).includes(e)) return 'manager';
+  return null;
+}
+export function adminRole(env, user) {
+  return user ? roleForEmail(env, user.email) : null;
+}
 export function isAdmin(env, user) {
-  const list = String(env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
-  return !!user && list.includes(String(user.email).toLowerCase());
+  return !!adminRole(env, user);
 }
 
-function publicUser(u, retentionDays, admin = false) {
+function publicUser(u, retentionDays, role = null) {
   return {
-    is_admin: admin,
+    is_admin: !!role,
+    admin_role: role,
     id: u.id,
     email: u.email,
     name: u.name || '',
@@ -145,7 +159,7 @@ async function sendPinEmail(env, to, pin, reason) {
 }
 
 // Issue a new PIN for a user (replacing any old one) and email it.
-async function issuePin(env, user, reason) {
+export async function issuePin(env, user, reason) {
   const now = Date.now();
   const windowStart = user.pin_email_window_at ? Date.parse(user.pin_email_window_at) : 0;
   const inWindow = now - windowStart < 3600 * 1000;
@@ -284,7 +298,7 @@ async function login(request, env) {
       .bind(await sha256(token), user.id, iso(now), expires, iso(now)),
   ]);
   await claimLegacyHistory(env, user, b.history_key);
-  return json({ success: true, token, expires_at: expires, user: publicUser(user, await retentionFor(env, user), isAdmin(env, user)) });
+  return json({ success: true, token, expires_at: expires, user: publicUser(user, await retentionFor(env, user), adminRole(env, user)) });
 }
 
 async function logout(request, env) {
@@ -294,7 +308,7 @@ async function logout(request, env) {
 }
 
 async function me(request, env, user) {
-  return json({ success: true, user: publicUser(user, await retentionFor(env, user), isAdmin(env, user)) });
+  return json({ success: true, user: publicUser(user, await retentionFor(env, user), adminRole(env, user)) });
 }
 
 async function updateMe(request, env, user) {
@@ -306,7 +320,7 @@ async function updateMe(request, env, user) {
   await env.DB.prepare('UPDATE users SET name = ?, phone = ?, prefs = ? WHERE id = ?')
     .bind(name || null, phone || null, JSON.stringify(prefs), user.id).run();
   const fresh = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first();
-  return json({ success: true, user: publicUser(fresh, await retentionFor(env, fresh), isAdmin(env, fresh)) });
+  return json({ success: true, user: publicUser(fresh, await retentionFor(env, fresh), adminRole(env, fresh)) });
 }
 
 async function changePin(request, env, user) {
@@ -343,7 +357,9 @@ async function exportData(request, env, user) {
   });
 }
 
-async function deleteAccount(request, env, user) {
+// Removes an account, its sessions and its saved journeys. Anonymous trips
+// stay (they are already unlinked from the account when finalised).
+export async function deleteUserData(env, user) {
   const stmts = [];
   if (user.history_hash) {
     stmts.push(env.DB.prepare('DELETE FROM journeys WHERE history_hash = ?').bind(user.history_hash));
@@ -353,6 +369,10 @@ async function deleteAccount(request, env, user) {
   stmts.push(env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id));
   if (user.history_hash) stmts.push(env.DB.prepare('DELETE FROM histories WHERE key_hash = ?').bind(user.history_hash));
   await env.DB.batch(stmts);
+}
+
+async function deleteAccount(request, env, user) {
+  await deleteUserData(env, user);
   return json({ success: true, message: 'Your account and saved journeys were deleted.' });
 }
 

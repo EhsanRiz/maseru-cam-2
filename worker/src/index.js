@@ -246,14 +246,17 @@ async function windowReport(request, env) {
 
 async function estimate(env) {
   const now = Date.now();
-  const [active, completed, reports] = await Promise.all([
+  const [active, completed, reports, notice] = await Promise.all([
     env.DB.prepare(`SELECT direction, started_at, current_zone FROM trips
                     WHERE status = 'active' AND last_ping_at >= ?`).bind(iso(now - LIMITS.ACTIVE_WINDOW_MS)).all(),
     env.DB.prepare(`SELECT direction, crossing_ended_at, total_minutes FROM trips
                     WHERE status = 'completed' AND crossing_ended_at >= ?`).bind(iso(now - LIMITS.TYPICAL_LOOKBACK_MS)).all(),
     env.DB.prepare('SELECT direction, queue_minutes FROM window_reports WHERE reported_at >= ?')
       .bind(iso(now - 3600 * 1000)).all(),
+    env.DB.prepare("SELECT value, updated_at FROM settings WHERE key = 'announcement'").first(),
   ]);
+  let announcement = null;
+  try { if (notice) announcement = { ...JSON.parse(notice.value), updated_at: notice.updated_at }; } catch {}
   const activeRows = active.results.map((t) => ({
     ...t, current_side: t.current_zone ? ZONE_BY_ID[t.current_zone]?.side : null,
   }));
@@ -269,6 +272,7 @@ async function estimate(env) {
     success: true,
     generated_at: iso(now),
     zones_calibrated: !!zones.calibrated,
+    announcement,
     directions,
     // Best time to cross: next 12 hours per direction, from weekday/hour history + live data.
     forecast: directions.map((live) => buildForecast({
