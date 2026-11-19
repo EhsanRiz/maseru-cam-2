@@ -128,6 +128,17 @@
     .switch:last-child { border-bottom: 0; }
     .switch input { width: 22px; height: 22px; accent-color: var(--green); flex: none; }
     .banner { border-left: 5px solid var(--lime); }
+    .notice { border-left: 5px solid var(--blue); font-weight: 600; }
+    .notice.warn { border-left-color: #e8a400; background: rgba(232,164,0,.10); }
+    .notice small { display: block; font-weight: 400; color: var(--muted); margin-top: 4px; }
+    .ad-acts { display: flex; gap: 6px; margin-top: 6px; }
+    .ad-acts button { width: auto; padding: 5px 10px; font-size: .78rem; border-radius: 8px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+    .chips button { width: auto; padding: 6px 12px; font-size: .82rem; border-radius: 99px; background: var(--card-2); color: var(--text); }
+    .chips button.on { background: var(--green); color: #fff; }
+    .live-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .live-row:last-child { border-bottom: 0; }
+    #ad-zmap { height: 340px; border-radius: 12px; margin-top: 8px; z-index: 0; }
     ul { padding-left: 1.2rem; margin: 8px 0; }
 
     #jmap { height: 300px; border-radius: 12px; margin: 4px 0 10px; background: var(--card-2); z-index: 0; }
@@ -285,7 +296,8 @@
   <a class="item hidden" href="#admin" data-nav="admin" id="menu-admin"><i class="dot4" style="background:var(--text)"></i>Admin</a>
   <a class="item" href="/privacy"><i class="dot4" style="background:var(--grey)"></i>Privacy Policy</a>
   <a class="item" href="/terms"><i class="dot4" style="background:var(--grey)"></i>Terms of Use</a>
-  <a class="item" href="mailto:info@4dcs.co.za"><i class="dot4" style="background:var(--grey)"></i>Contact us</a>
+  <a class="item" href="mailto:info@4dcs.co.za"><i class="dot4" style="background:var(--grey)"></i>Email us</a>
+  <a class="item" href="https://wa.me/26659932849" target="_blank" rel="noopener"><i class="dot4" style="background:#25D366"></i>WhatsApp us</a>
   <button class="item" id="menu-auth"></button>
   <div class="spacer"></div>
   <div class="legal">&copy; <span class="year">2026</span> 4D Climate Solutions (Pty) Ltd. All rights reserved.</div>
@@ -294,6 +306,7 @@
 <main>
   <!-- ================= DASHBOARD ================= -->
   <div id="view-dashboard">
+    <section class="card notice hidden" id="notice" role="status"><span id="notice-text"></span><small id="notice-when"></small></section>
     <section class="card hero" aria-live="polite">
       <h2>Time to cross now <small id="updated"></small></h2>
       <div class="grid2" id="estimates">
@@ -502,7 +515,7 @@
       <div data-spanel="about" class="hidden">
         <p style="margin-top:0"><b>Tsela</b> shows live crossing times at the Maseru Bridge border between Lesotho and South Africa, measured by travellers' phones.</p>
         <p>A service of <b>4D Climate Solutions (Pty) Ltd</b>, Maseru, Lesotho.<br>
-          <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a> &middot; <a href="tel:+26622323442">+266 2232 3442</a></p>
+          <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a> &middot; <a href="tel:+26659932849">+266 5993 2849</a> (also <a href="https://wa.me/26659932849" target="_blank" rel="noopener">WhatsApp</a>)</p>
         <p><a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Use</a></p>
         <p class="muted">&copy; <span class="year">2026</span> 4D Climate Solutions (Pty) Ltd. All rights reserved.<br>
           Map data &copy; OpenStreetMap contributors.</p>
@@ -518,8 +531,25 @@
   <!-- ================= ADMIN (4DCS staff) ================= -->
   <div id="view-admin" class="hidden">
     <section class="card">
-      <h2 style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">Admin <small class="muted" id="ad-updated"></small></h2>
+      <h2 style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><span>Admin <span class="tag" id="ad-role"></span></span> <small class="muted" id="ad-updated"></small></h2>
       <div class="kpis" id="ad-tiles"></div>
+    </section>
+
+    <section class="card" id="ad-live-card">
+      <h2>Live now</h2>
+      <div id="ad-live"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="card" id="ad-ann-card">
+      <h2>Announcement</h2>
+      <p class="muted" style="margin-top:0">Shown at the top of everyone's Dashboard until you remove it.</p>
+      <textarea id="ad-ann-text" rows="2" maxlength="200" placeholder="e.g. Bridge closed 22:00–04:00 tonight for maintenance"></textarea>
+      <div class="row" style="margin-top:8px">
+        <select id="ad-ann-level" aria-label="Type of announcement"><option value="info">Information</option><option value="warning">Warning</option></select>
+        <button class="primary" id="ad-ann-save">Publish</button>
+        <button class="secondary" id="ad-ann-clear">Remove</button>
+      </div>
+      <p class="muted" id="ad-ann-state" style="margin-bottom:0"></p>
     </section>
 
     <section class="card" id="ad-users-card">
@@ -545,6 +575,19 @@
         <summary>Data quality this week <span class="muted" id="ad-q-sum"></span></summary>
         <div class="tbl-wrap"><table class="tbl" id="ad-quality"></table></div>
       </details>
+      <details id="ad-cross-box">
+        <summary>Recent crossings <span class="muted" id="ad-cross-sum"></span></summary>
+        <div class="chips" id="ad-cross-show">
+          <button data-show="all" class="on">All</button><button data-show="counted">Counted</button><button data-show="not">Not counted</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="ad-cross"></table></div>
+        <button class="secondary hidden" id="ad-cross-more" style="margin-top:8px">Show more</button>
+      </details>
+      <details id="ad-zmap-box">
+        <summary>Zone map, last 48 hours <span class="muted" id="ad-zmap-sum"></span></summary>
+        <p class="muted" style="margin:8px 0 0;font-size:.82rem">Each dot is a ~30 m square where phones were: bigger means more GPS points, darker means more of them were standing still. A square appears only once at least two different phones passed through it. Circles are Tsela's border zones.</p>
+        <div id="ad-zmap"></div>
+      </details>
       <details id="ad-reports-box">
         <summary>Window reports <span class="muted" id="ad-rep-sum"></span></summary>
         <div class="tbl-wrap"><table class="tbl" id="ad-reports"></table></div>
@@ -553,8 +596,12 @@
         <summary>Daily activity, last 14 days <span class="muted" id="ad-days-sum"></span></summary>
         <div class="tbl-wrap"><table class="tbl" id="ad-days"></table></div>
       </details>
+      <details id="ad-log-box" class="hidden">
+        <summary>Staff actions <span class="muted">(owners only)</span></summary>
+        <div class="tbl-wrap"><table class="tbl" id="ad-log"></table></div>
+      </details>
     </section>
-    <p class="muted" style="margin:4px 4px 0;font-size:.8rem">Accounts and totals only. Individual locations and routes are never shown here.</p>
+    <p class="muted" style="margin:4px 4px 0;font-size:.8rem">Accounts, anonymous crossings and totals. Saved routes and individual people's locations are never shown here.</p>
   </div>
 
   <!-- ================= SIGN IN ================= -->
@@ -629,7 +676,7 @@
 <footer class="site">
   <div class="stripe"><i style="background:var(--blue)"></i><i style="background:var(--lime)"></i><i style="background:var(--taupe)"></i><i style="background:var(--grey)"></i></div>
   &copy; <span class="year">2026</span> 4D Climate Solutions (Pty) Ltd. All rights reserved.<br>
-  <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Use</a> &middot; <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a>
+  <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Use</a> &middot; <a href="mailto:info@4dcs.co.za">info@4dcs.co.za</a> &middot; <a href="https://wa.me/26659932849" target="_blank" rel="noopener">WhatsApp</a>
 </footer>
 <div class="sheet hidden" id="rs" role="dialog" aria-modal="true" aria-labelledby="rs-title">
   <div class="sheet-card">
@@ -868,12 +915,22 @@
         <div class="min">${fmtMin(e.minutes)}</div>
         <div class="src">${esc((SRC[e.source] || SRC.none)(e))}</div></div>`).join('');
       $('calib-note').textContent = j.zones_calibrated ? '' : 'Beta: border zones are still being mapped, so times may be off.';
+      renderNotice(j.announcement);
       lastEstimateAt = Date.now(); renderUpdated();
       lastEstimates = j.directions; renderSiLive();
       lastForecast = j.forecast || null; renderForecast();
     } catch {
       const s = $('estimates').querySelector('.src'); if (s) s.textContent = 'Could not load. Check your connection.';
     }
+  }
+  let lastNotice = null;
+  function renderNotice(a) {
+    lastNotice = a || null;
+    $('notice').classList.toggle('hidden', !a);
+    if (!a) return;
+    $('notice').classList.toggle('warn', a.level === 'warning');
+    $('notice-text').textContent = (a.level === 'warning' ? '\u26a0\ufe0f ' : '\u2139\ufe0f ') + a.text;
+    $('notice-when').textContent = a.updated_at ? 'Posted ' + new Date(a.updated_at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
   }
   function renderUpdated() {
     if (!lastEstimateAt) return;
@@ -1455,7 +1512,13 @@
   const fmtDate = (v) => (v ? new Date(v).toLocaleString(undefined, { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '\u2013');
   async function loadAdmin() {
     try {
-      const st = await api('GET', '/admin/stats');
+      const role = (user && user.admin_role) || 'owner';
+      $('ad-role').textContent = role === 'owner' ? 'Owner' : 'Manager';
+      $('ad-csv').classList.toggle('hidden', role !== 'owner');
+      $('ad-log-box').classList.toggle('hidden', role !== 'owner');
+      const [st, est] = await Promise.all([api('GET', '/admin/stats'), api('GET', '/estimate').catch(() => null)]);
+      renderAdminLive(st, est);
+      renderAnnState(est && est.announcement);
       $('ad-updated').textContent = 'Updated ' + new Date(st.generated_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       const kpi = (act, lbl, n, sub, hint) => `<button class="kpi${adFilter === act ? ' on' : ''}" data-act="${act}" aria-label="${esc(lbl + ': ' + n + '. ' + hint)}">` +
         `<span class="go" aria-hidden="true">&rsaquo;</span><div class="lbl">${esc(lbl)}</div><b>${esc(n)}</b><div class="sub">${esc(sub)}</div></button>`;
@@ -1487,6 +1550,9 @@
           : '<tr><td colspan="4" class="muted">No activity in the last 14 days.</td></tr>');
       await loadAdminUsers();
       loadAdminReports();
+      loadAdminCrossings(true);
+      if (role === 'owner') loadAdminLog();
+      if ($('ad-zmap-box').open) loadZoneMap();
     } catch (e) {
       if (e.status === 403) { toast(e.message); show('dashboard'); } else toast(e.message);
     }
@@ -1501,7 +1567,10 @@
     $('ad-users').innerHTML = '<tr><th>User</th><th class="hide-sm">Last sign-in</th><th class="num hide-sm">Journeys</th></tr>' +
       (j.users.length ? j.users.map((u) => `<tr><td style="white-space:normal"><b>${esc(u.name || u.email)}</b>${u.active_sessions ? ' <span class="tag ls">signed in</span>' : ''}` +
         `<div class="muted" style="font-size:.78rem">${esc([u.name ? u.email : '', u.phone || ''].filter(Boolean).join(' \u00b7 ') || 'joined ' + fmtDate(u.created_at))}</div>` +
-        `<div class="muted show-sm" style="font-size:.78rem">Last sign-in ${esc(fmtDate(u.last_login_at))} \u00b7 ${u.journeys} journey${u.journeys === 1 ? '' : 's'}</div></td>` +
+        `<div class="muted show-sm" style="font-size:.78rem">Last sign-in ${esc(fmtDate(u.last_login_at))} \u00b7 ${u.journeys} journey${u.journeys === 1 ? '' : 's'}</div>` +
+        (u.staff_role ? ` <span class="tag">${u.staff_role === 'owner' ? 'Owner' : 'Manager'}</span>` : '') +
+        (canActOn(u) ? `<div class="ad-acts"><button class="secondary" data-uact="pin" data-id="${esc(u.id)}" data-email="${esc(u.email)}">Send new PIN</button>` +
+          `<button class="danger" data-uact="del" data-id="${esc(u.id)}" data-email="${esc(u.email)}">Delete</button></div>` : '') + `</td>` +
         `<td class="hide-sm">${esc(fmtDate(u.last_login_at))}</td><td class="num hide-sm">${u.journeys}</td></tr>`).join('')
         : '<tr><td colspan="3" class="muted">No accounts found.</td></tr>');
     $('ad-prev').disabled = adPage <= 1;
@@ -1523,6 +1592,141 @@
           : '<tr><td colspan="5" class="muted">No window reports yet.</td></tr>');
     } catch {}
   }
+  const myRole = () => (user && user.admin_role) || 'owner';
+  const canActOn = (u) => user && u.id !== user.id && (myRole() === 'owner' || !u.staff_role);
+  $('ad-users').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-uact]'); if (!b) return;
+    const email = b.dataset.email;
+    if (b.dataset.uact === 'pin') {
+      if (!confirm(`Email a new PIN to ${email}? Their old PIN stops working and they are signed out on other devices.`)) return;
+    } else if (!confirm(`Delete the account ${email}, with its profile and saved journeys? This cannot be undone. Only do this if the person asked.`)) return;
+    b.disabled = true;
+    try {
+      const j = b.dataset.uact === 'pin'
+        ? await api('POST', `/admin/users/${b.dataset.id}/pin`)
+        : await api('DELETE', `/admin/users/${b.dataset.id}`);
+      toast(j.message + (j.dev_pin ? ' (local test PIN: ' + j.dev_pin + ')' : ''));
+      if (b.dataset.uact === 'del') loadAdmin();
+    } catch (err) { toast(err.message); }
+    b.disabled = false;
+  });
+
+  const ZONE_NAME = {};
+  const agoText = (v) => {
+    if (!v) return 'none yet';
+    const m = Math.round((Date.now() - Date.parse(v)) / 60000);
+    return m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+  };
+  function renderAdminLive(st, est) {
+    if (ZONES) ZONES.zones.forEach((z) => { ZONE_NAME[z.id] = z.label; });
+    const last = Object.fromEntries((st.live.last_crossing || []).map((r) => [r.direction, r.last_at]));
+    const rows = (est ? est.directions : []).map((e) => `<div class="live-row"><div><b>${esc(DIR_LABEL[e.direction])}</b>` +
+      `<div class="muted" style="font-size:.8rem">${esc((SRC[e.source] || SRC.none)(e))}</div></div>` +
+      `<div style="text-align:right"><b>${fmtMin(e.minutes)}</b><div class="muted" style="font-size:.8rem">last crossing ${esc(agoText(last[e.direction]))}</div></div></div>`);
+    const zones = (st.live.active_by_zone || []);
+    const phones = zones.reduce((a, z) => a + z.n, 0);
+    rows.push(`<div class="live-row"><div><b>Phones in the border area now</b><div class="muted" style="font-size:.8rem">` +
+      (phones ? zones.map((z) => `${esc(ZONE_NAME[z.zone] || (z.zone === 'outside' ? 'between zones' : z.zone))}: ${z.n}`).join(' \u00b7 ') : 'none right now') +
+      `</div></div><div style="text-align:right"><b>${phones}</b></div></div>`);
+    $('ad-live').innerHTML = rows.join('');
+  }
+
+  function renderAnnState(a) {
+    $('ad-ann-state').textContent = a ? `Showing now (${a.level === 'warning' ? 'warning' : 'information'}), posted ${fmtDate(a.updated_at)}.` : 'No announcement is showing.';
+    if (a && document.activeElement !== $('ad-ann-text')) { $('ad-ann-text').value = a.text; $('ad-ann-level').value = a.level; }
+    $('ad-ann-clear').disabled = !a;
+  }
+  $('ad-ann-save').onclick = async () => {
+    const text = $('ad-ann-text').value.trim();
+    if (!text) return toast('Type the announcement first.');
+    try {
+      const j = await api('PUT', '/admin/announcement', { text, level: $('ad-ann-level').value });
+      renderAnnState({ ...j.announcement, updated_at: new Date().toISOString() }); renderNotice({ ...j.announcement, updated_at: new Date().toISOString() });
+      toast('Announcement published.');
+    } catch (e) { toast(e.message); }
+  };
+  $('ad-ann-clear').onclick = async () => {
+    if (!confirm('Remove the announcement from everyone\u2019s Dashboard?')) return;
+    try { await api('DELETE', '/admin/announcement'); $('ad-ann-text').value = ''; renderAnnState(null); renderNotice(null); toast('Announcement removed.'); }
+    catch (e) { toast(e.message); }
+  };
+
+  const FLAG_TEXT = {
+    never_in_zone: 'Never reached the border zones',
+    missed_origin_post: 'Did not reach the first border post',
+    missed_dest_post: 'Did not reach the far border post',
+    did_not_cross: 'Did not cross',
+    implausible_duration: 'Too short or too long to be real',
+    parked_trimmed: 'Parked time removed',
+    long_stop_unverified: 'Long stop, no other phones to compare',
+  };
+  let crossShow = 'all', crossPage = 1, crossRows = [];
+  async function loadAdminCrossings(reset) {
+    if (reset) { crossPage = 1; crossRows = []; }
+    try {
+      const j = await api('GET', `/admin/crossings?show=${crossShow}&page=${crossPage}`);
+      crossRows = crossRows.concat(j.crossings);
+      $('ad-cross-sum').textContent = `\u00b7 ${j.total}`;
+      const seg = (c) => [['queue', c.queue_minutes], ['1st post', c.origin_post_minutes], ['bridge', c.bridge_minutes], ['2nd post', c.dest_post_minutes]]
+        .filter(([, v]) => v != null).map(([l, v]) => `${l} ${fmtMin(v)}`).join(' \u00b7 ');
+      $('ad-cross').innerHTML = '<tr><th>Crossing</th><th class="num">Time</th></tr>' + (crossRows.length ? crossRows.map((c) => {
+        const flags = String(c.flags || '').split(',').filter(Boolean);
+        const counted = c.status === 'completed';
+        const why = flags.map((f) => FLAG_TEXT[f] || f).join('; ') + (c.parked_minutes ? ` (${fmtMin(c.parked_minutes)})` : '');
+        return `<tr><td style="white-space:normal"><b>${esc(c.direction ? DIR_LABEL[c.direction] : 'Direction unknown')}</b>` +
+          `${c.mode === 'pedestrian' ? ' <span class="tag">on foot</span>' : ''} <span class="tag ${counted ? 'ls' : 'sa'}">${counted ? 'counted' : 'not counted'}</span>` +
+          `<div class="muted" style="font-size:.78rem">${esc(fmtDate(c.crossing_ended_at || c.finalised_at || c.started_at))} \u00b7 ref ${esc(c.ref)} \u00b7 ${c.ping_count} points</div>` +
+          (seg(c) ? `<div class="muted" style="font-size:.78rem">${esc(seg(c))}</div>` : '') +
+          (why ? `<div style="font-size:.8rem">${esc(why)}</div>` : '') + `</td>` +
+          `<td class="num">${counted ? fmtMin(c.total_minutes) : '\u2013'}</td></tr>`;
+      }).join('') : '<tr><td colspan="2" class="muted">No crossings yet.</td></tr>');
+      $('ad-cross-more').classList.toggle('hidden', crossRows.length >= j.total);
+    } catch (e) { toast(e.message); }
+  }
+  $('ad-cross-show').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-show]'); if (!b) return;
+    crossShow = b.dataset.show;
+    document.querySelectorAll('#ad-cross-show button').forEach((x) => x.classList.toggle('on', x === b));
+    loadAdminCrossings(true);
+  });
+  $('ad-cross-more').onclick = () => { crossPage++; loadAdminCrossings(false); };
+
+  let zmap = null, zLayer = null;
+  async function loadZoneMap() {
+    if (!window.L || !ZONES) return;
+    if (!zmap) {
+      zmap = L.map('ad-zmap').setView([ZONES.area.lat, ZONES.area.lng], 15);
+      L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTR }).addTo(zmap);
+      drawZones(zmap);
+      zLayer = L.layerGroup().addTo(zmap);
+    }
+    setTimeout(() => zmap.invalidateSize(), 50);
+    try {
+      const j = await api('GET', '/admin/zonemap');
+      zLayer.clearLayers();
+      const max = Math.max(1, ...j.cells.map((c) => c.points));
+      j.cells.forEach((c) => {
+        const still = c.points ? c.slow / c.points : 0;
+        L.circleMarker([c.lat, c.lng], { radius: 4 + 10 * Math.sqrt(c.points / max), weight: 0,
+          fillColor: still > 0.5 ? '#7F6C68' : '#00A54F', fillOpacity: 0.35 + 0.5 * still })
+          .bindTooltip(`${c.points} points from ${c.phones} phones, ${Math.round(still * 100)}% standing still`).addTo(zLayer);
+      });
+      $('ad-zmap-sum').textContent = `\u00b7 ${j.phones_48h} phone${j.phones_48h === 1 ? '' : 's'}, ${j.cells.length} spots`;
+    } catch (e) { toast(e.message); }
+  }
+  $('ad-zmap-box').addEventListener('toggle', () => { if ($('ad-zmap-box').open) loadZoneMap(); });
+
+  const LOG_TEXT = { announcement_set: 'Published announcement', announcement_cleared: 'Removed announcement', account_deleted: 'Deleted an account', pin_sent: 'Sent a new PIN' };
+  async function loadAdminLog() {
+    try {
+      const j = await api('GET', '/admin/log');
+      $('ad-log').innerHTML = '<tr><th>When</th><th>Who</th><th>What</th></tr>' + (j.actions.length ? j.actions.map((a) =>
+        `<tr><td>${esc(fmtDate(a.at))}</td><td>${esc(a.actor)}</td><td style="white-space:normal">${esc(LOG_TEXT[a.action] || a.action)}` +
+        `${a.action === 'announcement_set' && a.detail ? `<div class="muted" style="font-size:.78rem">${esc(a.detail)}</div>` : ''}</td></tr>`).join('')
+        : '<tr><td colspan="3" class="muted">No staff actions yet.</td></tr>');
+    } catch {}
+  }
+
   // Tiles: each one opens the detail behind its number.
   $('ad-tiles').addEventListener('click', (e) => {
     const t = e.target.closest('[data-act]'); if (!t) return;
@@ -1533,7 +1737,7 @@
       document.querySelectorAll('#ad-tiles .kpi').forEach((k) => k.classList.toggle('on', k.dataset.act === act && act !== 'all'));
       loadAdminUsers().then(() => reveal($('ad-users-card'))).catch((err) => toast(err.message));
     } else if (act === 'crossings') {
-      $('ad-dirs-box').open = true; $('ad-quality-box').open = true; reveal($('ad-dirs-box'));
+      $('ad-cross-box').open = true; $('ad-dirs-box').open = true; $('ad-quality-box').open = true; reveal($('ad-cross-box'));
     } else if (act === 'reports') {
       $('ad-reports-box').open = true; reveal($('ad-reports-box'));
     }
